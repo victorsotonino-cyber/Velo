@@ -130,3 +130,11 @@ async function claimTicket(interaction) {
 }
 
 module.exports = { openTicket, closeTicket, claimTicket };
+
+async function claimTicket(interaction) {
+  const ch = interaction.channel;
+  await ch.setTopic(`${ch.topic || ''} | claimed:${interaction.user.id}`).catch(() => {});
+  return interaction.reply({ embeds: [embeds.success(`Ticket reclamado por ${interaction.user}.`)] });
+}
+
+module.exports = { openTicket, closeTicket, claimTicket };
