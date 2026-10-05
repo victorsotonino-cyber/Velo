@@ -6,90 +6,57 @@ const {
 
 const config = require("./config");
 
+/*
+ * Emojis personalizados estilo Discord.
+ * Son PNG/GIF reales, no emojis Unicode.
+ * Fuentes públicas: DiscordEmojiHub (CDN).
+ */
 const STATIC_EMOJIS = [
-  ["😀", "cara_feliz"],
-  ["😂", "risa"],
-  ["🤣", "risa2"],
-  ["😍", "enamorado"],
-  ["🥰", "amor"],
-  ["😎", "cool"],
-  ["🤔", "pensando"],
-  ["😱", "sorprendido"],
-  ["😭", "llorando"],
-  ["😡", "enojado"],
-  ["🤬", "enfadado"],
-  ["😴", "durmiendo"],
-  ["🤯", "loco"],
-  ["🥳", "fiesta"],
-  ["😈", "diablo"],
-  ["👀", "ojos"],
-  ["👍", "like"],
-  ["👎", "dislike"],
-  ["❤️", "corazon"],
-  ["🔥", "fuego"],
-  ["💯", "cien"],
-  ["✨", "brillos"],
-  ["💀", "calavera"],
-  ["🚀", "cohete"],
-  ["🎉", "fiesta2"],
-  ["💰", "dinero"],
-  ["⚡", "rayo"],
-  ["❗", "alerta"],
-  ["❓", "pregunta"],
-  ["✅", "correcto"]
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/a378d612-c148-45c7-a373-12ff1707ff63.png", "dwayne"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/da22f9ae-31ae-46d9-9583-675832ac0cb0.png", "catkiss"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/e448023f-8557-44db-bb5c-d38921ed6413.png", "gatito"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/07f38361-87dc-4e18-b4d1-1e45c38949c9.png", "gato_llorando"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/110b0121-0284-45be-9c94-2ae7739106ee.png", "kekw"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/596d27f8-329d-4065-a7c3-72be26a81060.png", "flecha"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/653c3d74-0e3a-4b30-8feb-28ad4485d132.png", "corazon"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/f8a9d072-114a-4b46-8af2-8ecd9b3700cf.png", "reaccion"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/b9da867c-ca80-412e-aadb-9154420e332e.png", "awee"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/596d27f8-329d-4065-a7c3-72be26a81060.png", "arrowred"]
 ];
 
 const ANIMATED = [
-  ["😀", "cara_feliz_a"],
-  ["😂", "risa_a"],
-  ["🤣", "risa2_a"],
-  ["😍", "enamorado_a"],
-  ["🥰", "amor_a"],
-  ["😎", "cool_a"],
-  ["🤔", "pensando_a"],
-  ["😱", "sorprendido_a"],
-  ["😭", "llorando_a"],
-  ["😡", "enojado_a"],
-  ["🤬", "enfadado_a"],
-  ["😴", "durmiendo_a"],
-  ["🤯", "loco_a"],
-  ["🥳", "fiesta_a"],
-  ["😈", "diablo_a"],
-  ["👀", "ojos_a"],
-  ["👍", "like_a"],
-  ["❤️", "corazon_a"],
-  ["🔥", "fuego_a"],
-  ["💀", "calavera_a"]
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/66102e65-573a-4ca5-b23a-c309d68ce702.gif", "catkiss_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/da8ccaf0-77e8-4b16-9af1-004c5c792f12.gif", "crown_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/105ae646-42dc-4bde-85cb-8aff3a3f8b6b.gif", "pepelaugh_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/ae425a00-5ee7-4b38-81c8-1b6efc208c15.gif", "wha_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/4f39a0f5-f698-4d86-8ef7-0d100f7287f6.gif", "punch_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/04fcee42-606a-4810-8901-ea5d27573978.gif", "catjam_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/6298bbb4-1d04-423a-9c1f-713f25454861.gif", "waitwhat_a"],
+  ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/f83fb5dd-2a87-48f2-9670-920b835dd3e3.gif", "hype_a"]
 ];
-
-function codepoints(emoji) {
-  return [...emoji].map(c => c.codePointAt(0).toString(16)).join("-");
-}
-
-function staticUrl(emoji) {
-  return "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/" + codepoints(emoji) + ".png";
-}
-
-function animatedUrl(emoji) {
-  return "https://fonts.gstatic.com/s/e/notoemoji/latest/" + codepoints(emoji) + "/512.gif";
-}
 
 async function download(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error("HTTP " + res.status);
+
   const buffer = Buffer.from(await res.arrayBuffer());
-  if (buffer.length > 256 * 1024) throw new Error("archivo demasiado grande (" + Math.round(buffer.length / 1024) + " KB)");
+
+  // Discord recomienda mantener los emojis por debajo de 256 KB.
+  if (buffer.length > 256 * 1024) {
+    throw new Error("archivo demasiado grande (" + Math.round(buffer.length / 1024) + " KB)");
+  }
+
   return buffer;
 }
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("emoji-pack")
-    .setDescription("Añade emojis normales y animados al servidor.")
+    .setDescription("Añade emojis personalizados estilo Discord.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions)
     .addStringOption(o =>
       o.setName("tipo")
-        .setDescription("Qué emojis quieres añadir")
+        .setDescription("Qué pack quieres añadir")
         .setRequired(true)
         .addChoices(
           { name: "Todos", value: "todos" },
@@ -100,22 +67,29 @@ module.exports = {
 
   async execute(i) {
     if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({ content: "❌ Necesitas el permiso **Gestionar expresiones**.", ephemeral: true });
+      return i.reply({
+        content: "❌ Necesitas el permiso **Gestionar expresiones**.",
+        ephemeral: true
+      });
     }
 
     const me = i.guild.members.me;
     if (!me?.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({ content: "❌ Velo necesita **Gestionar expresiones** para añadir emojis.", ephemeral: true });
+      return i.reply({
+        content: "❌ Velo necesita **Gestionar expresiones** para subir emojis.",
+        ephemeral: true
+      });
     }
 
     const tipo = i.options.getString("tipo");
+
     const list = tipo === "normales"
-      ? STATIC_EMOJIS.map(x => ({ emoji: x[0], name: x[1], animated: false }))
+      ? STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }))
       : tipo === "animados"
-        ? ANIMATED.map(x => ({ emoji: x[0], name: x[1], animated: true }))
+        ? ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }))
         : [
-            ...STATIC_EMOJIS.map(x => ({ emoji: x[0], name: x[1], animated: false })),
-            ...ANIMATED.map(x => ({ emoji: x[0], name: x[1], animated: true }))
+            ...STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false })),
+            ...ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }))
           ];
 
     await i.deferReply({ ephemeral: true });
@@ -125,38 +99,51 @@ module.exports = {
     const skipped = [];
     const failed = [];
 
-    for (const { emoji, name, animated } of list) {
-      if (existing.has(name)) {
-        skipped.push(name + " (ya existe)");
+    for (const item of list) {
+      if (existing.has(item.name)) {
+        skipped.push(item.name + " (ya existe)");
         continue;
       }
 
       try {
-        const url = animated ? animatedUrl(emoji) : staticUrl(emoji);
-        const buffer = await download(url);
+        const buffer = await download(item.url);
+
         const created = await i.guild.emojis.create({
           attachment: buffer,
-          name,
-          reason: "Pack de emojis de Velo Studio"
+          name: item.name,
+          reason: "Pack de emojis personalizados de Velo Studio"
         });
-        added.push(created.toString() + " `" + name + "`");
-        existing.add(name);
+
+        added.push(created.toString() + " \`" + item.name + "\`");
+        existing.add(item.name);
       } catch (e) {
-        failed.push(name + " (" + e.message + ")");
+        failed.push(item.name + " (" + e.message + ")");
       }
     }
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle("🎨 Pack de emojis de Velo Studio")
+      .setTitle("🎨 Emojis personalizados de Velo Studio")
       .setDescription(
+        "Estos son **emojis personalizados reales de Discord**, no Unicode.\n\n" +
         "✅ Añadidos: **" + added.length + "**\n" +
         "⏭️ Ya existían: **" + skipped.length + "**\n" +
         "❌ Fallaron: **" + failed.length + "**"
       );
 
-    if (added.length) embed.addFields({ name: "Añadidos", value: added.slice(0, 20).join("\n").slice(0, 1024) });
-    if (failed.length) embed.addFields({ name: "Fallos", value: failed.slice(0, 10).join("\n").slice(0, 1024) });
+    if (added.length) {
+      embed.addFields({
+        name: "Emojis añadidos",
+        value: added.slice(0, 20).join("\n").slice(0, 1024)
+      });
+    }
+
+    if (failed.length) {
+      embed.addFields({
+        name: "No se pudieron subir",
+        value: failed.slice(0, 10).join("\n").slice(0, 1024)
+      });
+    }
 
     return i.editReply({ embeds: [embed] });
   }
