@@ -1,0 +1,1 @@
+const { SlashCommandBuilder }=require("discord.js"); module.exports={data:new SlashCommandBuilder().setName("avatar").setDescription("Muestra un avatar.").addUserOption(o=>o.setName("usuario").setDescription("Usuario").setRequired(false)),async execute(i){const u=i.options.getUser("usuario")||i.user;await i.reply(u.displayAvatarURL({size:1024,extension:"png"}));}};
