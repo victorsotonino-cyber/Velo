@@ -110,12 +110,12 @@ module.exports = {
 
     const tipo = i.options.getString("tipo");
     const list = tipo === "normales"
-      ? STATIC_EMOJIS.map(x => ({ ...x, animated: false }))
+      ? STATIC_EMOJIS.map(x => ({ emoji: x[0], name: x[1], animated: false }))
       : tipo === "animados"
-        ? ANIMATED.map(x => ({ ...x, animated: true }))
+        ? ANIMATED.map(x => ({ emoji: x[0], name: x[1], animated: true }))
         : [
-            ...STATIC_EMOJIS.map(x => ({ ...x, animated: false })),
-            ...ANIMATED.map(x => ({ ...x, animated: true }))
+            ...STATIC_EMOJIS.map(x => ({ emoji: x[0], name: x[1], animated: false })),
+            ...ANIMATED.map(x => ({ emoji: x[0], name: x[1], animated: true }))
           ];
 
     await i.deferReply({ ephemeral: true });
@@ -125,7 +125,7 @@ module.exports = {
     const skipped = [];
     const failed = [];
 
-    for (const { 0: emoji, 1: name, animated } of list) {
+    for (const { emoji, name, animated } of list) {
       if (existing.has(name)) {
         skipped.push(name + " (ya existe)");
         continue;
