@@ -1,0 +1,2 @@
+const { SlashCommandBuilder } = require("discord.js");
+module.exports={data:new SlashCommandBuilder().setName("ticket").setDescription("Información sobre tickets.").addStringOption(o=>o.setName("tipo").setDescription("Tipo de ticket").setRequired(false).addChoices({name:"Soporte",value:"soporte"},{name:"Compras",value:"compras"},{name:"Reclamos",value:"reclamos"},{name:"Partnership",value:"partnership"},{name:"Otro",value:"otro"})),async execute(i){await i.reply({content:"🎫 Usa **/ticket-panel** para abrir un ticket.",ephemeral:true});}};
