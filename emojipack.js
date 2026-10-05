@@ -125,7 +125,7 @@ module.exports = {
     const skipped = [];
     const failed = [];
 
-    for (const [emoji, name, animated] of list) {
+    for (const { 0: emoji, 1: name, animated } of list) {
       if (existing.has(name)) {
         skipped.push(name + " (ya existe)");
         continue;
