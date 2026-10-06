@@ -123,6 +123,28 @@ module.exports = client => {
         return showApplicationQuestion(i, questions, 0);
       }
 
+      if (i.isButton() && i.customId === "application_next") {
+        const state = applicationAnswers.get(i.channel.id);
+
+        if (!state || state.userId !== i.user.id) {
+          return i.reply({
+            content: emoji(i.guild, "error", "❌") + " Esta postulación no está activa para ti.",
+            ephemeral: true
+          });
+        }
+
+        const questions = applicationQuestions();
+
+        if (state.index >= questions.length) {
+          return i.reply({
+            content: emoji(i.guild, "info", "ℹ️") + " Ya has respondido todas las preguntas.",
+            ephemeral: true
+          });
+        }
+
+        return showApplicationQuestion(i, questions, state.index);
+      }
+
       if (i.isModalSubmit() && i.customId.startsWith("application_answer_")) {
         const state = applicationAnswers.get(i.channel.id);
 
@@ -145,10 +167,22 @@ module.exports = client => {
 
         state.answers.push(i.fields.getTextInputValue("answer").trim());
         state.index++;
+        applicationAnswers.set(i.channel.id, state);
 
         if (state.index < questions.length) {
-          applicationAnswers.set(i.channel.id, state);
-          return showApplicationQuestion(i, questions, state.index);
+          const nextRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId("application_next")
+              .setLabel("Siguiente pregunta")
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji(emoji(i.guild, "arrow", "➡️"))
+          );
+
+          return i.reply({
+            content: emoji(i.guild, "success", "✅") + " Respuesta guardada. Pulsa **Siguiente pregunta** para continuar.",
+            components: [nextRow],
+            ephemeral: true
+          });
         }
 
         const embed = new EmbedBuilder()
@@ -258,10 +292,7 @@ function makeQuestionModal(questions, number) {
 }
 
 function showApplicationQuestion(i, questions, number) {
-  const question = questions[number];
-
   const modal = makeQuestionModal(questions, number);
-
   return i.showModal(modal);
 }
 
