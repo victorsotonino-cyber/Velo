@@ -1,9 +1,15 @@
 {
   "questions": [
-    "¿Cuál es tu edad?",
-    "¿Por qué quieres entrar al Staff?",
-    "¿Qué experiencia tienes moderando servidores?",
-    "¿Cuánto tiempo puedes dedicar al servidor?",
-    "¿Por qué deberíamos aceptarte?"
+    "¿Cuál es tu nick o nombre con el que te conocen?",
+    "¿Qué edad tienes?",
+    "¿Por qué quieres ser Staff de Velo Studio?",
+    "¿Qué sabes hacer? Cuéntanos tus habilidades y experiencia.",
+    "¿A qué puesto te gustaría postularte: Developer, Configurador, Diseñador o Staff?",
+    "¿En qué servidores has trabajado anteriormente?",
+    "¿Qué lenguajes de programación conoces y cuál dominas mejor?",
+    "Menciona 2 plugins que conozcas y explica brevemente para qué sirven.",
+    "¿Qué experiencia tienes trabajando en servidores o comunidades?",
+    "¿Por qué deberíamos aceptarte a ti y no a otra persona?",
+    "¿Hay algo más que quieras agregar o que debamos saber?"
   ]
 }
