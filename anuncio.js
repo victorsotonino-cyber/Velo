@@ -105,13 +105,8 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
       .setTitle(ann + " " + generated.finalTitle)
-      .setDescription("Aquí tienes el anuncio generado, listo para copiar y publicar.")
-      .addFields(
-        { name: info + " Resumen / Resultado", value: generated.result },
-        { name: "📝 Texto original", value: generated.summary }
-      )
-      .setFooter({ text: "Generado automáticamente por Velo Studio " + bot })
-      .setTimestamp();
+      .setDescription(generated.result)
+      .setFooter({ text: "Generado automáticamente por Velo Studio " + bot });
 
     return i.reply({ embeds: [embed] });
   }
