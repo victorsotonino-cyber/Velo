@@ -3,6 +3,10 @@ const config = require("./config");
 const { emoji } = require("./ui");
 
 const STATIC_EMOJIS = [
+  ["https://cdn.discordapp.com/emojis/616284569758466194.png?v=1", "minecraft"],
+  ["https://cdn3.emoji.gg/emojis/535376-hardcoreheart.png", "hardcoreheart"],
+  ["https://cdn3.emoji.gg/emojis/8444-pvp.png", "pvp"],
+  ["https://cdn3.emoji.gg/emojis/9230-player-vs-player-pvp.png", "player_pvp"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/a378d612-c148-45c7-a373-12ff1707ff63.png", "dwayne"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/da22f9ae-31ae-46d9-9583-675832ac0cb0.png", "catkiss"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/e448023f-8557-44db-bb5c-d38921ed6413.png", "gatito"],
@@ -16,6 +20,7 @@ const STATIC_EMOJIS = [
 ];
 
 const ANIMATED = [
+  ["https://cdn3.emoji.gg/emojis/505158-pvpgod.gif", "pvpgod"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/66102e65-573a-4ca5-b23a-c309d68ce702.gif", "catkiss_a"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/da8ccaf0-77e8-4b16-9af1-004c5c792f12.gif", "crown_a"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/105ae646-42dc-4bde-85cb-8aff3a3f8b6b.gif", "pepelaugh_a"],
