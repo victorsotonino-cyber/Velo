@@ -20,13 +20,15 @@ function inferType(text) {
 function generate(text, title, type) {
   const subject = cleanInput(text);
   const kind = type === "automatico" ? inferType(subject) : type;
+
   const titles = {
-    general: "📢 Nuevo anuncio",
-    venta: "🛒 Nuevo anuncio de tienda",
-    evento: "🎉 Nuevo evento",
-    actualizacion: "🚀 Nueva actualización",
-    aviso: "⚠️ Aviso importante"
+    general: "Nuevo anuncio",
+    venta: "Nuevo anuncio de tienda",
+    evento: "Nuevo evento",
+    actualizacion: "Nueva actualización",
+    aviso: "Aviso importante"
   };
+
   const finalTitle = title?.trim() || titles[kind];
 
   const openers = {
@@ -53,8 +55,11 @@ function generate(text, title, type) {
     closers[kind]
   ].join("\n");
 
-  const summary = subject.length > 300 ? subject.slice(0, 297) + "..." : subject;
-  return { finalTitle, result, summary };
+  return {
+    finalTitle,
+    result,
+    summary: subject.length > 300 ? subject.slice(0, 297) + "..." : subject
+  };
 }
 
 module.exports = {
@@ -92,18 +97,19 @@ module.exports = {
     const title = i.options.getString("titulo");
     const type = i.options.getString("tipo") || "automatico";
     const generated = generate(text, title, type);
+
     const ann = emoji(i.guild, "announcement", "📢");
     const info = emoji(i.guild, "info", "📌");
     const bot = emoji(i.guild, "bot", "🤖");
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle(ann + " " + generated.finalTitle.replace(/^[^ ]+\s*/, ""))
-      .setDescription(generated.result)
-      .addFields({
-        name: info + " Resumen",
-        value: generated.summary
-      })
+      .setTitle(ann + " " + generated.finalTitle)
+      .setDescription("Aquí tienes el anuncio generado, listo para copiar y publicar.")
+      .addFields(
+        { name: info + " Resumen / Resultado", value: generated.result },
+        { name: "📝 Texto original", value: generated.summary }
+      )
       .setFooter({ text: "Generado automáticamente por Velo Studio " + bot })
       .setTimestamp();
 
