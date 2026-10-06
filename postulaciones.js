@@ -22,6 +22,16 @@ async function openApplication(i) {
   if (!i.deferred && !i.replied) await i.deferReply({ ephemeral: true });
 
   try {
+    const me = i.guild.members.me;
+    if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return i.editReply(emoji(i.guild, "error", "❌") + " El bot necesita **Gestionar canales** para crear la postulación.");
+    }
+
+    const parent = i.guild.channels.cache.get(config.channels.tickets);
+    if (!parent || parent.type !== ChannelType.GuildCategory) {
+      return i.editReply(emoji(i.guild, "error", "❌") + " La categoría de tickets configurada no existe o no es una categoría.");
+    }
+
     const old = i.guild.channels.cache.find(c =>
       c.type === ChannelType.GuildText &&
       c.topic === "VeloApplication:" + i.user.id
@@ -36,17 +46,24 @@ async function openApplication(i) {
     }
 
     const staff = i.guild.roles.cache.get(config.roles.staff);
-    const parent = i.guild.channels.cache.get(config.channels.tickets);
 
     const ch = await i.guild.channels.create({
       name: safeName(i.user.username, i.user.id),
       type: ChannelType.GuildText,
       topic: "VeloApplication:" + i.user.id,
-      parent: parent?.type === ChannelType.GuildCategory ? parent.id : null,
+      parent: parent.id,
       permissionOverwrites: [
         {
           id: i.guild.roles.everyone.id,
           deny: [PermissionFlagsBits.ViewChannel]
+        },
+        {
+          id: i.guild.members.me.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory
+          ]
         },
         {
           id: i.user.id,
@@ -94,9 +111,12 @@ async function openApplication(i) {
     return i.editReply(emoji(i.guild, "success", "✅") + " Tu postulación fue creada: " + ch);
   } catch (error) {
     console.error("Error creando postulación:", error);
+    console.error("Código Discord:", error?.code, "Mensaje:", error?.message);
     const message = error?.code === 50013
-      ? "❌ No tengo permisos suficientes para crear la postulación. Revisa **Gestionar canales** y los permisos de la categoría."
-      : "❌ No pude crear la postulación. Revisa los permisos del bot y vuelve a intentarlo.";
+      ? "❌ Discord rechazó la creación del canal por permisos. El bot necesita **Gestionar canales** y acceso a la categoría de tickets."
+      : error?.code === 50001
+        ? "❌ El bot no tiene acceso a la categoría de tickets."
+        : "❌ No pude crear la postulación. Revisa los permisos del bot y la categoría de tickets.";
     return i.editReply(message).catch(() => {});
   }
 }
