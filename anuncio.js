@@ -4,7 +4,7 @@ const { emoji } = require("./ui");
 
 function cleanInput(text) {
   return text
-    .replace(/^(hazme|haz|crea|genera|generame|générame|escribe)\\s+(un\\s+)?anuncio\\s*(de|sobre)?\\s*/i, "")
+    .replace(/^(hazme|haz|crea|genera|generame|générame|escribe)\s+(un\s+)?anuncio\s*(de|sobre)?\s*/i, "")
     .trim();
 }
 
@@ -98,7 +98,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle(ann + " " + generated.finalTitle.replace(/^[^ ]+\\s*/, ""))
+      .setTitle(ann + " " + generated.finalTitle.replace(/^[^ ]+\s*/, ""))
       .setDescription(generated.result)
       .addFields({
         name: info + " Resumen",
