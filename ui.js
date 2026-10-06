@@ -18,7 +18,13 @@ const FALLBACKS = {
   trash: "🗑️",
   add: "➕",
   remove: "➖",
-  bot: "🤖"
+  bot: "🤖",
+  minecraft: "⛏️",
+  boxpvp: "⚔️",
+  pvp: "⚔️",
+  heart: "❤️",
+  skull: "💀",
+  diamond: "💎"
 };
 
 const NAMES = {
@@ -41,7 +47,13 @@ const NAMES = {
   trash: ["gato_llorando", "punch_a"],
   add: ["catkiss", "corazon"],
   remove: ["gato_llorando", "reaccion"],
-  bot: ["kekw", "pepelaugh_a"]
+  bot: ["kekw", "pepelaugh_a"],
+  minecraft: ["Minecraft", "mc_icon", "minecraft"],
+  boxpvp: ["PvpGod", "Player_vs_Player_PVP", "pvp", "PVP"],
+  pvp: ["PvpGod", "Player_vs_Player_PVP", "pvp", "PVP"],
+  heart: ["hardcoreheart", "minecraft_heart", "corazon"],
+  skull: ["skull", "gato_llorando", "reaccion"],
+  diamond: ["diamond", "mc_icon"]
 };
 
 function find(guild, names) {
