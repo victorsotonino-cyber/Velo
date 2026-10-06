@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, Partials, Collection, Events, ActivityType, R
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
+const { emoji } = require("./ui");
 
 if (!config.token) { console.error("Falta DISCORD_TOKEN en Railway."); process.exit(1); }
 
@@ -18,7 +19,7 @@ const client = new Client({
 client.commands = new Collection();
 
 for (const file of fs.readdirSync(__dirname).filter(f =>
-  f.endsWith(".js") && !["index.js","config.js","deploy-commands.js","buttons.js"].includes(f)
+  f.endsWith(".js") && !["index.js","config.js","deploy-commands.js","buttons.js","ui.js"].includes(f)
 )) {
   try {
     const command = require(path.join(__dirname, file));
@@ -32,7 +33,7 @@ require("./buttons")(client);
 
 client.once(Events.ClientReady, async c => {
   console.log(c.user.tag + " está online.");
-  c.user.setPresence({ activities: [{ name: "todos los chats 👀", type: ActivityType.Watching }], status: "online" });
+  c.user.setPresence({ activities: [{ name: "Velo Studio ✨", type: ActivityType.Watching }], status: "online" });
 
   if (config.clientId && config.guildId) {
     try {
@@ -57,7 +58,7 @@ client.on(Events.InteractionCreate, async interaction => {
     await command.execute(interaction, client);
   } catch (e) {
     console.error(e);
-    const msg = { content: "❌ Ocurrió un error ejecutando este comando.", ephemeral: true };
+    const msg = { content: emoji(interaction.guild, "error", "❌") + " Ocurrió un error ejecutando este comando.", ephemeral: true };
     if (interaction.replied || interaction.deferred) await interaction.followUp(msg).catch(() => {});
     else await interaction.reply(msg).catch(() => {});
   }
@@ -65,12 +66,12 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.GuildMemberAdd, async member => {
   const ch = member.guild.channels.cache.get(config.channels.welcome);
-  if (ch) await ch.send("👋 ¡Bienvenido/a " + member + " a **Velo Studio**!").catch(() => {});
+  if (ch) await ch.send(emoji(member.guild, "success", "👋") + " ¡Bienvenido/a " + member + " a **Velo Studio**!").catch(() => {});
 });
 
 client.on(Events.GuildMemberRemove, async member => {
   const ch = member.guild.channels.cache.get(config.channels.welcome);
-  if (ch) await ch.send("👋 **" + (member.user?.tag || "Un miembro") + "** ha salido de Velo Studio.").catch(() => {});
+  if (ch) await ch.send(emoji(member.guild, "info", "👋") + " **" + (member.user?.tag || "Un miembro") + "** ha salido de Velo Studio.").catch(() => {});
 });
 
 client.login(config.token);

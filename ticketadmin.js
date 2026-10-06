@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require("discord.js");
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require("discord.js");
 const config = require("./config");
+const { emoji } = require("./ui");
 
 const ticketOpt = o => o.setName("ticket").setDescription("Canal del ticket").setRequired(false).addChannelTypes(ChannelType.GuildText);
 const categoryOpt = o => o.setName("categoria").setDescription("Categoría").setRequired(true).addChannelTypes(ChannelType.GuildCategory);
@@ -30,41 +31,43 @@ module.exports = {
   async execute(i) {
     const sub = i.options.getSubcommand();
     const ticket = i.options.getChannel("ticket") || i.channel;
+    const ok = emoji(i.guild, "success", "✅");
+    const err = emoji(i.guild, "error", "❌");
 
     if (sub === "crear-categoria") {
       const c = await i.guild.channels.create({ name: i.options.getString("nombre").trim(), type: ChannelType.GuildCategory });
-      return i.reply("✅ Categoría creada: " + c);
+      return i.reply(emoji(i.guild, "add", "➕") + " Categoría creada: " + c);
     }
 
     if (sub === "eliminar-categoria") {
       const c = i.options.getChannel("categoria");
-      if (!c) return i.reply({ content: "❌ Debes indicar una categoría.", ephemeral: true });
-      if (c.id === config.channels.tickets) return i.reply({ content: "❌ No puedes eliminar la categoría base de tickets desde este comando.", ephemeral: true });
+      if (!c) return i.reply({ content: err + " Debes indicar una categoría.", ephemeral: true });
+      if (c.id === config.channels.tickets) return i.reply({ content: err + " No puedes eliminar la categoría base de tickets desde este comando.", ephemeral: true });
       await c.delete("Categoría eliminada por ticket-edit");
-      return i.reply("🗑️ Categoría eliminada.");
+      return i.reply(emoji(i.guild, "trash", "🗑️") + " Categoría eliminada.");
     }
 
     if (sub === "renombrar-categoria") {
       const c = i.options.getChannel("categoria");
       await c.setName(i.options.getString("nombre").trim());
-      return i.reply("✏️ Categoría renombrada.");
+      return i.reply(emoji(i.guild, "edit", "✏️") + " Categoría renombrada.");
     }
 
     if (sub === "mover") {
       const c = i.options.getChannel("categoria");
       await ticket.setParent(c.id, { lockPermissions: false });
-      return i.reply("📂 " + ticket + " movido a **" + c.name + "**.");
+      return i.reply(emoji(i.guild, "channel", "📂") + " " + ticket + " movido a **" + c.name + "**.");
     }
 
     if (sub === "quitar-categoria") {
       await ticket.setParent(null, { lockPermissions: false });
-      return i.reply("📂 Categoría quitada.");
+      return i.reply(emoji(i.guild, "remove", "📂") + " Categoría quitada.");
     }
 
     if (sub === "renombrar") {
       const n = cleanName(i.options.getString("nombre"), "ticket-" + i.user.id);
       await ticket.setName(n);
-      return i.reply("✏️ Ticket renombrado a **" + n + "**.");
+      return i.reply(emoji(i.guild, "edit", "✏️") + " Ticket renombrado a **" + n + "**.");
     }
 
     if (["anadir", "quitar", "bloquear", "desbloquear"].includes(sub)) {
@@ -72,12 +75,12 @@ module.exports = {
 
       if (sub === "quitar") {
         await ticket.permissionOverwrites.delete(u.id).catch(() => {});
-        return i.reply("✅ " + u + " quitado del ticket.");
+        return i.reply(ok + " " + u + " quitado del ticket.");
       }
 
       if (sub === "bloquear") {
         await ticket.permissionOverwrites.edit(u.id, { ViewChannel: true, SendMessages: false, ReadMessageHistory: true });
-        return i.reply("🚫 " + u + " bloqueado.");
+        return i.reply(emoji(i.guild, "lock", "🚫") + " " + u + " bloqueado.");
       }
 
       await ticket.permissionOverwrites.edit(u.id, {
@@ -85,29 +88,31 @@ module.exports = {
         SendMessages: sub === "desbloquear",
         ReadMessageHistory: true
       });
-      return i.reply("✅ " + u + (sub === "desbloquear" ? " desbloqueado." : " añadido al ticket."));
+      return i.reply(ok + " " + u + (sub === "desbloquear" ? " desbloqueado." : " añadido al ticket."));
     }
 
     if (sub === "slowmode") {
       const s = i.options.getInteger("segundos");
       await ticket.setRateLimitPerUser(s);
-      return i.reply("🐌 Slowmode: **" + s + "s**.");
+      return i.reply(emoji(i.guild, "slow", "🐌") + " Slowmode: **" + s + "s**.");
     }
 
     if (sub === "privado") {
       await ticket.permissionOverwrites.edit(i.guild.roles.everyone.id, { ViewChannel: false });
-      return i.reply("🔒 Ticket privado.");
+      return i.reply(emoji(i.guild, "lock", "🔒") + " Ticket privado.");
     }
 
     if (sub === "ver") {
       const ow = ticket.permissionOverwrites.cache.get(i.guild.roles.everyone.id);
-      return i.reply({
-        ephemeral: true,
-        content: "🎫 **Ticket:** " + ticket.name +
-          "\n📂 **Categoría:** " + (ticket.parent?.name || "Ninguna") +
-          "\n🐌 **Slowmode:** " + ticket.rateLimitPerUser + "s" +
-          "\n🔒 **Privado:** " + (ow?.deny.has(PermissionFlagsBits.ViewChannel) ? "Sí" : "No")
-      });
+      const e = new EmbedBuilder()
+        .setColor(config.colors.primary)
+        .setTitle(emoji(i.guild, "ticket", "🎫") + " Configuración del ticket")
+        .addFields(
+          { name: emoji(i.guild, "channel", "📂") + " Categoría", value: ticket.parent?.name || "Ninguna", inline: true },
+          { name: emoji(i.guild, "slow", "🐌") + " Slowmode", value: ticket.rateLimitPerUser + "s", inline: true },
+          { name: emoji(i.guild, "lock", "🔒") + " Privado", value: ow?.deny.has(PermissionFlagsBits.ViewChannel) ? "Sí" : "No", inline: true }
+        );
+      return i.reply({ embeds: [e], ephemeral: true });
     }
   }
 };

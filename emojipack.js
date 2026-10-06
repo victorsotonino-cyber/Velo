@@ -1,16 +1,7 @@
-const {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  EmbedBuilder
-} = require("discord.js");
-
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require("discord.js");
 const config = require("./config");
+const { emoji } = require("./ui");
 
-/*
- * Emojis personalizados estilo Discord.
- * Son PNG/GIF reales, no emojis Unicode.
- * Fuentes públicas: DiscordEmojiHub (CDN).
- */
 const STATIC_EMOJIS = [
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/a378d612-c148-45c7-a373-12ff1707ff63.png", "dwayne"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/da22f9ae-31ae-46d9-9583-675832ac0cb0.png", "catkiss"],
@@ -38,14 +29,8 @@ const ANIMATED = [
 async function download(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error("HTTP " + res.status);
-
   const buffer = Buffer.from(await res.arrayBuffer());
-
-  // Discord recomienda mantener los emojis por debajo de 256 KB.
-  if (buffer.length > 256 * 1024) {
-    throw new Error("archivo demasiado grande (" + Math.round(buffer.length / 1024) + " KB)");
-  }
-
+  if (buffer.length > 256 * 1024) throw new Error("archivo demasiado grande (" + Math.round(buffer.length / 1024) + " KB)");
   return buffer;
 }
 
@@ -54,35 +39,23 @@ module.exports = {
     .setName("emoji-pack")
     .setDescription("Añade emojis personalizados estilo Discord.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions)
-    .addStringOption(o =>
-      o.setName("tipo")
-        .setDescription("Qué pack quieres añadir")
-        .setRequired(true)
-        .addChoices(
-          { name: "Todos", value: "todos" },
-          { name: "Normales", value: "normales" },
-          { name: "Animados", value: "animados" }
-        )
-    ),
+    .addStringOption(o => o.setName("tipo").setDescription("Qué pack quieres añadir").setRequired(true).addChoices(
+      { name: "Todos", value: "todos" },
+      { name: "Normales", value: "normales" },
+      { name: "Animados", value: "animados" }
+    )),
 
   async execute(i) {
     if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({
-        content: "❌ Necesitas el permiso **Gestionar expresiones**.",
-        ephemeral: true
-      });
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas el permiso **Gestionar expresiones**.", ephemeral: true });
     }
 
     const me = i.guild.members.me;
     if (!me?.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({
-        content: "❌ Velo necesita **Gestionar expresiones** para subir emojis.",
-        ephemeral: true
-      });
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Velo necesita **Gestionar expresiones** para subir emojis.", ephemeral: true });
     }
 
     const tipo = i.options.getString("tipo");
-
     const list = tipo === "normales"
       ? STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }))
       : tipo === "animados"
@@ -93,7 +66,6 @@ module.exports = {
           ];
 
     await i.deferReply({ ephemeral: true });
-
     const existing = new Set(i.guild.emojis.cache.map(e => e.name));
     const added = [];
     const skipped = [];
@@ -107,13 +79,11 @@ module.exports = {
 
       try {
         const buffer = await download(item.url);
-
         const created = await i.guild.emojis.create({
           attachment: buffer,
           name: item.name,
           reason: "Pack de emojis personalizados de Velo Studio"
         });
-
         added.push(created.toString() + " \`" + item.name + "\`");
         existing.add(item.name);
       } catch (e) {
@@ -121,30 +91,19 @@ module.exports = {
       }
     }
 
-    const embed = new EmbedBuilder()
+    const e = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle("🎨 Emojis personalizados de Velo Studio")
+      .setTitle(emoji(i.guild, "brand", "🎨") + " Emojis personalizados de Velo Studio")
       .setDescription(
-        "Estos son **emojis personalizados reales de Discord**, no Unicode.\n\n" +
-        "✅ Añadidos: **" + added.length + "**\n" +
-        "⏭️ Ya existían: **" + skipped.length + "**\n" +
-        "❌ Fallaron: **" + failed.length + "**"
+        "Emojis personalizados reales de Discord, no Unicode.\n\n" +
+        emoji(i.guild, "success", "✅") + " Añadidos: **" + added.length + "**\n" +
+        emoji(i.guild, "info", "⏭️") + " Ya existían: **" + skipped.length + "**\n" +
+        emoji(i.guild, "error", "❌") + " Fallaron: **" + failed.length + "**"
       );
 
-    if (added.length) {
-      embed.addFields({
-        name: "Emojis añadidos",
-        value: added.slice(0, 20).join("\n").slice(0, 1024)
-      });
-    }
+    if (added.length) e.addFields({ name: emoji(i.guild, "add", "➕") + " Emojis añadidos", value: added.slice(0, 20).join("\n").slice(0, 1024) });
+    if (failed.length) e.addFields({ name: emoji(i.guild, "error", "❌") + " No se pudieron subir", value: failed.slice(0, 10).join("\n").slice(0, 1024) });
 
-    if (failed.length) {
-      embed.addFields({
-        name: "No se pudieron subir",
-        value: failed.slice(0, 10).join("\n").slice(0, 1024)
-      });
-    }
-
-    return i.editReply({ embeds: [embed] });
+    return i.editReply({ embeds: [e] });
   }
 };
