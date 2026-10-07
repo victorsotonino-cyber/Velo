@@ -145,7 +145,7 @@ module.exports = {
 
   async execute(i) {
     if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas el permiso **Gestionar expresiones**.", ephemeral: true });
+      return i.reply({ content: emoji(i.guild, "velo_error", "") + " Necesitas el permiso **Gestionar expresiones**.", ephemeral: true });
     }
 
     const me = i.guild.members.me;
@@ -193,15 +193,15 @@ module.exports = {
 
     const e = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle(emoji(i.guild, "brand", "🎨") + " Emojis personalizados de Velo Studio")
+      .setTitle(emoji(i.guild, "velo", "") + " Emojis personalizados de Velo Studio")
       .setDescription(
         "Emojis personalizados reales de Discord, no Unicode.\n\n" +
-        emoji(i.guild, "success", "✅") + " Añadidos: **" + added.length + "**\n" +
-        emoji(i.guild, "info", "⏭️") + " Ya existían: **" + skipped.length + "**\n" +
+        emoji(i.guild, "velo_success", "") + " Añadidos: **" + added.length + "**\n" +
+        emoji(i.guild, "velo_new", "") + " Ya existían: **" + skipped.length + "**\n" +
         emoji(i.guild, "error", "❌") + " Fallaron: **" + failed.length + "**"
       );
 
-    if (added.length) e.addFields({ name: emoji(i.guild, "add", "➕") + " Emojis añadidos", value: added.slice(0, 20).join("\n").slice(0, 1024) });
+    if (added.length) e.addFields({ name: emoji(i.guild, "velo_new", "") + " Emojis añadidos", value: added.slice(0, 20).join("\n").slice(0, 1024) });
     if (failed.length) e.addFields({ name: emoji(i.guild, "error", "❌") + " No se pudieron subir", value: failed.slice(0, 10).join("\n").slice(0, 1024) });
 
     return i.editReply({ embeds: [e] });
