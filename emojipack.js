@@ -19,6 +19,19 @@ const STATIC_EMOJIS = [
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/596d27f8-329d-4065-a7c3-72be26a81060.png", "arrowred"]
 ];
 
+const VELO_STAFF = [
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo.png", "Velo"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Staff.png", "Velo_Staff"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Support.png", "Velo_Support"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Ticket.png", "Velo_Ticket"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Developer.png", "Velo_Developer"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Designer.png", "Velo_Designer"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Verified.png", "Velo_Verified"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Warning.png", "Velo_Warning"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Success.png", "Velo_Success"],
+  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Error.png", "Velo_Error"]
+];
+
 const ANIMATED = [
   ["https://cdn3.emoji.gg/emojis/505158-pvpgod.gif", "pvpgod"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/66102e65-573a-4ca5-b23a-c309d68ce702.gif", "catkiss_a"],
@@ -46,6 +59,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions)
     .addStringOption(o => o.setName("tipo").setDescription("Qué pack quieres añadir").setRequired(true).addChoices(
       { name: "Todos", value: "todos" },
+      { name: "Velo Staff", value: "velo_staff" },
       { name: "Normales", value: "normales" },
       { name: "Animados", value: "animados" }
     )),
@@ -61,7 +75,9 @@ module.exports = {
     }
 
     const tipo = i.options.getString("tipo");
-    const list = tipo === "normales"
+    const list = tipo === "velo_staff"
+      ? VELO_STAFF.map(x => ({ url: x[0], name: x[1], animated: false }))
+      : tipo === "normales"
       ? STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }))
       : tipo === "animados"
         ? ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }))
