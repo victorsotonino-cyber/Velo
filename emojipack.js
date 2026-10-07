@@ -81,14 +81,22 @@ function generatedVeloEmoji(kind) {
       for (let yy = -w; yy <= w; yy++) for (let xx = -w; xx <= w; xx++) set(x + xx, y + yy, ...color);
     }
   };
-  const purple = [112,45,190,255], white = [255,255,255,255], dark = [38,20,60,255];
-  circle(64,64,60,purple); circle(64,64,55,dark); circle(64,64,51,purple);
-  if (kind === "brand") { line(34,42,64,88,5,white); line(64,88,94,42,5,white); }
-  else if (kind === "staff") { circle(64,48,16,white); rect(39,70,89,91,white); line(44,61,31,76,4,white); line(84,61,97,76,4,white); }
-  else if (kind === "support") { circle(64,64,34,white); circle(64,64,25,purple); rect(27,61,39,78,white); rect(89,61,101,78,white); line(39,80,52,91,4,white); line(52,91,70,91,4,white); }
-  else if (kind === "ticket") { rect(30,43,98,85,white); rect(39,52,89,76,purple); line(48,64,80,64,4,white); }
+  // Estilo Velo rojo: degradado visual, borde oscuro y textura para que no se vean planos.
+  const red = [190, 24, 48, 255], red2 = [125, 12, 28, 255], red3 = [235, 48, 70, 255];
+  const white = [255,255,255,255], dark = [38,10,16,255], shine = [255,150,160,150];
+  circle(64,64,61,dark); circle(64,64,57,red2); circle(64,64,53,red);
+  // Textura punteada/diagonal sutil.
+  for (let y = 18; y < 111; y += 6) for (let x = 18; x < 111; x += 6) {
+    if (((x * 3 + y * 5) % 17) < 7) set(x, y, ...shine);
+  }
+  circle(48,42,15,[255,70,90,55]);
+  line(28,31,91,18,2,[255,110,125,80]);
+  if (kind === "brand") { line(34,42,64,88,6,white); line(64,88,94,42,6,white); line(39,44,64,82,2,red3); }
+  else if (kind === "staff") { circle(64,48,16,white); circle(64,48,10,red3); rect(39,70,89,91,white); line(44,61,31,76,4,white); line(84,61,97,76,4,white); }
+  else if (kind === "support") { circle(64,64,34,white); circle(64,64,25,red2); rect(27,61,39,78,white); rect(89,61,101,78,white); line(39,80,52,91,4,white); line(52,91,70,91,4,white); }
+  else if (kind === "ticket") { rect(30,43,98,85,white); rect(39,52,89,76,red2); line(48,64,80,64,4,white); for (let x=43;x<88;x+=9) line(x,54,x,74,1,red3); }
   else if (kind === "developer") { line(40,45,25,64,5,white); line(25,64,40,83,5,white); line(88,45,103,64,5,white); line(103,64,88,83,5,white); line(57,84,71,44,5,white); }
-  else if (kind === "designer") { line(35,88,88,35,9,white); line(88,35,98,45,9,white); line(35,88,31,99,4,white); }
+  else if (kind === "designer") { line(35,88,88,35,10,white); line(88,35,98,45,10,white); line(35,88,31,99,4,white); line(42,81,84,39,2,red3); }
   else if (kind === "verified" || kind === "success") { line(32,65,55,87,7,white); line(55,87,98,40,7,white); }
   else if (kind === "warning") { line(64,32,64,74,6,white); circle(64,91,5,white); }
   else if (kind === "error") { line(39,39,89,89,7,white); line(89,39,39,89,7,white); }
