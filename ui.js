@@ -53,7 +53,27 @@ const NAMES = {
   pvp: ["PvpGod", "Player_vs_Player_PVP", "pvp", "PVP"],
   heart: ["hardcoreheart", "minecraft_heart", "corazon"],
   skull: ["skull", "gato_llorando", "reaccion"],
-  diamond: ["diamond", "mc_icon"]
+  diamond: ["diamond", "mc_icon"],
+  velo: ["Velo", "velo", "Velo_Logo"],
+  velo_staff: ["Velo_Staff", "velo_staff", "staff"],
+  velo_support: ["Velo_Support", "velo_support", "support"],
+  velo_ticket: ["Velo_Ticket", "velo_ticket", "ticket"],
+  velo_buy: ["Velo_Buy", "velo_buy", "buy"],
+  velo_reclaim: ["Velo_Reclaim", "velo_reclaim", "reclaim"],
+  velo_boost: ["Velo_Boost", "velo_boost", "boost"],
+  velo_partner: ["Velo_Partner", "velo_partner", "partner"],
+  velo_developer: ["Velo_Developer", "velo_developer", "developer"],
+  velo_designer: ["Velo_Designer", "velo_designer", "designer"],
+  velo_verified: ["Velo_Verified", "velo_verified", "verified"],
+  velo_warning: ["Velo_Warning", "velo_warning", "warning"],
+  velo_success: ["Velo_Success", "velo_success", "success"],
+  velo_error: ["Velo_Error", "velo_error", "error"],
+  velo_announcement: ["Velo_Announcement", "velo_announcement", "announcement"],
+  velo_giveaway: ["Velo_Giveaway", "velo_giveaway", "giveaway"],
+  velo_premium: ["Velo_Premium", "velo_premium", "premium"],
+  velo_gift: ["Velo_Gift", "velo_gift", "gift"],
+  velo_loading: ["Velo_Loading", "velo_loading", "loading"],
+  velo_new: ["Velo_New", "velo_new", "new"]
 };
 
 function find(guild, names) {
