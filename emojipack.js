@@ -20,17 +20,88 @@ const STATIC_EMOJIS = [
 ];
 
 const VELO_STAFF = [
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo.png", "Velo"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Staff.png", "Velo_Staff"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Support.png", "Velo_Support"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Ticket.png", "Velo_Ticket"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Developer.png", "Velo_Developer"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Designer.png", "Velo_Designer"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Verified.png", "Velo_Verified"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Warning.png", "Velo_Warning"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Success.png", "Velo_Success"],
-  ["https://raw.githubusercontent.com/victorsotonino-cyber/Velo/main/emojis/Velo_Error.png", "Velo_Error"]
+  ["Velo", "Velo", "brand"],
+  ["Velo_Staff", "Velo_Staff", "staff"],
+  ["Velo_Support", "Velo_Support", "support"],
+  ["Velo_Ticket", "Velo_Ticket", "ticket"],
+  ["Velo_Developer", "Velo_Developer", "developer"],
+  ["Velo_Designer", "Velo_Designer", "designer"],
+  ["Velo_Verified", "Velo_Verified", "verified"],
+  ["Velo_Warning", "Velo_Warning", "warning"],
+  ["Velo_Success", "Velo_Success", "success"],
+  ["Velo_Error", "Velo_Error", "error"]
 ];
+
+function crc32(buf) {
+  let table = crc32.table;
+  if (!table) {
+    table = crc32.table = Array.from({ length: 256 }, (_, n) => {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      return c >>> 0;
+    });
+  }
+  let c = 0xFFFFFFFF;
+  for (const b of buf) c = table[(c ^ b) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const t = Buffer.from(type);
+  const out = Buffer.alloc(12 + data.length);
+  out.writeUInt32BE(data.length, 0);
+  t.copy(out, 4);
+  data.copy(out, 8);
+  out.writeUInt32BE(crc32(Buffer.concat([t, data])), 8 + data.length);
+  return out;
+}
+
+function generatedVeloEmoji(kind) {
+  const size = 128;
+  const pixels = Buffer.alloc(size * size * 4, 0);
+  const set = (x, y, r, g, b, a = 255) => {
+    if (x < 0 || y < 0 || x >= size || y >= size) return;
+    const p = (y * size + x) * 4;
+    pixels[p] = r; pixels[p + 1] = g; pixels[p + 2] = b; pixels[p + 3] = a;
+  };
+  const circle = (cx, cy, rad, color) => {
+    const rr = rad * rad;
+    for (let y = cy - rad; y <= cy + rad; y++) for (let x = cx - rad; x <= cx + rad; x++) {
+      const dx = x - cx, dy = y - cy;
+      if (dx * dx + dy * dy <= rr) set(x, y, ...color);
+    }
+  };
+  const rect = (x1, y1, x2, y2, color) => {
+    for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) set(x, y, ...color);
+  };
+  const line = (x1, y1, x2, y2, w, color) => {
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1), 1);
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, x = Math.round(x1 + (x2 - x1) * t), y = Math.round(y1 + (y2 - y1) * t);
+      for (let yy = -w; yy <= w; yy++) for (let xx = -w; xx <= w; xx++) set(x + xx, y + yy, ...color);
+    }
+  };
+  const purple = [112,45,190,255], white = [255,255,255,255], dark = [38,20,60,255];
+  circle(64,64,60,purple); circle(64,64,55,dark); circle(64,64,51,purple);
+  if (kind === "brand") { line(34,42,64,88,5,white); line(64,88,94,42,5,white); }
+  else if (kind === "staff") { circle(64,48,16,white); rect(39,70,89,91,white); line(44,61,31,76,4,white); line(84,61,97,76,4,white); }
+  else if (kind === "support") { circle(64,64,34,white); circle(64,64,25,purple); rect(27,61,39,78,white); rect(89,61,101,78,white); line(39,80,52,91,4,white); line(52,91,70,91,4,white); }
+  else if (kind === "ticket") { rect(30,43,98,85,white); rect(39,52,89,76,purple); line(48,64,80,64,4,white); }
+  else if (kind === "developer") { line(40,45,25,64,5,white); line(25,64,40,83,5,white); line(88,45,103,64,5,white); line(103,64,88,83,5,white); line(57,84,71,44,5,white); }
+  else if (kind === "designer") { line(35,88,88,35,9,white); line(88,35,98,45,9,white); line(35,88,31,99,4,white); }
+  else if (kind === "verified" || kind === "success") { line(32,65,55,87,7,white); line(55,87,98,40,7,white); }
+  else if (kind === "warning") { line(64,32,64,74,6,white); circle(64,91,5,white); }
+  else if (kind === "error") { line(39,39,89,89,7,white); line(89,39,39,89,7,white); }
+  const raw = Buffer.alloc(size * (size * 4 + 1));
+  for (let y = 0; y < size; y++) {
+    raw[y * (size * 4 + 1)] = 0;
+    pixels.copy(raw, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4);
+  }
+  const zlib = require("zlib");
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size,0); ihdr.writeUInt32BE(size,4); ihdr[8]=8; ihdr[9]=6;
+  return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), pngChunk("IHDR",ihdr), pngChunk("IDAT",zlib.deflateSync(raw,{level:9})), pngChunk("IEND",Buffer.alloc(0))]);
+}
 
 const ANIMATED = [
   ["https://cdn3.emoji.gg/emojis/505158-pvpgod.gif", "pvpgod"],
@@ -76,7 +147,7 @@ module.exports = {
 
     const tipo = i.options.getString("tipo");
     const list = tipo === "velo_staff"
-      ? VELO_STAFF.map(x => ({ url: x[0], name: x[1], animated: false }))
+      ? VELO_STAFF.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }))
       : tipo === "normales"
       ? STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }))
       : tipo === "animados"
@@ -99,7 +170,7 @@ module.exports = {
       }
 
       try {
-        const buffer = await download(item.url);
+        const buffer = item.generated ? generatedVeloEmoji(item.kind) : await download(item.url);
         const created = await i.guild.emojis.create({
           attachment: buffer,
           name: item.name,
