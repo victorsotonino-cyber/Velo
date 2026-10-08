@@ -19,9 +19,11 @@ module.exports = {
         Object.entries(categories).map(([value, c]) => ({
           label: c.label,
           value,
-          description: String(c.description || "Abrir un ticket.").slice(0, 100)
-          // No usamos IDs de emojis fijos aquí: Discord rechaza cualquier emoji
-          // que ya no exista o no esté disponible en este servidor.
+          description: String(c.description || "Abrir un ticket.").slice(0, 100),
+          emoji: {
+            id: c.emojiId || undefined,
+            name: c.emojiName || undefined
+          }
         }))
       );
 
@@ -31,7 +33,12 @@ module.exports = {
       .setDescription(
         "Necesitas ayuda? Abre un ticket y el equipo de Velo Studio te atenderá.\n\n" +
         Object.values(categories)
-          .map(c => "• **" + c.label + "** — " + String(c.description || "Soporte."))
+          .map(c => {
+            const emoji = c.emojiId
+              ? "<:" + c.emojiName + ":" + c.emojiId + ">"
+              : "🎫";
+            return emoji + " **" + c.label + "** — " + String(c.description || "Soporte.");
+          })
           .join("\n")
       )
       .setFooter({ text: "Velo Studio • Sistema de soporte" })
