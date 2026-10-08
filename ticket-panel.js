@@ -1,17 +1,39 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const config = require("./config");
 
-function getEmoji(guild, category) {
+function getEmoji(guild, key, category) {
   if (!guild?.emojis?.cache) return null;
-  if (category.emojiId) {
+
+  if (category?.emojiId) {
     const byId = guild.emojis.cache.get(String(category.emojiId));
     if (byId) return byId;
   }
-  if (category.emojiName) {
-    const byName = guild.emojis.cache.find(e => e.name === category.emojiName);
-    if (byName) return byName;
+
+  const names = [
+    category?.emojiName,
+    ...(key === "soporte" ? ["Velo_Support", "velo_support", "support", "soporte"] : []),
+    ...(key === "comprar" ? ["Velo_Buy", "velo_buy", "buy", "comprar", "compra", "shop", "shopping", "cart", "store"] : []),
+    ...(key === "reclamos" ? ["Velo_Reclaim", "velo_reclaim", "reclaim", "reclamos", "reclamo", "claim", "refund"] : []),
+    ...(key === "otros" ? ["Velo_Other", "velo_other", "other", "otros", "misc"] : [])
+  ].filter(Boolean);
+
+  for (const name of names) {
+    const found = guild.emojis.cache.find(e => e.name?.toLowerCase() === String(name).toLowerCase());
+    if (found) return found;
   }
-  return null;
+
+  const words = key === "comprar"
+    ? ["buy", "compr", "shop", "store", "cart", "sale"]
+    : key === "reclamos"
+      ? ["reclaim", "recl", "claim", "refund", "complaint"]
+      : key === "soporte"
+        ? ["support", "soport", "help"]
+        : ["other", "otro", "misc"];
+
+  return guild.emojis.cache.find(e => {
+    const n = String(e.name || "").toLowerCase();
+    return words.some(word => n.includes(word));
+  }) || null;
 }
 
 module.exports = {
@@ -30,11 +52,8 @@ module.exports = {
         description: String(c.description || "Abrir un ticket.").slice(0, 100)
       };
 
-      const e = getEmoji(i.guild, c);
-      if (e) {
-        option.emoji = { id: e.id, name: e.name, animated: e.animated };
-      }
-
+      const e = getEmoji(i.guild, value, c);
+      if (e) option.emoji = { id: e.id, name: e.name, animated: e.animated };
       return option;
     });
 
@@ -45,8 +64,8 @@ module.exports = {
       .setMaxValues(1)
       .addOptions(options);
 
-    const lines = Object.values(categories).map(c => {
-      const e = getEmoji(i.guild, c);
+    const lines = Object.entries(categories).map(([key, c]) => {
+      const e = getEmoji(i.guild, key, c);
       return (e ? e.toString() + " " : "") +
         "**" + c.label + "** — " + String(c.description || "Soporte.");
     });
