@@ -20,10 +20,9 @@ module.exports = {
           label: c.label,
           value,
           description: String(c.description || "Abrir un ticket.").slice(0, 100),
-          emoji: {
-            id: c.emojiId || undefined,
-            name: c.emojiName || undefined
-          }
+          emoji: c.emojiId
+            ? { id: c.emojiId, name: c.emojiName || "emoji" }
+            : undefined
         }))
       );
 
