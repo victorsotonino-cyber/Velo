@@ -5,6 +5,7 @@ function getEmoji(guild, category) {
   if (!guild) return undefined;
   let e = category?.emojiId ? guild.emojis.cache.get(category.emojiId) : undefined;
   if (!e && category?.emojiName) e = guild.emojis.cache.find(x => x.name === category.emojiName);
+  if (!e && category?.emojiKey) e = guild.emojis.cache.find(x => x.name === category.emojiKey);
   if (!e) return undefined;
   return { id: e.id, name: e.name, animated: e.animated };
 }
