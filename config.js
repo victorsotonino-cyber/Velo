@@ -28,10 +28,10 @@ module.exports = {
     maxOpenPerUser: Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER || 2))),
     closeDelayMs: 5000,
     categories: {
-      soporte: { label: "Soporte", emojiId: "1554450601595633686", emojiName: "emoji_23", description: "Ayuda, dudas o problemas con Velo Studio." },
-      comprar: { label: "Comprar", emojiId: "1550144465765793792", emojiName: "emoji_10", description: "Compras, productos, precios y servicios." },
-      reclamos: { label: "Reclamos", emojiId: "1550144504990801930", emojiName: "emoji_11", description: "Reclamos, incidencias o problemas con una compra." },
-      otros: { label: "Otros", emojiId: "1550144328540618882", emojiName: "emoji_9", description: "Cualquier consulta que no encaje en las anteriores." }
+      soporte: { label: "Soporte", emojiKey: "velo_support", emojiId: null, emojiName: null, description: "Ayuda, dudas o problemas con Velo Studio." },
+      comprar: { label: "Comprar", emojiKey: "velo_buy", emojiId: null, emojiName: null, description: "Compras, productos, precios y servicios." },
+      reclamos: { label: "Reclamos", emojiKey: "velo_reclaim", emojiId: null, emojiName: null, description: "Reclamos, incidencias o problemas con una compra." },
+      otros: { label: "Otros", emojiKey: "velo_ticket", emojiId: null, emojiName: null, description: "Cualquier consulta que no encaje en las anteriores." }
     }
   }
 };
