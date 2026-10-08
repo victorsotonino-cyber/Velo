@@ -1,6 +1,11 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const config = require("./config");
-const { emojiData } = require("./ui");
+const { emojiData, emoji } = require("./ui");
+
+function optionEmoji(guild, key) {
+  const data = emojiData(guild, key, "🎫");
+  return data.id ? { id: data.id, name: data.name, animated: data.animated } : { name: data.name };
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -21,25 +26,20 @@ module.exports = {
           label: c.label,
           value,
           description: String(c.description || "Abrir un ticket.").slice(0, 100),
-          emoji: c.emojiId
-            ? { id: c.emojiId, name: c.emojiName || "emoji" }
-            : undefined
+          emoji: optionEmoji(i.guild, c.emojiKey)
         }))
       );
 
+    const lines = Object.values(categories).map(c =>
+      emoji(i.guild, c.emojiKey, "🎫") + " **" + c.label + "** — " + String(c.description || "Soporte.")
+    );
+
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle("Velo Studio • Tickets")
+      .setTitle(emoji(i.guild, "velo_ticket", "🎫") + " Velo Studio • Tickets")
       .setDescription(
         "Necesitas ayuda? Abre un ticket y el equipo de Velo Studio te atenderá.\n\n" +
-        Object.values(categories)
-          .map(c => {
-            const emoji = c.emojiId
-              ? "<:" + c.emojiName + ":" + c.emojiId + ">"
-              : "🎫";
-            return emoji + " **" + c.label + "** — " + String(c.description || "Soporte.");
-          })
-          .join("\n")
+        lines.join("\n")
       )
       .setFooter({ text: "Velo Studio • Sistema de soporte" })
       .setTimestamp();
