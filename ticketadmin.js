@@ -6,8 +6,7 @@ const ticketOpt = o => o.setName("ticket").setDescription("Canal del ticket").se
 const categoryOpt = o => o.setName("categoria").setDescription("Categoría").setRequired(true).addChannelTypes(ChannelType.GuildCategory);
 
 function cleanName(value, fallback) {
-  const name = String(value || "").toLowerCase().trim()
-    .replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+  const name = String(value || "").toLowerCase().trim().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
   return name || fallback;
 }
 
@@ -25,7 +24,7 @@ module.exports = {
     .addSubcommand(s => s.setName("renombrar-categoria").setDescription("Renombra una categoría.").addChannelOption(categoryOpt).addStringOption(o => o.setName("nombre").setDescription("Nuevo nombre").setRequired(true).setMaxLength(100)))
     .addSubcommand(s => s.setName("mover").setDescription("Mueve un ticket.").addChannelOption(categoryOpt).addChannelOption(ticketOpt))
     .addSubcommand(s => s.setName("quitar-categoria").setDescription("Quita la categoría.").addChannelOption(ticketOpt))
-    .addSubcommand(s => s.setName("renombrar").setDescription("Renombra un ticket.").addStringOption(o => o.setName("nombre").setDescription("Nuevo nombre").setRequired(true).addChannelOption(ticketOpt))
+    .addSubcommand(s => s.setName("renombrar").setDescription("Renombra un ticket.").addStringOption(o => o.setName("nombre").setDescription("Nuevo nombre").setRequired(true).setMaxLength(90)).addChannelOption(ticketOpt))
     .addSubcommand(s => s.setName("anadir").setDescription("Añade un usuario.").addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true)).addChannelOption(ticketOpt))
     .addSubcommand(s => s.setName("quitar").setDescription("Quita un usuario.").addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true)).addChannelOption(ticketOpt))
     .addSubcommand(s => s.setName("bloquear").setDescription("Bloquea a un usuario.").addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true)).addChannelOption(ticketOpt))
@@ -100,11 +99,12 @@ module.exports = {
 
     if (sub === "privado" || sub === "publico") {
       await ticket.permissionOverwrites.edit(i.guild.roles.everyone.id, { ViewChannel: sub === "publico" ? null : false });
-      return i.reply(emoji(i.guild, "lock", "🔒") + " Ticket " + (sub === "publico" ? "público para @everyone." : "privado.") );
+      return i.reply(emoji(i.guild, "lock", "🔒") + " Ticket " + (sub === "publico" ? "público para @everyone." : "privado."));
     }
 
-    const ownerId = ticket.topic.slice("VeloTicket:".length);
+    const ownerId = ticket.topic.slice("VeloTicket:".length).split(":")[0];
     const owner = await i.guild.members.fetch(ownerId).catch(() => null);
+    const everyoneOverwrite = ticket.permissionOverwrites.cache.get(i.guild.roles.everyone.id);
     const e = new EmbedBuilder()
       .setColor(config.colors.primary)
       .setTitle(emoji(i.guild, "velo_ticket", "🎫") + " Configuración del ticket")
@@ -112,7 +112,7 @@ module.exports = {
         { name: "Creador", value: owner ? owner.toString() : ownerId, inline: true },
         { name: "Categoría", value: ticket.parent?.name || "Ninguna", inline: true },
         { name: "Slowmode", value: ticket.rateLimitPerUser + "s", inline: true },
-        { name: "Privado", value: ticket.permissionOverwrites.cache.get(i.guild.roles.everyone.id)?.deny.has(PermissionFlagsBits.ViewChannel) ? "Sí" : "No", inline: true }
+        { name: "Privado", value: everyoneOverwrite?.deny.has(PermissionFlagsBits.ViewChannel) ? "Sí" : "No", inline: true }
       );
     return i.reply({ embeds: [e], ephemeral: true });
   }
