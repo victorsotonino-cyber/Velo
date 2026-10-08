@@ -29,12 +29,15 @@ const NAMES = {
   arrow: ["flecha","arrowred"],
   minecraft: ["Minecraft","mc_icon","minecraft"],
   pvp: ["PvpGod","Player_vs_Player_PVP","pvp","PVP"],
+
   velo: ["Velo","velo","Velo_Logo"],
   velo_staff: ["Velo_Staff","velo_staff","staff"],
-  velo_support: ["Velo_Support","velo_support","support"],
-  velo_ticket: ["Velo_Ticket","velo_ticket","ticket"],
-  velo_buy: ["Velo_Buy","velo_buy","buy"],
-  velo_reclaim: ["Velo_Reclaim","velo_reclaim","reclaim"],
+  velo_support: ["Velo_Support","velo_support","Support","support","Velo_Soporte","Velo_Soporte","soporte"],
+  velo_ticket: ["Velo_Ticket","velo_ticket","ticket","tickets"],
+  velo_buy: ["Velo_Buy","velo_buy","Velo_Buying","Velo_Comprar","comprar","buy","shop"],
+  velo_reclaim: ["Velo_Reclaim","velo_reclaim","Velo_Claim","Velo_Reclamos","reclamos","reclaim","claim"],
+  velo_other: ["Velo_Other","velo_other","Velo_Otros","velo_otros","otros","other"],
+
   velo_boost: ["Velo_Boost","velo_boost","boost"],
   velo_partner: ["Velo_Partner","velo_partner","partner"],
   velo_developer: ["Velo_Developer","velo_developer","developer"],
@@ -72,4 +75,4 @@ function emojiData(guild, key, fallback) {
   return { name: unicode };
 }
 
-module.exports = { emoji, emojiData, FALLBACKS, NAMES };
+module.exports = { emoji, emojiData, FALLBACKS, NAMES, find };
