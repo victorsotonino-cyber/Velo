@@ -5,27 +5,34 @@ const { emoji } = require("./ui");
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("ticket-panel")
-    .setDescription("Publica el panel de tickets.")
+    .setDescription("Publica el panel profesional de tickets.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
-  async execute(i) {
-    const e = new EmbedBuilder()
-      .setColor(config.colors.primary)
-      .setTitle(emoji(i.guild, "ticket", "🎫") + " Tickets | Velo Studio")
-      .setDescription("Selecciona el tipo de ticket que necesitas.");
 
-    const m = new StringSelectMenuBuilder()
+  async execute(i) {
+    const categories = config.ticket.categories;
+    const menu = new StringSelectMenuBuilder()
       .setCustomId("ticket_create")
-      .setPlaceholder("Selecciona una categoría")
-      .addOptions(
-        { label: "Soporte", value: "soporte", description: "Necesitas ayuda o soporte con algo.", emoji: { id: "1554450601595633686", name: "emoji_23" } },
-        { label: "Comprar", value: "comprar", description: "¿Quieres comprar algo? Abre tu ticket aquí.", emoji: { id: "1550144465765793792", name: "emoji_10" } },
-        { label: "Reclamos", value: "reclamos", description: "Presenta un reclamo o informa de un problema.", emoji: { id: "1550144504990801930", name: "emoji_11" } },
-        { label: "Otros", value: "otros", description: "Para cualquier consulta que no encaje arriba.", emoji: { id: "1550144328540618882", name: "emoji_9" } }
-      );
+      .setPlaceholder("Selecciona el tipo de ticket")
+      .addOptions(Object.entries(categories).map(([value, c]) => ({
+        label: c.label,
+        value,
+        description: c.description.slice(0, 100),
+        emoji: { id: c.emojiId, name: c.emojiName }
+      })));
+
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.primary)
+      .setTitle(emoji(i.guild, "velo_ticket", "🎫") + " Tickets • Velo Studio")
+      .setDescription(
+        "¿Necesitas ayuda? Abre un ticket y el equipo de Velo Studio te atenderá.\n\n" +
+        Object.values(categories).map(c => "• **" + c.label + "** — " + c.description).join("\n")
+      )
+      .setFooter({ text: "Velo Studio • Sistema de soporte" })
+      .setTimestamp();
 
     await i.reply({
-      embeds: [e],
-      components: [new ActionRowBuilder().addComponents(m)]
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(menu)]
     });
   }
 };
