@@ -67,7 +67,9 @@ function emoji(guild, key, fallback) {
 
 function emojiData(guild, key, fallback) {
   const found = find(guild, NAMES[key] || []);
-  return found ? { id: found.id, name: found.name, animated: found.animated } : fallback || FALLBACKS[key] || FALLBACKS.brand;
+  if (found) return { id: found.id, name: found.name, animated: found.animated };
+  const unicode = fallback || FALLBACKS[key] || FALLBACKS.brand;
+  return { name: unicode };
 }
 
 module.exports = { emoji, emojiData, FALLBACKS, NAMES };
