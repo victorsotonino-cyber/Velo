@@ -5,7 +5,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
-const { emoji } = require("./ui");
+const { emoji, commandEmoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 
 const applicationAnswers = new Map();
@@ -293,13 +293,27 @@ async function closeApplication(i) {
 }
 
 async function helpCategory(i) {
+  const cmd = (name) => commandEmoji(i.guild, name, "•");
+  const line = (name, text) => cmd(name) + " **/" + name + "** — " + text;
+
   const map = {
-    utilidad: emoji(i.guild, "info", "🧰") + " **Utilidad**\n/ping /avatar /serverinfo /anuncio /say",
-    moderacion: emoji(i.guild, "moderation", "🛡️") + " **Moderación**\n/ban /kick /timeout /untimeout /warn /unban /clear /lock /unlock /slowmode",
-    tickets: emoji(i.guild, "ticket", "🎫") + " **Tickets**\n/ticket-panel /ticket /ticket-config /ticket-edit",
-    servidor: emoji(i.guild, "channel", "🏠") + " **Servidor**\n/serverinfo",
-    diversion: emoji(i.guild, "fun", "🎮") + " **Diversión**\nPróximamente.",
-    configuracion: emoji(i.guild, "settings", "⚙️") + " **Configuración**\n/ticket-config /ticket-edit /emoji-pack /postulaciones-panel /postulaciones-config"
+    utilidad:
+      emoji(i.guild, "info", "🧰") + " **Utilidad**\n" +
+      [line("ping","Comprueba la respuesta del bot."), line("avatar","Muestra un avatar."), line("serverinfo","Información del servidor."), line("anuncio","Genera anuncios."), line("say","Envía un mensaje como el bot.")].join("\n"),
+    moderacion:
+      emoji(i.guild, "moderation", "🛡️") + " **Moderación**\n" +
+      [line("ban","Banea un miembro."), line("kick","Expulsa un miembro."), line("timeout","Aplica timeout."), line("untimeout","Quita un timeout."), line("warn","Advierte a un miembro."), line("unban","Quita un baneo."), line("clear","Borra mensajes."), line("lock","Bloquea un canal."), line("unlock","Desbloquea un canal."), line("slowmode","Configura el modo lento.")].join("\n"),
+    tickets:
+      emoji(i.guild, "ticket", "🎫") + " **Tickets**\n" +
+      [line("ticket-panel","Publica el panel de tickets."), line("ticket","Gestiona tickets."), line("ticket-config","Configura el sistema."), line("ticket-edit","Edita un ticket.")].join("\n"),
+    servidor:
+      emoji(i.guild, "channel", "🏠") + " **Servidor**\n" +
+      line("serverinfo","Información del servidor."),
+    diversion:
+      emoji(i.guild, "fun", "🎮") + " **Diversión**\nPróximamente.",
+    configuracion:
+      emoji(i.guild, "settings", "⚙️") + " **Configuración**\n" +
+      [line("ticket-config","Configura tickets."), line("ticket-edit","Edita tickets."), line("emoji-pack","Gestiona emojis."), line("postulaciones-panel","Panel de postulaciones."), line("postulaciones-config","Configura las preguntas.")].join("\n")
   };
   return i.reply({ content: map[i.values[0]] || "Sin información.", ephemeral: true });
 }
