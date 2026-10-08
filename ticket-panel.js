@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const config = require("./config");
+const { emojiData } = require("./ui");
 
 module.exports = {
   data: new SlashCommandBuilder()
