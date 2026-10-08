@@ -68,6 +68,13 @@ function emoji(guild, key, fallback) {
   return found ? found.toString() : (fallback || FALLBACKS[key] || FALLBACKS.brand);
 }
 
+function commandEmoji(guild, command, fallback) {
+  const name = String(command || "").replace(/^\//, "").toLowerCase();
+  const aliases = ["Velo_" + name, "velo_" + name, "Velo" + name.charAt(0).toUpperCase() + name.slice(1), name, "cmd_" + name, "command_" + name];
+  const found = find(guild, aliases);
+  return found ? found.toString() : (fallback || FALLBACKS.info);
+}
+
 function emojiData(guild, key, fallback) {
   const found = find(guild, NAMES[key] || []);
   if (found) return { id: found.id, name: found.name, animated: found.animated };
@@ -75,4 +82,4 @@ function emojiData(guild, key, fallback) {
   return { name: unicode };
 }
 
-module.exports = { emoji, emojiData, FALLBACKS, NAMES, find };
+module.exports = { emoji, emojiData, commandEmoji, FALLBACKS, NAMES, find };
