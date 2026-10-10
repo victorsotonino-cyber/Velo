@@ -25,6 +25,8 @@ const client = new Client({
 client.commands = new Collection();
 const afkUsers = new Map();
 const messageCounts = new Map();
+client.afkUsers = afkUsers;
+client.messageCounts = messageCounts;
 
 for (const file of fs.readdirSync(__dirname).filter(f =>
   f.endsWith(".js") && !["index.js","config.js","deploy-commands.js","buttons.js"].includes(f)
