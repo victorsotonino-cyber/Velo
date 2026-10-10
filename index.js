@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, Collection, Events, ActivityType, REST, Routes, PermissionFlagsBits, EmbedBuilder, ChannelType } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, Collection, Events, ActivityType, REST, Routes, PermissionFlagsBits, EmbedBuilder, ChannelType, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
@@ -243,10 +243,21 @@ client.on(Events.MessageCreate, async message => {
       case "ticket-panel": {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
         const categories = Object.entries(config.ticket.categories || {});
+        if (!categories.length) return fail("No hay categorías de tickets configuradas.");
+        const options = categories.map(([value, c]) => {
+          const option = { label: String(c.label || value).slice(0, 100), value, description: String(c.description || "Abre un ticket.").slice(0, 100) };
+          const custom = c.emojiId ? message.guild.emojis.cache.get(c.emojiId) : null;
+          if (custom) option.emoji = { id: custom.id, name: custom.name, animated: custom.animated };
+          return option;
+        });
+        const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("🎫 Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
         const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🎫 Velo Studio | Centro de soporte")
-          .setDescription("Abre un ticket seleccionando la categoría en el menú del panel slash con `/ticket-panel`.\n\n" + categories.map(([, c]) => "• **" + c.label + "** — " + c.description).join("\n"))
-          .setFooter({ text: "Para crear el menú interactivo, usa /ticket-panel." });
-        return message.reply({ embeds: [embed] });
+          .setDescription("¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta.\n\n" + categories.map(([type, c]) => {
+            const custom = c.emojiId ? message.guild.emojis.cache.get(c.emojiId) : null;
+            return (custom ? custom.toString() + " " : "🎫 ") + "**" + c.label + "** — " + c.description;
+          }).join("\n"))
+          .setFooter({ text: "Velo Studio • Atención y soporte" });
+        return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
       default:
         return fail("No conozco ese comando. Usa `!help` para ver los comandos.");
