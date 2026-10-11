@@ -7,6 +7,7 @@ const path = require("path");
 const config = require("./config");
 const { emoji, commandEmoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
+const giveaways = require("./giveaway-service");
 
 const applicationAnswers = new Map();
 
@@ -14,6 +15,12 @@ module.exports = client => {
   client.on("interactionCreate", async i => {
     try {
       if (i.isStringSelectMenu() && i.customId === "ticket_create") return createTicket(i);
+      if (i.isButton() && i.customId.startsWith("giveaway:join:")) {
+        await i.deferReply({ ephemeral: true });
+        const giveawayId = i.customId.split(":")[2];
+        const result = await giveaways.toggleParticipation(i, client, giveawayId);
+        return i.editReply({ content: result.message, allowedMentions: { parse: [] } });
+      }
       if (i.isButton() && ["ticket_claim","ticket_close","ticket_lock","ticket_unlock"].includes(i.customId)) return ticketButton(i);
       if (i.isButton() && i.customId === "application_panel_open") {
         await i.deferReply({ ephemeral: true });
