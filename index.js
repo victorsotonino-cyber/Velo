@@ -4,6 +4,7 @@ const path = require("path");
 const config = require("./config");
 const { emoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
+const giveawayService = require("./giveaway-service");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en Railway.");
@@ -62,6 +63,8 @@ client.once(Events.ClientReady, async c => {
     activities: [{ name: "Velo Studio • /help | !help", type: ActivityType.Watching }],
     status: "online"
   });
+  try { giveawayService.restore(c); }
+  catch (e) { console.error("Error restaurando sorteos:", e); }
   try { await registerCommands(); }
   catch (e) { console.error("Error registrando comandos:", e); }
 });
@@ -123,6 +126,7 @@ client.on(Events.MessageCreate, async message => {
 
   try {
     switch (command) {
+      case "giveaway": return giveawayService.executePrefix(message, args, client);
       case "help":
       case "ayuda": {
         const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("Velo Studio • Comandos")
@@ -132,8 +136,10 @@ client.on(Events.MessageCreate, async message => {
             "**Moderación**",
             "`!ban @usuario [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
-            "**Tickets y mensajes**",
+            "**Tickets, mensajes y sorteos**",
             "`!ticket-panel` `!say texto`",
+            "`!giveaway start [#canal] 1h 1 Premio | descripción`",
+            "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
             "**También disponible con /**",
             [...client.commands.keys()].map(n => "`/" + n + "`").join(" ")
           ].join("\n")).setFooter({ text: "Prefijo actual: " + PREFIX });
