@@ -49,9 +49,9 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary || 0xE11D2E)
-      .setTitle(emoji(i.guild, "brand", "✨") + " Velo Studio • Centro de tickets")
+      .setTitle(emoji(i.guild, "brand", "✨") + " Flux STORE • Centro de tickets")
       .setDescription("¿Necesitas ayuda? Selecciona una categoría en el menú y el equipo te atenderá.\n\n" + description)
-      .setFooter({ text: "Velo Studio • Sistema de soporte" })
+      .setFooter({ text: "Flux STORE • Sistema de soporte" })
       .setTimestamp();
 
     try {
