@@ -175,38 +175,50 @@ async function closeApplication(i) {
 }
 
 async function helpCategory(i, client) {
-  const available = name => client.commands.has(name);
-  const line = (name, description) => (available(name) ? "🟢" : "⚪") + " **/" + name + "** — " + description;
-  const section = (title, entries) => title + "\n" + entries.map(([name, desc]) => line(name, desc)).join("\n");
-  const map = {
-    comunidad: section("👥 **COMUNIDAD**", [
-      ["welcome-config", "Configura el canal de bienvenida"], ["serverinfo", "Información del servidor"],
-      ["avatar", "Muestra el avatar de un usuario"], ["anuncio", "Crea anuncios"], ["say", "Envía un mensaje como el bot"],
-      ["afk", "Estado ausente"], ["messagecount", "Cuenta mensajes"]
-    ]),
-    administracion: section("⚙️ **ADMINISTRACIÓN**", [
-      ["server-config", "Configuración general del servidor"], ["role", "Gestiona roles"],
-      ["embed", "Crea mensajes embed"], ["poll", "Crea encuestas"], ["giveaway", "Gestiona sorteos"],
-      ["autorole", "Configura roles automáticos"], ["slowmode", "Configura modo lento"],
-      ["lock", "Bloquea canales"], ["unlock", "Desbloquea canales"]
-    ]),
-    utilidad: section("🧰 **UTILIDAD**", [
-      ["ping", "Comprueba la latencia"], ["avatar", "Muestra un avatar"], ["serverinfo", "Información del servidor"],
-      ["anuncio", "Genera anuncios"], ["say", "Envía un mensaje como el bot"]
-    ]),
-    moderacion: section("🛡️ **MODERACIÓN**", [
-      ["ban", "Banea un miembro"], ["kick", "Expulsa un miembro"], ["timeout", "Aplica timeout"],
-      ["untimeout", "Quita timeout"], ["warn", "Advierte a un miembro"], ["unban", "Quita un baneo"],
-      ["clear", "Borra mensajes"], ["lock", "Bloquea un canal"], ["unlock", "Desbloquea un canal"], ["slowmode", "Modo lento"]
-    ]),
-    tickets: section("🎫 **TICKETS Y POSTULACIONES**", [
-      ["ticket-panel", "Publica el panel de tickets"], ["ticket-edit", "Edita tickets"],
-      ["postulaciones-panel", "Publica el panel de postulaciones"], ["postulaciones-config", "Configura las preguntas"]
-    ]),
-    diversion: section("🎮 **DIVERSIÓN**", [
-      ["poll", "Crea encuestas"], ["giveaway", "Crea sorteos"], ["8ball", "Responde una pregunta"]
-    ])
+  const entries = {
+    comunidad: [
+      ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
+      ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
+      ["say", "Enviar mensaje como el bot"]
+    ],
+    administracion: [
+      ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
+      ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
+      ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
+      ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"], ["slowmode", "Configurar modo lento"]
+    ],
+    utilidad: [
+      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"],
+      ["help", "Centro de comandos"]
+    ],
+    moderacion: [
+      ["ban", "Banear miembro"], ["kick", "Expulsar miembro"], ["timeout", "Aplicar timeout"],
+      ["untimeout", "Quitar timeout"], ["warn", "Advertir miembro"], ["unban", "Quitar baneo"],
+      ["clear", "Borrar mensajes"], ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"],
+      ["slowmode", "Modo lento"]
+    ],
+    tickets: [
+      ["ticket-panel", "Publicar el panel de tickets"], ["ticket", "Información de tickets"],
+      ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Panel de postulaciones"],
+      ["postulaciones-config", "Configurar preguntas"]
+    ],
+    diversion: [
+      ["giveaway", "Sorteos"], ["help", "Centro de comandos"]
+    ]
   };
-  const content = map[i.values[0]] || "No hay comandos para esta categoría.";
+  const titles = {
+    comunidad: "👥 COMUNIDAD",
+    administracion: "⚙️ ADMINISTRACIÓN",
+    utilidad: "🧰 UTILIDAD",
+    moderacion: "🛡️ MODERACIÓN",
+    tickets: "🎫 TICKETS Y POSTULACIONES",
+    diversion: "🎮 DIVERSIÓN"
+  };
+  const list = entries[i.values[0]] || [];
+  const lines = list.map(([name, desc]) => {
+    const exists = client.commands.has(name);
+    return (exists ? "🟢" : "🟠") + " **/" + name + "** — " + desc + (exists ? "" : " *(no está cargado en esta versión)*");
+  });
+  const content = "**" + titles[i.values[0]] + "**\n" + lines.join("\n");
   return i.reply({ content: content.slice(0, 1900), ephemeral: true });
 }
