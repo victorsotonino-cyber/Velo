@@ -118,6 +118,28 @@ function generatedVeloEmoji(kind) {
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), pngChunk("IHDR",ihdr), pngChunk("IDAT",zlib.deflateSync(raw,{level:9})), pngChunk("IEND",Buffer.alloc(0))]);
 }
 
+const SHOP_EMOJIS = [
+  ["🏪", "shop_store"], ["🛒", "shop_cart"], ["🛍️", "shop_bag"], ["🎁", "shop_gift"],
+  ["🏷️", "shop_sale"], ["🆕", "shop_new"], ["💎", "shop_premium"], ["📦", "shop_delivery"],
+  ["🧾", "shop_receipt"], ["🛎️", "shop_support"], ["💸", "shop_discount"], ["🎟️", "shop_coupon"],
+  ["🔖", "shop_tag"], ["🚫", "shop_out_stock"], ["📝", "shop_preorder"], ["⏳", "shop_limited"],
+  ["🔥", "shop_best_seller"], ["⭐", "shop_popular"], ["❤️", "shop_favorite"], ["💖", "shop_wishlist"],
+  ["⚡", "shop_flash_sale"], ["📣", "shop_promo"], ["💻", "shop_digital"], ["⬇️", "shop_download"],
+  ["📜", "shop_license"], ["🔑", "shop_key"], ["🛠️", "shop_custom"], ["🧰", "shop_service"],
+  ["🏆", "shop_quality"], ["🛡️", "shop_guarantee"], ["↩️", "shop_return"], ["🔄", "shop_exchange"],
+  ["🚚", "shop_shipping"], ["🚀", "shop_fast_delivery"], ["📍", "shop_address"], ["📬", "shop_package_open"],
+  ["🏬", "shop_pickup"], ["🕒", "shop_clock"], ["📅", "shop_calendar"], ["📋", "shop_order"],
+  ["✅", "shop_order_confirmed"], ["⏱️", "shop_pending"], ["❌", "shop_cancel"], ["🌟", "shop_review"],
+  ["👑", "shop_vip"], ["🪪", "shop_member"], ["🎖️", "shop_loyalty"], ["💠", "shop_points"],
+  ["🎉", "shop_reward"], ["💳", "shop_gift_card"], ["🔐", "shop_secure"], ["🔒", "shop_lock"],
+  ["❓", "shop_help"], ["🎧", "shop_live_support"]
+];
+
+function twemojiUrl(char) {
+  const code = Array.from(char).map(c => c.codePointAt(0).toString(16)).join("-");
+  return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/" + code + ".png";
+}
+
 const ANIMATED = [
   ["https://cdn3.emoji.gg/emojis/505158-pvpgod.gif", "pvpgod"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/66102e65-573a-4ca5-b23a-c309d68ce702.gif", "catkiss_a"],
@@ -145,6 +167,7 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions)
     .addStringOption(o => o.setName("tipo").setDescription("Qué pack quieres añadir").setRequired(true).addChoices(
       { name: "Todos", value: "todos" },
+      { name: "Tienda (50+)", value: "tienda" },
       { name: "Velo Staff", value: "velo_staff" },
       { name: "Normales", value: "normales" },
       { name: "Animados", value: "animados" }
@@ -163,14 +186,17 @@ module.exports = {
     const tipo = i.options.getString("tipo");
     const veloPack = VELO_STAFF.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
     const staticPack = STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }));
+    const shopPack = SHOP_EMOJIS.map(x => ({ url: twemojiUrl(x[0]), name: x[1], animated: false }));
     const animatedPack = ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }));
     const list = tipo === "velo_staff"
       ? veloPack
-      : tipo === "normales"
+      : tipo === "tienda"
+        ? shopPack
+        : tipo === "normales"
         ? staticPack
         : tipo === "animados"
           ? animatedPack
-          : [...veloPack, ...staticPack, ...animatedPack];
+          : [...veloPack, ...staticPack, ...animatedPack, ...shopPack];
 
     await i.deferReply({ ephemeral: true });
     const existing = new Set(i.guild.emojis.cache.map(e => e.name));
