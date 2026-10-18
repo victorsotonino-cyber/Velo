@@ -154,16 +154,16 @@ module.exports = {
     }
 
     const tipo = i.options.getString("tipo");
+    const veloPack = VELO_STAFF.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
+    const staticPack = STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }));
+    const animatedPack = ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }));
     const list = tipo === "velo_staff"
-      ? VELO_STAFF.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }))
+      ? veloPack
       : tipo === "normales"
-      ? STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }))
-      : tipo === "animados"
-        ? ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }))
-        : [
-            ...STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false })),
-            ...ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }))
-          ];
+        ? staticPack
+        : tipo === "animados"
+          ? animatedPack
+          : [...veloPack, ...staticPack, ...animatedPack];
 
     await i.deferReply({ ephemeral: true });
     const existing = new Set(i.guild.emojis.cache.map(e => e.name));
