@@ -7,7 +7,7 @@ module.exports = {
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID,
   colors: {
-    primary: 0xE11D2E,
+    primary: 0x8B5CF6,
     dark: 0x111111,
     success: 0x22C55E,
     warning: 0xF59E0B,
@@ -28,7 +28,7 @@ module.exports = {
     maxOpenPerUser: Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER || 2))),
     closeDelayMs: 5000,
     categories: {
-      soporte: { label: "Soporte", emojiKey: "velo_support", emojiId: "1554450601595633686", emojiName: "emoji_23", description: "Ayuda, dudas o problemas con Velo Studio." },
+      soporte: { label: "Soporte", emojiKey: "velo_support", emojiId: "1554450601595633686", emojiName: "emoji_23", description: "Ayuda, dudas o problemas con Flux Shop." },
       comprar: { label: "Comprar", emojiKey: "velo_buy", emojiId: "1550144465765793792", emojiName: "emoji_10", description: "Compras, productos, precios y servicios." },
       reclamos: { label: "Reclamos", emojiKey: "velo_reclaim", emojiId: "1550144504990801930", emojiName: "emoji_11", description: "Reclamos, incidencias o problemas con una compra." },
       otros: { label: "Otros", emojiKey: "velo_ticket", emojiId: "1550144328540618882", emojiName: "emoji_9", description: "Cualquier consulta que no encaje en las anteriores." }
