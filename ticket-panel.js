@@ -20,7 +20,9 @@ const SMART_NAMES = {
   soporte: ["velosupport", "velosoporte", "soporte", "support", "ayuda", "help"],
   comprar: ["velobuy", "velocomprar", "comprar", "compra", "shop", "store", "tienda", "carrito"],
   reclamos: ["veloreclaim", "veloclaim", "veloreclamos", "reclamos", "reclamo", "claim", "reporte"],
-  otros: ["veloother", "velootros", "otros", "other", "general", "misc"]
+  reward: ["fluxreward", "shopreward", "reward", "rewards", "gift", "regalo"],
+  tienda: ["fluxshop", "shop", "store", "tienda", "paypal", "binance", "shopping"],
+  otros: ["fluxother", "shopother", "otros", "other", "general", "misc"]
 };
 
 function findEmoji(guild, category, type, used = new Set()) {
@@ -36,6 +38,10 @@ function findEmoji(guild, category, type, used = new Set()) {
 
   const available = [...guild.emojis.cache.values()]
     .filter(e => e.available !== false && !used.has(e.id));
+
+  const directNames = category?.emojiNames || [];
+  const directMatch = available.find(e => directNames.some(n => normalize(n) === normalize(e.name)));
+  if (directMatch) return directMatch;
 
   const aliases = NAMES[category?.emojiKey] || [];
   const words = SMART_NAMES[type] || [];
@@ -72,7 +78,7 @@ function findEmoji(guild, category, type, used = new Set()) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("ticket-panel")
-    .setDescription("Publica el panel de soporte de Velo Studio.")
+    .setDescription("Publica el panel de soporte de Flux Shop.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 
   async execute(interaction) {
@@ -126,12 +132,12 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle("🎫 Velo Studio | Centro de soporte")
+      .setTitle("🎫 Flux Shop | Centro de soporte")
       .setDescription(
         "¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta y abre un ticket. Nuestro equipo te atenderá en cuanto esté disponible.\n\n" +
         categoryLines.join("\n")
       )
-      .setFooter({ text: "Velo Studio • Atención y soporte" })
+      .setFooter({ text: "Flux Shop • Atención y soporte" })
       .setTimestamp();
 
     return interaction.reply({
