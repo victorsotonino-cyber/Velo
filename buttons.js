@@ -83,9 +83,9 @@ async function createTicket(i) {
     new ButtonBuilder().setCustomId("ticket_close").setLabel("Cerrar").setEmoji(emoji(i.guild, "trash", "🗑️")).setStyle(ButtonStyle.Danger)
   );
   const embed = new EmbedBuilder().setColor(config.colors.primary)
-    .setTitle(emoji(i.guild, "velo_ticket", "🎫") + " " + category.label + " • Velo Studio")
+    .setTitle(emoji(i.guild, "velo_ticket", "🎫") + " " + category.label + " • Flux Shop")
     .setDescription("Hola " + i.user + ", tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** " + i.user + "\n\nUn miembro del Staff te atenderá pronto.")
-    .setFooter({ text: "Velo Studio • Ticket " + type }).setTimestamp();
+    .setFooter({ text: "Flux Shop • Ticket " + type }).setTimestamp();
   await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [embed], components: [buttons] });
   return i.editReply(emoji(i.guild, "success", "✅") + " Ticket creado: " + ch);
 }
@@ -122,7 +122,7 @@ async function sendTranscript(i) {
 }
 
 function applicationQuestions() {
-  const fallback = ["¿Cuál es tu nick o nombre con el que te conocen?","¿Qué edad tienes?","¿Por qué quieres ser Staff de Velo Studio?","¿Qué sabes hacer? Cuéntanos tus habilidades y experiencia.","¿A qué puesto te gustaría postularte: Developer, Configurador, Diseñador o Staff?","¿En qué servidores has trabajado anteriormente?","¿Qué lenguajes de programación conoces y cuál dominas mejor?","Menciona 2 plugins que conozcas y explica para qué sirven.","¿Qué experiencia tienes trabajando en servidores o comunidades?","¿Por qué deberíamos aceptarte?","¿Hay algo más que quieras agregar?"];
+  const fallback = ["¿Cuál es tu nick o nombre con el que te conocen?","¿Qué edad tienes?","¿Por qué quieres ser Staff de Flux Shop?","¿Qué sabes hacer? Cuéntanos tus habilidades y experiencia.","¿A qué puesto te gustaría postularte: Developer, Configurador, Diseñador o Staff?","¿En qué servidores has trabajado anteriormente?","¿Qué lenguajes de programación conoces y cuál dominas mejor?","Menciona 2 plugins que conozcas y explica para qué sirven.","¿Qué experiencia tienes trabajando en servidores o comunidades?","¿Por qué deberíamos aceptarte?","¿Hay algo más que quieras agregar?"];
   const data = readJSON("postulaciones.json", { questions: fallback });
   return Array.isArray(data.questions) && data.questions.length ? data.questions.slice(0, 25) : fallback;
 }
@@ -139,7 +139,7 @@ async function createApplication(i) {
     ...(staff ? [{ id: staff.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : [])
   ]});
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("application_start").setLabel("Comenzar").setEmoji(emoji(i.guild, "edit", "✏️")).setStyle(ButtonStyle.Primary));
-  await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(emoji(i.guild, "users", "👥") + " Postulación • Velo Studio").setDescription("Este canal es privado. Pulsa **Comenzar** para responder las preguntas una por una.").setFooter({ text: "Velo Studio • Sistema de postulaciones" })], components: [row] });
+  await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(emoji(i.guild, "users", "👥") + " Postulación • Flux Shop").setDescription("Este canal es privado. Pulsa **Comenzar** para responder las preguntas una por una.").setFooter({ text: "Flux Shop • Sistema de postulaciones" })], components: [row] });
   return i.editReply(emoji(i.guild, "success", "✅") + " Postulación creada: " + ch);
 }
 async function startApplication(i) {
