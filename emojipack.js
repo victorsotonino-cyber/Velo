@@ -192,12 +192,12 @@ async function download(url) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("emoji-pack")
-    .setDescription("Añade emojis personalizados estilo Discord.")
+    .setDescription("Instala emojis personalizados de Flux STORE.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions)
     .addStringOption(o => o.setName("tipo").setDescription("Qué pack quieres añadir").setRequired(true).addChoices(
       { name: "Todos", value: "todos" },
       { name: "Tienda (50+)", value: "tienda" },
-      { name: "Velo Staff", value: "velo_staff" },
+      { name: "Flux STORE • Staff y tienda", value: "velo_staff" },
       { name: "Normales", value: "normales" },
       { name: "Animados", value: "animados" }
     )),
@@ -233,7 +233,7 @@ module.exports = {
     const skipped = [];
     const failed = [];
 
-    for (const item of list) {
+    let processed = 0;\n    for (const item of list) {
       if (existing.has(item.name)) {
         skipped.push(item.name + " (ya existe)");
         continue;
