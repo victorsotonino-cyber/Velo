@@ -60,7 +60,7 @@ async function registerCommands() {
 client.once(Events.ClientReady, async c => {
   console.log(c.user.tag + " está online.");
   c.user.setPresence({
-    activities: [{ name: "Velo Studio • /help | !help", type: ActivityType.Watching }],
+    activities: [{ name: "Flux STORE • /help | !help", type: ActivityType.Watching }],
     status: "online"
   });
   try { giveawayService.restore(c); }
