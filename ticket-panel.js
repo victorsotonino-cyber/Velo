@@ -1,148 +1,66 @@
-const {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder
-} = require("discord.js");
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const config = require("./config");
-const { NAMES } = require("./ui");
-
-function normalize(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
-const SMART_NAMES = {
-  soporte: ["velosupport", "velosoporte", "soporte", "support", "ayuda", "help"],
-  comprar: ["velobuy", "velocomprar", "comprar", "compra", "shop", "store", "tienda", "carrito"],
-  reclamos: ["veloreclaim", "veloclaim", "veloreclamos", "reclamos", "reclamo", "claim", "reporte"],
-  reward: ["fluxreward", "shopreward", "reward", "rewards", "gift", "regalo"],
-  tienda: ["fluxshop", "shop", "store", "tienda", "paypal", "binance", "shopping"],
-  otros: ["fluxother", "shopother", "otros", "other", "general", "misc"]
-};
-
-function findEmoji(guild, category, type, used = new Set()) {
-  if (!guild?.emojis?.cache) return undefined;
-
-  // Primero intenta usar el emoji configurado para esta categoría.
-  const configured = category?.emojiId
-    ? guild.emojis.cache.get(category.emojiId)
-    : undefined;
-  if (configured && configured.available !== false && !used.has(configured.id)) {
-    return configured;
-  }
-
-  const available = [...guild.emojis.cache.values()]
-    .filter(e => e.available !== false && !used.has(e.id));
-
-  const directNames = category?.emojiNames || [];
-  const directMatch = available.find(e => directNames.some(n => normalize(n) === normalize(e.name)));
-  if (directMatch) return directMatch;
-
-  const aliases = NAMES[category?.emojiKey] || [];
-  const words = SMART_NAMES[type] || [];
-  const score = emoji => {
-    const name = normalize(emoji.name);
-    let value = 0;
-
-    for (const alias of aliases) {
-      const a = normalize(alias);
-      if (a && name === a) value = Math.max(value, 120);
-      else if (a && name.includes(a)) value = Math.max(value, 75);
-    }
-    for (const word of words) {
-      const w = normalize(word);
-      if (w && name === w) value = Math.max(value, 110);
-      else if (w && name.includes(w)) value = Math.max(value, 60);
-    }
-    return value;
-  };
-
-  const match = available
-    .map(emoji => ({ emoji, score: score(emoji) }))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score)[0];
-
-  if (match) return match.emoji;
-
-  const byName = category?.emojiName
-    ? available.find(e => normalize(e.name) === normalize(category.emojiName))
-    : undefined;
-  return byName;
-}
+const { emoji, emojiData } = require("./ui");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("ticket-panel")
-    .setDescription("Publica el panel de soporte de Flux Shop.")
+    .setDescription("Publica el panel profesional de tickets.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 
-  async execute(interaction) {
-    if (!interaction.inGuild() || !interaction.guild) {
-      return interaction.reply({
-        content: "❌ Este comando solo se puede usar dentro de un servidor.",
-        ephemeral: true
-      });
+  async execute(i) {
+    if (!i.guild) {
+      return i.reply({ content: "❌ Este comando solo funciona dentro de un servidor.", ephemeral: true });
     }
 
-    const categories = Object.entries(config.ticket.categories || {});
+    const categories = Object.entries(config.ticket?.categories || {});
     if (!categories.length) {
-      return interaction.reply({
-        content: "❌ No hay categorías de tickets configuradas.",
-        ephemeral: true
-      });
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " No hay categorías configuradas en config.js.", ephemeral: true });
     }
-
-    const usedMenu = new Set();
-    const options = categories.map(([value, category]) => {
-      const option = {
-        label: String(category.label || value).slice(0, 100),
-        value,
-        description: String(category.description || "Abre un ticket con el equipo.").slice(0, 100)
-      };
-
-      const customEmoji = findEmoji(interaction.guild, category, value, usedMenu);
-      if (customEmoji) {
-        option.emoji = { id: customEmoji.id, name: customEmoji.name, animated: customEmoji.animated };
-        usedMenu.add(customEmoji.id);
-      }
-      return option;
-    });
 
     const menu = new StringSelectMenuBuilder()
       .setCustomId("ticket_create")
-      .setPlaceholder("🎫 Selecciona una categoría")
+      .setPlaceholder("🎫 Selecciona el tipo de ticket")
       .setMinValues(1)
       .setMaxValues(1)
-      .addOptions(options);
+      .addOptions(categories.map(([value, c]) => {
+        const option = {
+          label: String(c.label || value).slice(0, 100),
+          value,
+          description: String(c.description || "Abrir un ticket.").slice(0, 100)
+        };
+        // Primero usa el emoji personalizado configurado; si no existe, busca por nombre.
+        const custom = (c.emojiId && i.guild.emojis.cache.get(c.emojiId))
+          || i.guild.emojis.cache.find(e => e.name === c.emojiName)
+          || i.guild.emojis.cache.find(e => e.name.toLowerCase() === ("Velo_" + value).toLowerCase());
+        if (custom) option.emoji = { id: custom.id, name: custom.name, animated: custom.animated };
+        else option.emoji = emojiData(i.guild, value === "soporte" ? "velo_support" : value === "comprar" ? "velo_buy" : value === "reclamos" ? "velo_reclaim" : "velo_other", "🎫");
+        return option;
+      }));
 
-    const usedEmbed = new Set();
-    const categoryLines = categories.map(([type, category]) => {
-      const customEmoji = findEmoji(interaction.guild, category, type, usedEmbed);
-      if (customEmoji) usedEmbed.add(customEmoji.id);
-
-      const emojiText = customEmoji ? customEmoji.toString() : "🎫";
-      return emojiText + " **" + String(category.label || type) + "** — " +
-        String(category.description || "Contacta con el equipo de soporte.");
-    });
+    const description = categories.map(([value, c]) => {
+      const custom = (c.emojiId && i.guild.emojis.cache.get(c.emojiId))
+        || i.guild.emojis.cache.find(e => e.name === c.emojiName)
+        || i.guild.emojis.cache.find(e => e.name.toLowerCase() === ("Velo_" + value).toLowerCase());
+      const fallbackKey = value === "soporte" ? "velo_support" : value === "comprar" ? "velo_buy" : value === "reclamos" ? "velo_reclaim" : "velo_other";
+      const icon = custom ? custom.toString() : emoji(i.guild, fallbackKey, "🎫");
+      return icon + " **" + String(c.label || value) + "** — " + String(c.description || "Abre un ticket con el equipo.");
+    }).join("\n");
 
     const embed = new EmbedBuilder()
-      .setColor(config.colors.primary)
-      .setTitle("🎫 Flux Shop | Centro de soporte")
-      .setDescription(
-        "¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta y abre un ticket. Nuestro equipo te atenderá en cuanto esté disponible.\n\n" +
-        categoryLines.join("\n")
-      )
-      .setFooter({ text: "Flux Shop • Atención y soporte" })
+      .setColor(config.colors.primary || 0xE11D2E)
+      .setTitle(emoji(i.guild, "brand", "✨") + " Velo Studio • Centro de tickets")
+      .setDescription("¿Necesitas ayuda? Selecciona una categoría en el menú y el equipo te atenderá.\n\n" + description)
+      .setFooter({ text: "Velo Studio • Sistema de soporte" })
       .setTimestamp();
 
-    return interaction.reply({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(menu)]
-    });
+    try {
+      await i.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+    } catch (error) {
+      console.error("Error publicando /ticket-panel:", error);
+      const message = "❌ No pude publicar el panel. Comprueba que tengo permiso para enviar mensajes, insertar enlaces y usar emojis externos/personalizados.";
+      if (i.replied || i.deferred) await i.followUp({ content: message, ephemeral: true }).catch(() => {});
+      else await i.reply({ content: message, ephemeral: true }).catch(() => {});
+    }
   }
 };
