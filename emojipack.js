@@ -26,17 +26,35 @@ const STATIC_EMOJIS = [
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/596d27f8-329d-4065-a7c3-72be26a81060.png", "arrowred"]
 ];
 
-const VELO_STAFF = [
-  ["Velo", "Velo", "brand"],
-  ["Velo_Staff", "Velo_Staff", "staff"],
-  ["Velo_Support", "Velo_Support", "support"],
-  ["Velo_Ticket", "Velo_Ticket", "ticket"],
-  ["Velo_Developer", "Velo_Developer", "developer"],
-  ["Velo_Designer", "Velo_Designer", "designer"],
-  ["Velo_Verified", "Velo_Verified", "verified"],
-  ["Velo_Warning", "Velo_Warning", "warning"],
-  ["Velo_Success", "Velo_Success", "success"],
-  ["Velo_Error", "Velo_Error", "error"]
+const FLUX_PACK = [
+  ["Flux_Store", "Flux_Store", "store"],
+  ["Flux_Staff", "Flux_Staff", "staff"],
+  ["Flux_Admin", "Flux_Admin", "admin"],
+  ["Flux_Mod", "Flux_Mod", "mod"],
+  ["Flux_Helper", "Flux_Helper", "helper"],
+  ["Flux_Trial", "Flux_Trial", "trial"],
+  ["Flux_Management", "Flux_Management", "management"],
+  ["Flux_Support", "Flux_Support", "support"],
+  ["Flux_Ticket", "Flux_Ticket", "ticket"],
+  ["Flux_Claim", "Flux_Claim", "claim"],
+  ["Flux_Closed", "Flux_Closed", "closed"],
+  ["Flux_Developer", "Flux_Developer", "developer"],
+  ["Flux_Coder", "Flux_Coder", "coder"],
+  ["Flux_Designer", "Flux_Designer", "designer"],
+  ["Flux_Verified", "Flux_Verified", "verified"],
+  ["Flux_Warning", "Flux_Warning", "warning"],
+  ["Flux_Ban", "Flux_Ban", "ban"],
+  ["Flux_Muted", "Flux_Muted", "muted"],
+  ["Flux_Success", "Flux_Success", "success"],
+  ["Flux_Error", "Flux_Error", "error"],
+  ["Flux_Loading", "Flux_Loading", "loading"],
+  ["Flux_Online", "Flux_Online", "online"],
+  ["Flux_Offline", "Flux_Offline", "offline"],
+  ["Flux_Cart", "Flux_Cart", "cart"],
+  ["Flux_Premium", "Flux_Premium", "premium"],
+  ["Flux_Discount", "Flux_Discount", "discount"],
+  ["Flux_Stock", "Flux_Stock", "stock"],
+  ["Flux_Sold", "Flux_Sold", "sold"]
 ];
 
 function crc32(buf) {
@@ -63,7 +81,7 @@ function pngChunk(type, data) {
   return out;
 }
 
-function generatedVeloEmoji(kind) {
+function generatedFluxEmoji(kind) {
   const size = 128;
   const pixels = Buffer.alloc(size * size * 4, 0);
   const set = (x, y, r, g, b, a = 255) => {
@@ -88,9 +106,9 @@ function generatedVeloEmoji(kind) {
       for (let yy = -w; yy <= w; yy++) for (let xx = -w; xx <= w; xx++) set(x + xx, y + yy, ...color);
     }
   };
-  // Estilo Velo rojo: degradado visual, borde oscuro y textura para que no se vean planos.
-  const red = [190, 24, 48, 255], red2 = [125, 12, 28, 255], red3 = [235, 48, 70, 255];
-  const white = [255,255,255,255], dark = [38,10,16,255], shine = [255,150,160,150];
+  // Identidad Flux STORE: negro y morado neón, textura y transparencia exterior.
+  const red = [137, 55, 255, 255], red2 = [45, 16, 75, 255], red3 = [205, 155, 255, 255];
+  const white = [255,255,255,255], dark = [12,8,22,255], shine = [220,180,255,150];
   circle(64,64,61,dark); circle(64,64,57,red2); circle(64,64,53,red);
   // Textura punteada/diagonal sutil.
   for (let y = 18; y < 111; y += 6) for (let x = 18; x < 111; x += 6) {
@@ -106,7 +124,18 @@ function generatedVeloEmoji(kind) {
   else if (kind === "designer") { line(35,88,88,35,10,white); line(88,35,98,45,10,white); line(35,88,31,99,4,white); line(42,81,84,39,2,red3); }
   else if (kind === "verified" || kind === "success") { line(32,65,55,87,7,white); line(55,87,98,40,7,white); }
   else if (kind === "warning") { line(64,32,64,74,6,white); circle(64,91,5,white); }
-  else if (kind === "error") { line(39,39,89,89,7,white); line(89,39,39,89,7,white); }
+  else if (kind === "error" || kind === "ban" || kind === "muted" || kind === "closed") { line(39,39,89,89,7,white); line(89,39,39,89,7,white); }
+  else if (kind === "admin" || kind === "management") { circle(64,64,24,white); circle(64,64,12,red); for(let a=0;a<8;a++){const ang=a*Math.PI/4;rect(Math.round(61+Math.cos(ang)*25),Math.round(61+Math.sin(ang)*25),Math.round(67+Math.cos(ang)*34),Math.round(67+Math.sin(ang)*34),white);} }
+  else if (kind === "helper" || kind === "trial") { circle(64,45,13,white); rect(43,64,85,88,white); line(48,71,80,71,3,red); }
+  else if (kind === "coder" || kind === "claim") { line(42,45,25,64,5,white); line(25,64,42,83,5,white); line(86,45,103,64,5,white); line(103,64,86,83,5,white); }
+  else if (kind === "store") { rect(34,51,94,91,white); rect(42,62,55,76,red2); rect(67,62,83,76,red2); line(30,49,98,49,5,white); }
+  else if (kind === "cart") { line(28,37,38,37,3,white); line(38,37,48,74,3,white); line(48,74,91,74,3,white); line(91,74,100,48,3,white); circle(53,89,5,white); circle(86,89,5,white); }
+  else if (kind === "premium") { line(30,84,42,43,4,white); line(42,43,63,66,4,white); line(63,66,85,43,4,white); line(85,43,98,84,4,white); line(30,84,98,84,4,white); }
+  else if (kind === "discount") { circle(48,48,9,white); circle(80,80,9,white); line(40,88,88,40,5,white); }
+  else if (kind === "stock" || kind === "sold") { rect(36,39,92,89,white); line(36,54,92,54,3,red); line(36,70,92,70,3,red); if(kind==="sold"){line(43,43,85,83,5,red3);line(85,43,43,83,5,red3);} }
+  else if (kind === "loading") { circle(64,64,31,white); circle(64,64,19,red2); rect(61,28,67,48,red3); }
+  else if (kind === "online") { circle(64,64,25,[80,255,150,255]); }
+  else if (kind === "offline") { circle(64,64,25,[130,130,145,255]); }
   const raw = Buffer.alloc(size * (size * 4 + 1));
   for (let y = 0; y < size; y++) {
     raw[y * (size * 4 + 1)] = 0;
@@ -184,19 +213,19 @@ module.exports = {
     }
 
     const tipo = i.options.getString("tipo");
-    const veloPack = VELO_STAFF.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
+    const fluxPack = FLUX_PACK.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
     const staticPack = STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }));
-    const shopPack = SHOP_EMOJIS.map(x => ({ url: twemojiUrl(x[0]), name: x[1], animated: false }));
+    const shopPack = FLUX_PACK.filter(x => x[1].startsWith("Flux_")).map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
     const animatedPack = ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }));
     const list = tipo === "velo_staff"
-      ? veloPack
+      ? fluxPack
       : tipo === "tienda"
         ? shopPack
         : tipo === "normales"
         ? staticPack
         : tipo === "animados"
           ? animatedPack
-          : [...veloPack, ...staticPack, ...animatedPack, ...shopPack];
+          : [...fluxPack, ...staticPack, ...animatedPack];
 
     await i.deferReply({ ephemeral: true });
     const existing = new Set(i.guild.emojis.cache.map(e => e.name));
@@ -211,11 +240,11 @@ module.exports = {
       }
 
       try {
-        const buffer = item.generated ? generatedVeloEmoji(item.kind) : await download(item.url);
+        const buffer = item.generated ? generatedFluxEmoji(item.kind) : await download(item.url);
         const created = await i.guild.emojis.create({
           attachment: buffer,
           name: item.name,
-          reason: "Pack de emojis personalizados de Velo Studio"
+          reason: "Pack de emojis personalizados de Flux STORE"
         });
         added.push(created.toString() + " \`" + item.name + "\`");
         existing.add(item.name);
@@ -226,7 +255,7 @@ module.exports = {
 
     const e = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle(emoji(i.guild, "velo", "") + " Emojis personalizados de Velo Studio")
+      .setTitle("Flux STORE • Emojis personalizados")
       .setDescription(
         "Emojis personalizados reales de Discord, no Unicode.\n\n" +
         emoji(i.guild, "velo_success", "") + " Añadidos: **" + added.length + "**\n" +
