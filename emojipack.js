@@ -7,6 +7,13 @@ const STATIC_EMOJIS = [
   ["https://cdn3.emoji.gg/emojis/535376-hardcoreheart.png", "hardcoreheart"],
   ["https://cdn3.emoji.gg/emojis/8444-pvp.png", "pvp"],
   ["https://cdn3.emoji.gg/emojis/9230-player-vs-player-pvp.png", "player_pvp"],
+  ["https://cdn3.emoji.gg/emojis/662519-shopping-cart.gif", "shop_cart_a"],
+  ["https://cdn3.emoji.gg/emojis/273651-shopeepay.png", "shopeepay"],
+  ["https://cdn3.emoji.gg/emojis/737230-applepay.png", "applepay"],
+  ["https://cdn3.emoji.gg/emojis/77525-binance.png", "binance"],
+  ["https://cdn3.emoji.gg/emojis/71388-stripe.png", "stripe"],
+  ["https://cdn3.emoji.gg/emojis/37700-sellix-logo.png", "sellix"],
+
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/a378d612-c148-45c7-a373-12ff1707ff63.png", "dwayne"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/07/da22f9ae-31ae-46d9-9583-675832ac0cb0.png", "catkiss"],
   ["https://cdn.discordemojihub.com/discordemojihub/emojis/2026/06/e448023f-8557-44db-bb5c-d38921ed6413.png", "gatito"],
