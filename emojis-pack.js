@@ -31,7 +31,7 @@ const PACKS = {
   ],
   tienda: [
     ["gg_cart_gif", CDN + "662519-shopping-cart.gif"],
-    ["gg_cart_icon", CDN + "9851-shoppingcart.gif"],
+    ["gg_cart_icon", CDN + "9851-shoppingcart.png"],
     ["gg_shopeepay", CDN + "273651-shopeepay.png"],
     ["gg_sellix", CDN + "37700-sellix-logo.png"],
     ["gg_stripe", CDN + "71388-stripe.png"]
@@ -51,7 +51,7 @@ const PACKS = {
   animados: [
     ["gg_ticket_gif", CDN + "993547-maketicket.gif"],
     ["gg_cart_gif", CDN + "662519-shopping-cart.gif"],
-    ["gg_cart_icon", CDN + "9851-shoppingcart.gif"]
+    ["gg_cart_icon", CDN + "9851-shoppingcart.png"]
   ]
 };
 
