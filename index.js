@@ -135,9 +135,10 @@ client.on(Events.MessageCreate, async message => {
         const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("Velo Studio • Comandos")
           .setDescription([
             "**Utilidad**",
-            "`!help` `!ping` `!avatar [@usuario]` `!serverinfo` `!afk [mensaje]` `!messagecount [@usuario]`",
+            "`!help` `!comandos` `!ping` `!avatar [@usuario]` `!userinfo [@usuario]` `!roleinfo @rol` `!poll pregunta | opción 1 | opción 2`",
+            "`!serverinfo` `!afk [mensaje]` `!messagecount [@usuario]`",
             "**Moderación**",
-            "`!ban @usuario [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
+            "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
             "**Tickets, mensajes y sorteos**",
             "`!ticket-panel` `!say texto`",
