@@ -82,7 +82,7 @@ async function createTicket(i) {
     new ButtonBuilder().setCustomId("ticket_unlock").setLabel("Desbloquear").setEmoji(emoji(i.guild, "success", "🔓")).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("ticket_close").setLabel("Cerrar").setEmoji(emoji(i.guild, "trash", "🗑️")).setStyle(ButtonStyle.Danger)
   );
-  const ticketIcon = type === "soporte" ? "<:emoji_17:1550144823577542677>" : type === "comprar" ? "<:sellix:1561518136338022602>" : emoji(i.guild, "velo_ticket", "🎫");
+  const ticketIcon = emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
   const embed = new EmbedBuilder().setColor(config.colors.primary)
     .setTitle(ticketIcon + " " + category.label + " • Flux STORE")
     .setDescription("Hola " + i.user + ", tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** " + i.user + "\n\nUn miembro del Staff te atenderá pronto.")
