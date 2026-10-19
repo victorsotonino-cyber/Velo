@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, Partials, Collection, Events, ActivityType, R
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
-const { emoji } = require("./ui");
+const { emoji, emojiData } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveawayService = require("./giveaway-service");
 
@@ -330,18 +330,17 @@ client.on(Events.MessageCreate, async message => {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
         const categories = Object.entries(config.ticket.categories || {});
         if (!categories.length) return fail("No hay categorías de tickets configuradas.");
-        const options = categories.map(([value, c]) => {
-          const option = { label: String(c.label || value).slice(0, 100), value, description: String(c.description || "Abre un ticket.").slice(0, 100) };
-          const custom = c.emojiId ? message.guild.emojis.cache.get(c.emojiId) : null;
-          if (custom) option.emoji = { id: custom.id, name: custom.name, animated: custom.animated };
-          return option;
-        });
-        const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("🎫 Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
-        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🎫 Flux Store | Centro de soporte")
-          .setDescription("¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta.\n\n" + categories.map(([type, c]) => {
-            const custom = c.emojiId ? message.guild.emojis.cache.get(c.emojiId) : null;
-            return (custom ? custom.toString() + " " : "🎫 ") + "**" + c.label + "** — " + c.description;
-          }).join("\n"))
+        const options = categories.map(([value, c]) => ({
+          label: String(c.label || value).slice(0, 100),
+          value,
+          description: String(c.description || "Abre un ticket.").slice(0, 100),
+          emoji: emojiData(message.guild, c.emojiKey || value, "🎫")
+        }));
+        const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
+        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle(emoji(message.guild, "shop", "🛍️") + " Flux Store | Centro de soporte")
+          .setDescription("¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta.\n\n" + categories.map(([type, c]) =>
+            emoji(message.guild, c.emojiKey || type, "🎫") + " **" + c.label + "** — " + c.description
+          ).join("\n"))
           .setFooter({ text: "Flux Store • Atención y soporte" });
         return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
