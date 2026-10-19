@@ -132,7 +132,7 @@ client.on(Events.MessageCreate, async message => {
       case "giveaway": return giveawayService.executePrefix(message, args, client);
       case "help":
       case "ayuda": {
-        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("Velo Studio • Comandos")
+        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("Flux Store • Comandos")
           .setDescription([
             "**Utilidad**",
             "`!help` `!comandos` `!ping` `!avatar [@usuario]` `!userinfo [@usuario]` `!roleinfo @rol` `!poll pregunta | opción 1 | opción 2`",
@@ -337,12 +337,12 @@ client.on(Events.MessageCreate, async message => {
           return option;
         });
         const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("🎫 Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
-        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🎫 Velo Studio | Centro de soporte")
+        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🎫 Flux Store | Centro de soporte")
           .setDescription("¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta.\n\n" + categories.map(([type, c]) => {
             const custom = c.emojiId ? message.guild.emojis.cache.get(c.emojiId) : null;
             return (custom ? custom.toString() + " " : "🎫 ") + "**" + c.label + "** — " + c.description;
           }).join("\n"))
-          .setFooter({ text: "Velo Studio • Atención y soporte" });
+          .setFooter({ text: "Flux Store • Atención y soporte" });
         return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
       default:
@@ -356,12 +356,12 @@ client.on(Events.MessageCreate, async message => {
 
 client.on(Events.GuildMemberAdd, async member => {
   const ch = member.guild.channels.cache.get(config.channels.welcome);
-  if (ch?.isTextBased()) await ch.send(emoji(member.guild, "success", "👋") + " ¡Bienvenido/a " + member + " a **Velo Studio**!").catch(() => {});
+  if (ch?.isTextBased()) await ch.send(emoji(member.guild, "success", "👋") + " ¡Bienvenido/a " + member + " a **Flux Store**!").catch(() => {});
 });
 
 client.on(Events.GuildMemberRemove, async member => {
   const ch = member.guild.channels.cache.get(config.channels.welcome);
-  if (ch?.isTextBased()) await ch.send(emoji(member.guild, "info", "👋") + " **" + (member.user?.tag || "Un miembro") + "** ha salido de Velo Studio.").catch(() => {});
+  if (ch?.isTextBased()) await ch.send(emoji(member.guild, "info", "👋") + " **" + (member.user?.tag || "Un miembro") + "** ha salido de Flux Store.").catch(() => {});
 });
 
 process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
