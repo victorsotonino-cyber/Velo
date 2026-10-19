@@ -242,9 +242,10 @@ function pickItems(entries, selected, existingNames) {
 
 async function downloadEmoji(url) {
   const allowedHosts = new Set([
-    "emoji.gg", "www.emoji.gg", "cdn3.emoji.gg", "discordemoji.com", "www.discordemoji.com",
+    "emoji.gg", "www.emoji.gg", "cdn3.emoji.gg",
+    "discordemoji.com", "www.discordemoji.com",
     ...extraImageHosts()
-  ]);
+  ].map(host => host.toLowerCase()));
   let parsed;
   try { parsed = new URL(url); } catch { throw new Error("enlace de imagen inválido"); }
   if (parsed.protocol !== "https:" || !allowedHosts.has(parsed.hostname.toLowerCase())) {
@@ -252,31 +253,36 @@ async function downloadEmoji(url) {
   }
 
   const candidates = [parsed.href];
-  if (["cdn3.emoji.gg", "emoji.gg", "www.emoji.gg", "discordemoji.com", "www.discordemoji.com"].includes(parsed.hostname.toLowerCase())) {
-    const filename = parsed.pathname.split("/").pop();
-    if (filename && /\.(png|gif|webp|jpe?g)$/i.test(filename)) {
-      candidates.push(
-        "https://emoji.gg/assets/emoji/" + encodeURIComponent(filename),
-        "https://www.emoji.gg/assets/emoji/" + encodeURIComponent(filename),
-        "https://emoji.gg/emojis/" + encodeURIComponent(filename),
-        "https://cdn3.emoji.gg/emojis/" + encodeURIComponent(filename)
-      );
-    }
+  const filename = parsed.pathname.split("/").pop();
+  const knownEmojiHost = [
+    "cdn3.emoji.gg", "emoji.gg", "www.emoji.gg",
+    "discordemoji.com", "www.discordemoji.com"
+  ].includes(parsed.hostname.toLowerCase());
+  if (knownEmojiHost && filename && /\.(png|gif|webp|jpe?g|svg|avif)$/i.test(filename)) {
+    candidates.push(
+      "https://emoji.gg/assets/emoji/" + encodeURIComponent(filename),
+      "https://www.emoji.gg/assets/emoji/" + encodeURIComponent(filename),
+      "https://cdn3.emoji.gg/assets/emoji/" + encodeURIComponent(filename),
+      "https://discordemoji.com/assets/emoji/" + encodeURIComponent(filename),
+      "https://www.discordemoji.com/assets/emoji/" + encodeURIComponent(filename)
+    );
   }
 
   let input = null;
-  let lastError = "sin respuesta de la fuente";
+  let validMetadata = null;
+  let lastError = "la fuente no respondió";
   for (const candidate of [...new Set(candidates)]) {
     let candidateUrl;
     try { candidateUrl = new URL(candidate); } catch { continue; }
     if (candidateUrl.protocol !== "https:" || !allowedHosts.has(candidateUrl.hostname.toLowerCase())) continue;
+
     try {
       const response = await fetch(candidate, {
         redirect: "follow",
         signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.3; +https://emoji.gg/)",
-          "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.5; +https://emoji.gg/)",
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
           "Referer": "https://emoji.gg/"
         }
       });
@@ -289,6 +295,12 @@ async function downloadEmoji(url) {
         lastError = "redirección a un dominio no permitido";
         continue;
       }
+      const contentType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      const contentLength = Number(response.headers.get("content-length") || 0);
+      if (contentLength > MAX_DOWNLOAD_BYTES) {
+        lastError = "imagen original mayor de 8 MB";
+        continue;
+      }
       const buffer = Buffer.from(await response.arrayBuffer());
       if (!buffer.length) {
         lastError = "imagen vacía";
@@ -298,28 +310,43 @@ async function downloadEmoji(url) {
         lastError = "imagen original mayor de 8 MB";
         continue;
       }
+
+      let metadata;
+      try { metadata = await sharp(buffer, { animated: true, limitInputPixels: 16777216 }).metadata(); }
+      catch {
+        lastError = "respuesta no válida (" + (contentType || "no es imagen") + ")";
+        continue;
+      }
+      if (!["png", "gif", "webp", "jpeg", "svg", "avif"].includes(metadata.format)) {
+        lastError = "formato no compatible: " + String(metadata.format || contentType || "desconocido");
+        continue;
+      }
+
+      // Continue through mirrors until a candidate is a real, readable image.
       input = buffer;
+      validMetadata = metadata;
       break;
     } catch (error) {
       lastError = safeError(error);
     }
   }
-  if (!input) throw new Error("descarga fallida: " + lastError);
 
-  let metadata;
-  try { metadata = await sharp(input, { animated: true, limitInputPixels: 16777216 }).metadata(); }
-  catch { throw new Error("el enlace no devolvió una imagen válida"); }
-  if (!["png", "gif", "webp", "jpeg"].includes(metadata.format)) {
-    throw new Error("formato no compatible: " + String(metadata.format || "desconocido"));
+  if (!input || !validMetadata) {
+    throw new Error("ningún enlace devolvió una imagen válida (" + lastError + ")");
   }
-  const animated = metadata.format === "gif" || Boolean(metadata.pages && metadata.pages > 1);
-  for (const size of [128, 96, 64]) {
-    const image = sharp(input, { animated, limitInputPixels: 16777216 })
-      .resize(size, size, { fit: "inside", withoutEnlargement: true });
-    const output = animated
-      ? await image.gif({ quality: 78, effort: 10, dither: 0.7 }).toBuffer()
-      : await image.png({ palette: true, quality: 82, effort: 10, compressionLevel: 9 }).toBuffer();
-    if (output.length <= 256 * 1024) return output;
+
+  const animated = validMetadata.format === "gif" || Boolean(validMetadata.pages && validMetadata.pages > 1);
+  for (const size of [128, 96, 64, 48]) {
+    try {
+      const image = sharp(input, { animated, limitInputPixels: 16777216 })
+        .resize(size, size, { fit: "inside", withoutEnlargement: true });
+      const output = animated
+        ? await image.gif({ quality: 78, effort: 10, dither: 0.7 }).toBuffer()
+        : await image.png({ palette: true, quality: 82, effort: 10, compressionLevel: 9 }).toBuffer();
+      if (output.length <= 256 * 1024) return output;
+    } catch (error) {
+      if (size === 48) throw new Error("no se pudo procesar la imagen: " + safeError(error));
+    }
   }
   throw new Error("no se pudo comprimir por debajo de 256 KB");
 }
