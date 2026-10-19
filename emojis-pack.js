@@ -686,8 +686,8 @@ module.exports = {
       const deletableAnimated = currentEmojis
         .filter(emoji => emoji.animated && !emoji.managed)
         .sort(compareEmojiAge);
-      const plannedStaticDeletes = deletableStatic.slice(0, staticNeeded);
-      const plannedAnimatedDeletes = deletableAnimated.slice(0, animatedNeeded);
+      const plannedStaticDeletes = [...deletableStatic.values()].slice(0, staticNeeded);
+      const plannedAnimatedDeletes = [...deletableAnimated.values()].slice(0, animatedNeeded);
       let uploadsDone = 0;
       let uploadStopReason = null;
 
