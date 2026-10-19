@@ -590,10 +590,10 @@ module.exports = {
       }
       const initialExistingNames = new Set(currentEmojis.map(item => item.name));
       const initialTierSlotLimit = maxEmojiSlotsPerType(interaction.guild);
-      const initialStaticSlots = Math.max(0, initialTierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
-      const initialAnimatedSlots = Math.max(0, initialTierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
+      const initialStaticSlots = Math.max(0, initialTierSlotLimit - [...currentEmojis.values()].filter(emoji => !emoji.animated).length);
+      const initialAnimatedSlots = Math.max(0, initialTierSlotLimit - [...currentEmojis.values()].filter(emoji => emoji.animated).length);
       if (initialStaticSlots === 0 && initialAnimatedSlots === 0) {
-        const replaceableCount = currentEmojis.filter(emoji => !emoji.managed).length;
+        const replaceableCount = [...currentEmojis.values()].filter(emoji => !emoji.managed).length;
         if (replaceableCount === 0) {
           return interaction.editReply({
             content: "El servidor está lleno y todos los emojis actuales son gestionados por integraciones. No puedo reemplazarlos desde el bot; no se descargó el pack ni se borró nada."
@@ -665,8 +665,8 @@ module.exports = {
 
       const uploadCandidates = [...buffers.values()];
       const tierSlotLimit = maxEmojiSlotsPerType(interaction.guild);
-      let staticSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
-      let animatedSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
+      let staticSlotsLeft = Math.max(0, tierSlotLimit - [...currentEmojis.values()].filter(emoji => !emoji.animated).length);
+      let animatedSlotsLeft = Math.max(0, tierSlotLimit - [...currentEmojis.values()].filter(emoji => emoji.animated).length);
       const staticRecords = [];
       const animatedRecords = [];
       const deletedNames = [];
@@ -752,8 +752,8 @@ module.exports = {
       }
 
       // Recalculate capacity using Discord's actual inventory after replacements.
-      staticSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
-      animatedSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
+      staticSlotsLeft = Math.max(0, tierSlotLimit - [...currentEmojis.values()].filter(emoji => !emoji.animated).length);
+      animatedSlotsLeft = Math.max(0, tierSlotLimit - [...currentEmojis.values()].filter(emoji => emoji.animated).length);
       const staticToUpload = staticRecords.slice(0, staticSlotsLeft);
       const animatedToUpload = animatedRecords.slice(0, animatedSlotsLeft);
       const uploadQueue = [...staticToUpload, ...animatedToUpload];
