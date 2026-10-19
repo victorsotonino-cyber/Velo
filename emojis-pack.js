@@ -162,38 +162,45 @@ function pickItems(entries, selected, existingNames) {
 
 async function downloadEmoji(url) {
   const parsed = new URL(url);
-  if (parsed.protocol !== "https:" || parsed.hostname !== "cdn3.emoji.gg") {
-    throw new Error("el enlace no pertenece al CDN seguro de Emoji.gg");
+  const allowedHosts = ["emoji.gg", "www.emoji.gg", "cdn3.emoji.gg"];
+  if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname)) {
+    throw new Error("el enlace no pertenece a Emoji.gg");
   }
-
+  // La API oficial entrega archivos bajo /assets/emoji/. No se debe forzar cdn3,
+  // porque ese host puede responder 403 aunque el enlace original sea válido.
   const response = await fetch(url, {
+    redirect: "follow",
     signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    headers: { "User-Agent": "FluxSTORE-EmojiInstaller/3.1" }
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.2; +https://emoji.gg/)",
+      "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "Referer": "https://emoji.gg/"
+    }
   });
   if (!response.ok) throw new Error("Emoji.gg HTTP " + response.status);
-
+  const finalUrl = new URL(response.url);
+  if (finalUrl.protocol !== "https:" || !allowedHosts.includes(finalUrl.hostname)) {
+    throw new Error("redirección a un dominio no permitido");
+  }
   const input = Buffer.from(await response.arrayBuffer());
   if (!input.length) throw new Error("imagen vacía");
   if (input.length > MAX_DOWNLOAD_BYTES) throw new Error("imagen original mayor de 8 MB");
-
-  const png = input.length >= 8 && input.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
-  const gif = input.length >= 6 && ["GIF87a", "GIF89a"].includes(input.subarray(0,6).toString("ascii"));
-  if (!png && !gif) throw new Error("el enlace no devolvió PNG/GIF válido");
-
-  // Discord bot uploads have a much stricter size cap than Emoji.gg originals.
-  // Resize/compress while preserving animation for GIFs.
+  let metadata;
+  try { metadata = await sharp(input, { animated: true, limitInputPixels: 16777216 }).metadata(); }
+  catch { throw new Error("el enlace no devolvió una imagen válida"); }
+  if (!["png", "gif", "webp", "jpeg"].includes(metadata.format)) {
+    throw new Error("formato no compatible: " + String(metadata.format || "desconocido"));
+  }
+  const animated = metadata.format === "gif" || Boolean(metadata.pages && metadata.pages > 1);
   for (const size of [128, 96, 64]) {
-    const image = sharp(input, { animated: gif, limitInputPixels: 16777216 })
+    const image = sharp(input, { animated, limitInputPixels: 16777216 })
       .resize(size, size, { fit: "inside", withoutEnlargement: true });
-
-    const output = gif
+    const output = animated
       ? await image.gif({ quality: 78, effort: 10, dither: 0.7 }).toBuffer()
       : await image.png({ palette: true, quality: 82, effort: 10, compressionLevel: 9 }).toBuffer();
-
     if (output.length <= 256 * 1024) return output;
   }
-
-  throw new Error("no se pudo comprimir por debajo de 256 KB sin perder el formato");
+  throw new Error("no se pudo comprimir por debajo de 256 KB");
 }
 
 async function withTimeout(promise, ms, label) {
