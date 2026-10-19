@@ -10,11 +10,11 @@ const sharp = require("sharp");
 const API_URL = "https://emoji.gg/api";
 const MAX_PACK_SIZE = 120;
 const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
-const CATALOG_TIMEOUT_MS = 20000;
-const DOWNLOAD_TIMEOUT_MS = 8000;
-const UPLOAD_TIMEOUT_MS = 20000;
-const DOWNLOAD_WORKERS = 10;
-const UPLOAD_WORKERS = 2;
+const CATALOG_TIMEOUT_MS = 15000;
+const DOWNLOAD_TIMEOUT_MS = 12000;
+const UPLOAD_TIMEOUT_MS = 45000;
+const DOWNLOAD_WORKERS = 6;
+const UPLOAD_WORKERS = 1;
 
 let catalogCache = null;
 let catalogCacheUntil = 0;
@@ -64,35 +64,113 @@ function makeEmojiName(entry) {
   return ("flux_" + title + "_" + id).slice(0, 32);
 }
 
+
+function unpackCatalog(body) {
+  if (Array.isArray(body)) return body;
+  if (!body || typeof body !== "object") return [];
+  for (const key of ["emojis", "items", "data", "results", "entries"]) {
+    if (Array.isArray(body[key])) return body[key];
+    if (body[key] && typeof body[key] === "object") {
+      for (const nested of ["emojis", "items", "results", "entries"]) {
+        if (Array.isArray(body[key][nested])) return body[key][nested];
+      }
+    }
+  }
+  return [];
+}
+
+function extraFeedUrls() {
+  return String(process.env.EMOJI_EXTRA_API_URLS || "")
+    .split(",").map(value => value.trim()).filter(Boolean)
+    .slice(0, 8);
+}
+
+function extraImageHosts() {
+  return String(process.env.EMOJI_EXTRA_IMAGE_HOSTS || "")
+    .split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+}
+
 async function loadCatalog() {
   if (catalogCache && Date.now() < catalogCacheUntil) return catalogCache;
   if (catalogRequest) return catalogRequest;
 
   catalogRequest = (async () => {
-    const response = await fetch(API_URL, {
-      signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS),
-      headers: { "User-Agent": "FluxSTORE-EmojiInstaller/3.0", "Accept": "application/json" }
-    });
-    if (!response.ok) throw new Error("Emoji.gg API respondió HTTP " + response.status);
-    const body = await response.json();
-    if (!Array.isArray(body)) throw new Error("Emoji.gg devolvió un catálogo inválido");
+    const sources = [{ url: API_URL, official: true }, ...extraFeedUrls().map(url => ({ url, official: false }))];
+    const configuredImageHosts = extraImageHosts();
+    const results = await Promise.allSettled(sources.map(async source => {
+      let sourceUrl;
+      try { sourceUrl = new URL(source.url); } catch { throw new Error("URL de catálogo inválida"); }
+      if (sourceUrl.protocol !== "https:") throw new Error("Los catálogos adicionales deben usar HTTPS");
+      const response = await fetch(source.url, {
+        signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.3; +https://emoji.gg/)",
+          "Accept": "application/json",
+          "Referer": "https://emoji.gg/"
+        }
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const body = await response.json();
+      const items = unpackCatalog(body);
+      if (!items.length) throw new Error("el catálogo no contiene una lista de emojis");
 
-    const seen = new Set();
+      const normalized = [];
+      for (const item of items) {
+        if (!item || typeof item !== "object") continue;
+        const imageValue = item.image || item.image_url || item.imageUrl || item.gif_url || item.gif || item.url;
+        const title = item.title || item.name || item.slug || item.id;
+        if (!imageValue || !title) continue;
+        let parsed;
+        try { parsed = new URL(String(imageValue), sourceUrl); } catch { continue; }
+        if (parsed.protocol !== "https:") continue;
+        const emojiHosts = ["emoji.gg", "www.emoji.gg", "cdn3.emoji.gg"];
+        if (source.official) {
+          if (!emojiHosts.includes(parsed.hostname.toLowerCase())) continue;
+        } else if (parsed.hostname.toLowerCase() !== sourceUrl.hostname.toLowerCase() &&
+                   !configuredImageHosts.includes(parsed.hostname.toLowerCase()) &&
+                   !emojiHosts.includes(parsed.hostname.toLowerCase())) {
+          continue;
+        }
+        if (!/\.(png|gif|webp|jpe?g)$/i.test(parsed.pathname)) continue;
+        const searchable = (String(title) + " " + String(item.slug || "") + " " +
+          String(item.description || "") + " " + String(item.tags || "")).toLowerCase();
+        if (BLOCKED.test(searchable)) continue;
+        const providerId = source.official ? "emoji_gg" : sourceUrl.hostname.replace(/[^a-z0-9]/gi, "_").slice(0, 12);
+        const rawId = String(item.id ?? item.slug ?? title);
+        const entry = {
+          id: providerId + "_" + rawId,
+          title: String(title),
+          slug: String(item.slug || title),
+          url: parsed.href,
+          faves: Number(item.faves || item.favorites || item.likes) || 0,
+          searchable,
+          source: source.official ? "Emoji.gg" : sourceUrl.hostname
+        };
+        entry.name = makeEmojiName(entry);
+        normalized.push(entry);
+      }
+      return normalized;
+    }));
+
+    const seenNames = new Set();
+    const seenUrls = new Set();
     const entries = [];
-    for (const item of body) {
-      if (!item || !item.title || !item.image || item.id == null) continue;
-      const name = makeEmojiName(item);
-      let parsed;
-      try { parsed = new URL(item.image); } catch { continue; }
-      if (parsed.protocol !== "https:" || parsed.hostname !== "cdn3.emoji.gg") continue;
-      if (!/\.(png|gif)$/i.test(parsed.pathname)) continue;
-      const searchable = (String(item.title) + " " + String(item.slug || "") + " " + String(item.description || "")).toLowerCase();
-      if (BLOCKED.test(searchable) || seen.has(name)) continue;
-      seen.add(name);
-      entries.push({ id: String(item.id), name, title: String(item.title), url: parsed.href, faves: Number(item.faves) || 0, searchable });
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status !== "fulfilled") {
+        console.warn("[Emoji pack] Fuente omitida:", sources[i].url, String(result.reason?.message || result.reason));
+        continue;
+      }
+      for (const entry of result.value) {
+        const urlKey = new URL(entry.url).href;
+        if (seenNames.has(entry.name) || seenUrls.has(urlKey)) continue;
+        seenNames.add(entry.name);
+        seenUrls.add(urlKey);
+        entries.push(entry);
+      }
     }
 
-    if (entries.length < MAX_PACK_SIZE) throw new Error("Emoji.gg devolvió solo " + entries.length + " imágenes válidas");
+    if (!entries.length) throw new Error("ninguna fuente devolvió imágenes compatibles; revisa Emoji.gg y EMOJI_EXTRA_API_URLS");
     catalogCache = entries;
     catalogCacheUntil = Date.now() + 15 * 60 * 1000;
     return entries;
@@ -104,11 +182,11 @@ async function loadCatalog() {
     catalogRequest = null;
   }
 }
-
 function pickItems(entries, selected, existingNames) {
   const sorted = entries.slice().sort((a, b) => b.faves - a.faves);
   const available = sorted.filter(item => !existingNames.has(item.name));
-  const target = selected === "todo" ? MAX_PACK_SIZE : (selected === "animados" ? 30 : 25);
+  const requestedTarget = selected === "todo" ? MAX_PACK_SIZE : (selected === "animados" ? 30 : 25);
+  const target = Math.min(requestedTarget, available.length);
   const picked = [];
   const pickedIds = new Set();
 
@@ -157,34 +235,76 @@ function pickItems(entries, selected, existingNames) {
     }
   }
 
-  return { items: picked, target };
+  return { items: picked, target: requestedTarget, available: available.length };
 }
 
+
 async function downloadEmoji(url) {
-  const parsed = new URL(url);
-  const allowedHosts = ["emoji.gg", "www.emoji.gg", "cdn3.emoji.gg"];
-  if (parsed.protocol !== "https:" || !allowedHosts.includes(parsed.hostname)) {
-    throw new Error("el enlace no pertenece a Emoji.gg");
+  const allowedHosts = new Set([
+    "emoji.gg", "www.emoji.gg", "cdn3.emoji.gg",
+    ...extraImageHosts()
+  ]);
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error("enlace de imagen inválido"); }
+  if (parsed.protocol !== "https:" || !allowedHosts.has(parsed.hostname.toLowerCase())) {
+    throw new Error("el enlace no pertenece a una fuente HTTPS permitida");
   }
-  // La API oficial entrega archivos bajo /assets/emoji/. No se debe forzar cdn3,
-  // porque ese host puede responder 403 aunque el enlace original sea válido.
-  const response = await fetch(url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.2; +https://emoji.gg/)",
-      "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-      "Referer": "https://emoji.gg/"
+
+  const candidates = [parsed.href];
+  if (["cdn3.emoji.gg", "emoji.gg", "www.emoji.gg"].includes(parsed.hostname.toLowerCase())) {
+    const filename = parsed.pathname.split("/").pop();
+    if (filename && /\.(png|gif|webp|jpe?g)$/i.test(filename)) {
+      candidates.push(
+        "https://emoji.gg/assets/emoji/" + encodeURIComponent(filename),
+        "https://www.emoji.gg/assets/emoji/" + encodeURIComponent(filename),
+        "https://emoji.gg/emojis/" + encodeURIComponent(filename),
+        "https://cdn3.emoji.gg/emojis/" + encodeURIComponent(filename)
+      );
     }
-  });
-  if (!response.ok) throw new Error("Emoji.gg HTTP " + response.status);
-  const finalUrl = new URL(response.url);
-  if (finalUrl.protocol !== "https:" || !allowedHosts.includes(finalUrl.hostname)) {
-    throw new Error("redirección a un dominio no permitido");
   }
-  const input = Buffer.from(await response.arrayBuffer());
-  if (!input.length) throw new Error("imagen vacía");
-  if (input.length > MAX_DOWNLOAD_BYTES) throw new Error("imagen original mayor de 8 MB");
+
+  let input = null;
+  let lastError = "sin respuesta de la fuente";
+  for (const candidate of [...new Set(candidates)]) {
+    let candidateUrl;
+    try { candidateUrl = new URL(candidate); } catch { continue; }
+    if (candidateUrl.protocol !== "https:" || !allowedHosts.has(candidateUrl.hostname.toLowerCase())) continue;
+    try {
+      const response = await fetch(candidate, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.3; +https://emoji.gg/)",
+          "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          "Referer": "https://emoji.gg/"
+        }
+      });
+      if (!response.ok) {
+        lastError = "HTTP " + response.status;
+        continue;
+      }
+      const finalUrl = new URL(response.url);
+      if (finalUrl.protocol !== "https:" || !allowedHosts.has(finalUrl.hostname.toLowerCase())) {
+        lastError = "redirección a un dominio no permitido";
+        continue;
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.length) {
+        lastError = "imagen vacía";
+        continue;
+      }
+      if (buffer.length > MAX_DOWNLOAD_BYTES) {
+        lastError = "imagen original mayor de 8 MB";
+        continue;
+      }
+      input = buffer;
+      break;
+    } catch (error) {
+      lastError = safeError(error);
+    }
+  }
+  if (!input) throw new Error("descarga fallida: " + lastError);
+
   let metadata;
   try { metadata = await sharp(input, { animated: true, limitInputPixels: 16777216 }).metadata(); }
   catch { throw new Error("el enlace no devolvió una imagen válida"); }
@@ -202,7 +322,6 @@ async function downloadEmoji(url) {
   }
   throw new Error("no se pudo comprimir por debajo de 256 KB");
 }
-
 async function withTimeout(promise, ms, label) {
   let timer;
   try {
@@ -377,11 +496,11 @@ module.exports = {
         .setTitle("Flux STORE • Pack de Emoji.gg terminado")
         .setURL("https://emoji.gg/")
         .setDescription(
-          "Se usaron imágenes PNG/GIF originales de Emoji.gg.\n\n" +
+          "Se priorizaron enlaces originales; fuentes: Emoji.gg y catálogos JSON adicionales configurados.\n\n" +
           "Instalados: " + added.length + "\n" +
           "Ya existían: " + skipped.length + "\n" +
           "Fallaron: " + failed.length + "\n" +
-          "Objetivo del pack: " + selection.target + "\n\n" +
+          "Objetivo solicitado: " + selection.target + "\nDisponibles en fuentes: " + selection.available + "\n\n" +
           "La velocidad de subida depende de los límites de Discord."
         )
         .setFooter({ text: "Flux STORE • Emoji.gg · respeta las licencias de cada autor" })
