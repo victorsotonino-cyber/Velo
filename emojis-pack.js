@@ -583,7 +583,22 @@ module.exports = {
         }
         throw error;
       }
-      const existingNames = new Set(currentEmojis.map(item => item.name));
+      const initialExistingNames = new Set(currentEmojis.map(item => item.name));
+      const initialTierSlotLimit = maxEmojiSlotsPerType(interaction.guild);
+      const initialStaticSlots = Math.max(0, initialTierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
+      const initialAnimatedSlots = Math.max(0, initialTierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
+      if (initialStaticSlots === 0 && initialAnimatedSlots === 0) {
+        const prepare = await askButtonConfirmation(interaction, {
+          content: "El servidor ha alcanzado el límite de emojis. Si continúas, prepararé el pack y te mostraré exactamente qué emojis antiguos tendría que reemplazar. No borraré nada sin una segunda confirmación.",
+          confirmLabel: "Preparar reemplazo",
+          confirmStyle: ButtonStyle.Primary,
+          confirmText: "De acuerdo. Prepararé el pack; todavía no se ha borrado ningún emoji.",
+          cancelText: "Cancelado. No se descargó el pack ni se borró ningún emoji.",
+          timeoutText: "La confirmación caducó. No se descargó el pack ni se borró ningún emoji."
+        });
+        if (!prepare) return;
+      }
+      const existingNames = initialExistingNames;
       await interaction.editReply({ content: "Flux STORE • Consultando fuentes de emojis compatibles…" });
       const catalog = await loadCatalog();
       const selection = pickItems(catalog, selected, existingNames);
