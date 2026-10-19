@@ -61,7 +61,7 @@ module.exports = {
       if (status==="created") live.created++; else if (status==="existing") live.existing++; else live.failed++;
       const now=Date.now();
       if (live.processed%4!==0 && now-lastUpdate<1200 && live.processed<total) return;
-      await i.editReply({content:"🟣 Flux STORE • Instalando **"+live.processed+"/"+total+"** emojis\\n✅ Añadidos: **"+live.created+"** · ♻️ Ya existían: **"+live.existing+"** · ⚠️ Fallaron: **"+live.failed+"**\\nÚltimo: `"+name+"`"}).catch(()=>{});
+      await i.editReply({content:"🟣 Flux STORE • Instalando **"+live.processed+"/"+total+"** emojis\n✅ Añadidos: **"+live.created+"** · ♻️ Ya existían: **"+live.existing+"** · ⚠️ Fallaron: **"+live.failed+"**\nÚltimo: `"+name+"`"}).catch(()=>{});
       lastUpdate=Date.now();
     };
     for (const key of keys) { const r=await install(i.guild,PACKS[key],onProgress); all.created.push(...r.created); all.existing.push(...r.existing); all.failed.push(...r.failed); }
