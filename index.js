@@ -155,18 +155,18 @@ client.on(Events.MessageCreate, async message => {
         const embed = new EmbedBuilder()
           .setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("Flux STORE • Centro de comandos")
-          .setDescription(names.map(n => "\`/" + n + "\`").join(" · ").slice(0, 4000))
-          .addFields({ name: "Comandos con prefijo", value: "\`!help\` \`!ping\` \`!userinfo\` \`!roleinfo\` \`!poll\` \`!unban\` \`!ban\` \`!kick\` \`!timeout\` \`!clear\` \`!lock\` \`!unlock\` \`!slowmode\`" })
+          .setDescription(names.map(n => "`/" + n + "`").join(" · ").slice(0, 4000))
+          .addFields({ name: "Comandos con prefijo", value: "`!help` `!ping` `!userinfo` `!roleinfo` `!poll` `!unban` `!ban` `!kick` `!timeout` `!clear` `!lock` `!unlock` `!slowmode`" })
           .setFooter({ text: "Comandos cargados: " + names.length + " • Prefijo: " + PREFIX });
         return message.reply({ embeds: [embed] });
       }
       case "unban": {
         if (!need(PermissionFlagsBits.BanMembers)) return;
-        const targetId = (args[0] || "").replace(/\\D/g, "");
-        if (!/^\\d{17,20}$/.test(targetId)) return fail("Uso: \`!unban ID [razón]\`. Copia el ID del usuario baneado.");
+        const targetId = (args[0] || "").replace(/\D/g, "");
+        if (!/^\d{17,20}$/.test(targetId)) return fail("Uso: `!unban ID [razón]`. Copia el ID del usuario baneado.");
         const reason = args.slice(1).join(" ") || "Baneo retirado por " + message.author.tag;
         await message.guild.bans.remove(targetId, reason);
-        return ok("Baneo retirado para el usuario ID \`" + targetId + "\`.");
+        return ok("Baneo retirado para el usuario ID `" + targetId + "`.");
       }
       case "userinfo":
       case "whois": {
@@ -190,10 +190,10 @@ client.on(Events.MessageCreate, async message => {
         return message.reply({ embeds: [embed] });
       }
       case "roleinfo": {
-        const roleId = (args[0] || "").replace(/\\D/g, "");
+        const roleId = (args[0] || "").replace(/\D/g, "");
         const role = message.mentions.roles.first() || (roleId ? message.guild.roles.cache.get(roleId) || await message.guild.roles.fetch(roleId).catch(() => null) : null);
-        if (!role) return fail("Uso: \`!roleinfo @rol\` o \`!roleinfo ID\`.");
-        const permissions = role.permissions.toArray().slice(0, 12).map(p => "\`" + p + "\`").join(", ") || "Ningún permiso especial";
+        if (!role) return fail("Uso: `!roleinfo @rol` o `!roleinfo ID`.");
+        const permissions = role.permissions.toArray().slice(0, 12).map(p => "`" + p + "`").join(", ") || "Ningún permiso especial";
         const embed = new EmbedBuilder()
           .setColor(role.color || config.colors.primary || 0x8B5CF6)
           .setTitle("Información del rol • " + role.name)
@@ -213,7 +213,7 @@ client.on(Events.MessageCreate, async message => {
         const raw = message.content.slice(PREFIX.length + command.length).trim();
         const parts = raw.split("|").map(x => x.trim()).filter(Boolean);
         const question = parts.shift();
-        if (!question || parts.length < 2 || parts.length > 10) return fail("Uso: \`!poll pregunta | opción 1 | opción 2\` (de 2 a 10 opciones).");
+        if (!question || parts.length < 2 || parts.length > 10) return fail("Uso: `!poll pregunta | opción 1 | opción 2` (de 2 a 10 opciones).");
         if (parts.some(x => x.length > 80)) return fail("Cada opción debe tener 80 caracteres o menos.");
         const reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
         const embed = new EmbedBuilder()
