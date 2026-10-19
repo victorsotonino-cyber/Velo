@@ -6,14 +6,14 @@ const { readJSON, writeJSON } = require("./storage");
 const DEFAULT_QUESTIONS = [
   "¿Cuál es tu nick o nombre con el que te conocen?",
   "¿Qué edad tienes?",
-  "¿Por qué quieres entrar al equipo de Velo Studio?",
+  "¿Por qué quieres entrar al equipo de Flux Store?",
   "¿Qué sabes hacer? Cuéntanos tus habilidades y experiencia.",
   "¿A qué puesto te gustaría postularte: Developer, Configurador, Diseñador o Staff?",
   "¿En qué servidores has trabajado anteriormente?",
   "¿Qué lenguajes de programación conoces y cuál dominas mejor?",
   "Menciona 2 plugins que conozcas y explica brevemente para qué sirven.",
   "¿En qué país estás y cuál es tu zona horaria?",
-  "¿Cuántas horas al día puedes dedicar de forma realista a Velo Studio?",
+  "¿Cuántas horas al día puedes dedicar de forma realista a Flux Store?",
   "¿En qué horarios sueles estar disponible?",
   "¿A qué puesto te postulas: Helper, Moderador, Staff, Developer, Configurador o Diseñador?",
   "¿Tienes experiencia como Helper, Moderador o Staff? Explica dónde y qué hacías.",
@@ -28,7 +28,7 @@ const DEFAULT_QUESTIONS = [
   "¿Cómo reaccionas ante críticas o cuando otro Staff te corrige?",
   "¿Has trabajado en otros servidores o comunidades? Indica cuáles y tus responsabilidades.",
   "¿Puedes comprometerte a respetar las reglas, mantener la actividad acordada y tratar a todos con respeto?",
-  "¿Por qué deberíamos seleccionarte para el equipo de Velo Studio?",
+  "¿Por qué deberíamos seleccionarte para el equipo de Flux Store?",
   "¿Hay algo más que quieras añadir a tu postulación?"
 ];
 
@@ -81,7 +81,7 @@ module.exports = {
     }
 
     return i.reply({
-      embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(emoji(i.guild, "settings", "⚙️") + " Preguntas de postulación").setDescription(listText(data.questions)).setFooter({ text: "Velo Studio • /postulaciones-config" })],
+      embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(emoji(i.guild, "settings", "⚙️") + " Preguntas de postulación").setDescription(listText(data.questions)).setFooter({ text: "Flux Store • /postulaciones-config" })],
       ephemeral: true
     });
   }
