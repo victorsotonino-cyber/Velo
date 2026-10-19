@@ -1,4 +1,4 @@
-# Velo Studio Bot
+# Flux Store Bot
 
 Bot de Discord en español, preparado para Railway.
 
