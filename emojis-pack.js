@@ -605,7 +605,7 @@ module.exports = {
       const items = selection.items;
 
       if (!items.length) {
-        return interaction.editReply({ content: "No encontré suficientes imágenes nuevas de ese tipo en Emoji.gg." });
+        return interaction.editReply({ content: "No encontré imágenes nuevas compatibles en las fuentes actuales. No se borró ningún emoji." });
       }
 
       const added = [];
@@ -656,38 +656,109 @@ module.exports = {
       const tierSlotLimit = maxEmojiSlotsPerType(interaction.guild);
       let staticSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
       let animatedSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
-      const uploadQueue = [];
+      const staticRecords = [];
+      const animatedRecords = [];
+      const deletedNames = [];
+
       for (const record of uploadCandidates) {
         const metadata = await sharp(record.buffer, { animated: true, limitInputPixels: 16777216 }).metadata();
-        const animated = metadata.format === "gif" || Boolean(metadata.pages && metadata.pages > 1);
-        if (animated && animatedSlotsLeft > 0) {
-          animatedSlotsLeft--;
-          uploadQueue.push(record);
-        } else if (!animated && staticSlotsLeft > 0) {
-          staticSlotsLeft--;
-          uploadQueue.push(record);
-        } else {
-          skipped.push(record.item.name + " (sin espacios de emoji " + (animated ? "animado" : "estático") + ")");
-        }
+        const isAnimated = metadata.format === "gif" || Boolean(metadata.pages && metadata.pages > 1);
+        (isAnimated ? animatedRecords : staticRecords).push(record);
       }
 
+      const staticNeeded = Math.max(0, staticRecords.length - staticSlotsLeft);
+      const animatedNeeded = Math.max(0, animatedRecords.length - animatedSlotsLeft);
+      const deletableStatic = currentEmojis
+        .filter(emoji => !emoji.animated && !emoji.managed)
+        .sort(compareEmojiAge);
+      const deletableAnimated = currentEmojis
+        .filter(emoji => emoji.animated && !emoji.managed)
+        .sort(compareEmojiAge);
+      const plannedStaticDeletes = deletableStatic.slice(0, staticNeeded);
+      const plannedAnimatedDeletes = deletableAnimated.slice(0, animatedNeeded);
       let uploadsDone = 0;
       let uploadStopReason = null;
 
-      if (!uploadQueue.length) {
-        return interaction.editReply({
-          content: "No hay espacios libres para los emojis restantes. Este nivel admite hasta " +
-            tierSlotLimit + " estáticos y " + tierSlotLimit + " animados; los espacios disponibles ya están ocupados."
+      if (plannedStaticDeletes.length + plannedAnimatedDeletes.length > 0) {
+        const totalPlannedUploads =
+          Math.min(staticRecords.length, staticSlotsLeft + plannedStaticDeletes.length) +
+          Math.min(animatedRecords.length, animatedSlotsLeft + plannedAnimatedDeletes.length);
+        const confirmed = await askButtonConfirmation(interaction, {
+          content: "Revisa el listado exacto de emojis que se eliminarían. Puedes cancelar sin cambiar nada.",
+          embeds: [makeReplacementEmbed(plannedStaticDeletes, plannedAnimatedDeletes, totalPlannedUploads)],
+          confirmLabel: "Confirmar reemplazo",
+          confirmStyle: ButtonStyle.Danger,
+          confirmText: "Confirmado. Eliminando únicamente los emojis de la lista.",
+          cancelText: "Operación cancelada. No se borró ningún emoji.",
+          timeoutText: "La confirmación caducó. No se borró ningún emoji."
         });
+        if (!confirmed) return;
+
+        const toDelete = [...plannedStaticDeletes, ...plannedAnimatedDeletes];
+        for (let index = 0; index < toDelete.length; index++) {
+          const emoji = toDelete[index];
+          await interaction.editReply({
+            content: "Flux STORE • Liberando espacio " + (index + 1) + "/" + toDelete.length +
+              "\nActual: " + emoji.name +
+              "\nSolo se procesarán los emojis que confirmaste."
+          }).catch(() => {});
+          try {
+            await emoji.delete("Flux STORE: liberar espacio confirmado para instalar un pack de emojis");
+            deletedNames.push(emoji.name);
+          } catch (error) {
+            failed.push(emoji.name + " (no se pudo reemplazar: " + safeError(error) + ")");
+            if (isDiscordRateLimitError(error)) {
+              uploadStopReason = "Discord activó un límite temporal al liberar espacio. Se detuvo el proceso.";
+            } else if (Number(error?.status) === 403) {
+              uploadStopReason = "Discord rechazó la eliminación por permisos. Comprueba Gestionar expresiones.";
+            } else {
+              uploadStopReason = "No se pudieron borrar todos los emojis confirmados; el proceso se detuvo por seguridad.";
+            }
+            break;
+          }
+        }
+
+        if (deletedNames.length) {
+          try {
+            currentEmojis = await withTimeout(
+              interaction.guild.emojis.fetch(),
+              10000,
+              "Discord no respondió al actualizar el inventario"
+            );
+          } catch (error) {
+            uploadStopReason = uploadStopReason || ("No se pudo comprobar el espacio liberado: " + safeError(error));
+          }
+        }
+      }
+
+      // Recalculate capacity using Discord's actual inventory after replacements.
+      staticSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
+      animatedSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
+      const staticToUpload = staticRecords.slice(0, staticSlotsLeft);
+      const animatedToUpload = animatedRecords.slice(0, animatedSlotsLeft);
+      const uploadQueue = [...staticToUpload, ...animatedToUpload];
+
+      for (const record of staticRecords.slice(staticToUpload.length)) {
+        skipped.push(record.item.name + " (sin espacio estático disponible)");
+      }
+      for (const record of animatedRecords.slice(animatedToUpload.length)) {
+        skipped.push(record.item.name + " (sin espacio animado disponible)");
+      }
+
+      if (!uploadCandidates.length) {
+        uploadStopReason = uploadStopReason || "No se pudo validar ninguna imagen descargada de las fuentes.";
+      } else if (!uploadQueue.length && !uploadStopReason) {
+        uploadStopReason = "No quedaron espacios disponibles ni emojis antiguos que se puedan reemplazar.";
       }
 
       const uploadWorker = async () => {
         while (uploadQueue.length && !uploadStopReason) {
           const record = uploadQueue.shift();
           await interaction.editReply({
-            content: "Flux STORE • Subiendo a Discord " + (uploadsDone + 1) + "/" + uploadCandidates.length +
+            content: "Flux STORE • Subiendo a Discord " + (uploadsDone + 1) + "/" + (staticToUpload.length + animatedToUpload.length) +
               "\nInstalados: " + added.length +
-              " · Sin espacio: " + skipped.length +
+              " · Reemplazados: " + deletedNames.length +
+              " · Omitidos: " + skipped.length +
               " · Fallaron: " + failed.length +
               "\nActual: " + record.item.name
           }).catch(() => {});
@@ -698,7 +769,7 @@ module.exports = {
           } catch (error) {
             failed.push(record.item.name + " (Discord: " + safeError(error) + ")");
             if (isDiscordRateLimitError(error)) {
-              uploadStopReason = "Discord activó un límite temporal de subida. El bot se detuvo sin acumular más solicitudes; espera antes de repetir el comando.";
+              uploadStopReason = "Discord activó un límite temporal. El bot se detuvo sin acumular más solicitudes; espera antes de repetir el comando.";
             } else if (isEmojiCapacityError(error)) {
               uploadStopReason = "Discord indicó que no quedan espacios para este tipo de emoji.";
             } else if (isNetworkTimeout(error)) {
@@ -708,7 +779,7 @@ module.exports = {
             }
           } finally {
             uploadsDone++;
-            await progress("Subiendo", uploadsDone, uploadCandidates.length, record.item.name);
+            await progress("Subiendo", uploadsDone, staticToUpload.length + animatedToUpload.length, record.item.name);
           }
         }
       };
@@ -725,7 +796,8 @@ module.exports = {
         .setDescription(
           "Se validó el formato de cada imagen y se comprobaron los espacios del servidor. Fuentes: Emoji.gg y catálogos JSON compatibles.\n\n" +
           "Instalados: " + added.length + "\n" +
-          "Ya existían: " + skipped.length + "\n" +
+          "Reemplazados para liberar espacio: " + deletedNames.length + "\n" +
+          "Omitidos / sin espacio: " + skipped.length + "\n" +
           "Fallaron: " + failed.length + "\n" +
           "Objetivo solicitado: " + selection.target + "\nDisponibles en fuentes: " + selection.available + "\n\n" +
           "Espacios restantes estimados: " + staticSlotsLeft + " estáticos y " + animatedSlotsLeft + " animados.\n" +
@@ -737,6 +809,10 @@ module.exports = {
       if (added.length) embed.addFields({
         name: "Instalados (muestra)",
         value: added.slice(0, 12).join("\n").slice(0, 1024)
+      });
+      if (deletedNames.length) embed.addFields({
+        name: "Emojis reemplazados (muestra)",
+        value: deletedNames.slice(0, 12).map(name => "• " + name).join("\n").slice(0, 1024)
       });
       if (failed.length) embed.addFields({
         name: "Fallos (muestra)",
