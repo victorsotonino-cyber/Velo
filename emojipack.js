@@ -191,7 +191,7 @@ async function download(url) {
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("emojis-pack")
+    .setName("emoji-pack")
     .setDescription("Instala emojis personalizados de Flux STORE.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions)
     .addStringOption(o => o.setName("tipo").setDescription("Qué pack quieres añadir").setRequired(true).addChoices(
