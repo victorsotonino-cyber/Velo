@@ -14,7 +14,7 @@ const API_URL = "https://emoji.gg/api";
 const MAX_PACK_SIZE = 120;
 const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
 const CATALOG_TIMEOUT_MS = 15000;
-const DOWNLOAD_TIMEOUT_MS = 12000;
+const DOWNLOAD_TIMEOUT_MS = 7000;
 const DOWNLOAD_WORKERS = 6;
 const UPLOAD_WORKERS = 1;
 
@@ -256,18 +256,10 @@ async function downloadEmoji(url) {
 
   const candidates = [parsed.href];
   const filename = parsed.pathname.split("/").pop();
-  const knownEmojiHost = [
-    "cdn3.emoji.gg", "emoji.gg", "www.emoji.gg",
-    "discordemoji.com", "www.discordemoji.com"
-  ].includes(parsed.hostname.toLowerCase());
-  if (knownEmojiHost && filename && /\.(png|gif|webp|jpe?g|svg|avif)$/i.test(filename)) {
-    candidates.push(
-      "https://emoji.gg/assets/emoji/" + encodeURIComponent(filename),
-      "https://www.emoji.gg/assets/emoji/" + encodeURIComponent(filename),
-      "https://cdn3.emoji.gg/assets/emoji/" + encodeURIComponent(filename),
-      "https://discordemoji.com/assets/emoji/" + encodeURIComponent(filename),
-      "https://www.discordemoji.com/assets/emoji/" + encodeURIComponent(filename)
-    );
+  const isEmojiGG = ["cdn3.emoji.gg", "emoji.gg", "www.emoji.gg"].includes(parsed.hostname.toLowerCase());
+  if (isEmojiGG && filename && /\.(png|gif|webp|jpe?g|svg|avif)$/i.test(filename)) {
+    candidates.push("https://emoji.gg/assets/emoji/" + encodeURIComponent(filename));
+    candidates.push("https://cdn3.emoji.gg/assets/emoji/" + encodeURIComponent(filename));
   }
 
   let input = null;
@@ -283,7 +275,7 @@ async function downloadEmoji(url) {
         redirect: "follow",
         signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.5; +https://emoji.gg/)",
+          "User-Agent": "Mozilla/5.0 (compatible; FluxSTORE-EmojiInstaller/3.7; +https://emoji.gg/)",
           "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
           "Referer": "https://emoji.gg/"
         }
@@ -323,8 +315,6 @@ async function downloadEmoji(url) {
         lastError = "formato no compatible: " + String(metadata.format || contentType || "desconocido");
         continue;
       }
-
-      // Continue through mirrors until a candidate is a real, readable image.
       input = buffer;
       validMetadata = metadata;
       break;
@@ -429,6 +419,21 @@ async function createEmojiWithBoundedRest(guild, record) {
     if (rest?.options) {
       if (oldTimeout != null) rest.options.timeout = oldTimeout;
       if (oldRetries != null) rest.options.retries = oldRetries;
+    }
+  }
+}
+
+
+async function retryDiscordRateLimited(operation, onWait, maxRetries = 8) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isDiscordRateLimitError(error) || attempt >= maxRetries) throw error;
+      const suggestedMs = Number(error.retryAfter || error.timeToReset || error.sublimitTimeout) || 1000;
+      const waitMs = Math.max(250, suggestedMs + 100);
+      if (onWait) await onWait(waitMs, attempt + 1);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
     }
   }
 }
@@ -710,7 +715,15 @@ module.exports = {
               "\nSolo se procesarán los emojis que confirmaste."
           }).catch(() => {});
           try {
-            await emoji.delete("Flux STORE: liberar espacio confirmado para instalar un pack de emojis");
+            await retryDiscordRateLimited(
+              () => emoji.delete("Flux STORE: liberar espacio confirmado para instalar un pack de emojis"),
+              async waitMs => {
+                await interaction.editReply({
+                  content: "Flux STORE • Discord pidió esperar " + Math.ceil(waitMs / 1000) +
+                    " s para continuar liberando espacio. No enviaré solicitudes durante esa espera."
+                }).catch(() => {});
+              }
+            );
             deletedNames.push(emoji.name);
           } catch (error) {
             failed.push(emoji.name + " (no se pudo reemplazar: " + safeError(error) + ")");
@@ -771,7 +784,15 @@ module.exports = {
           }).catch(() => {});
 
           try {
-            const created = await createEmojiWithBoundedRest(interaction.guild, record);
+            const created = await retryDiscordRateLimited(
+              () => createEmojiWithBoundedRest(interaction.guild, record),
+              async waitMs => {
+                await interaction.editReply({
+                  content: "Flux STORE • Límite de Discord: esperando " + Math.ceil(waitMs / 1000) +
+                    " s antes de continuar la subida. No se acumularán solicitudes."
+                }).catch(() => {});
+              }
+            );
             added.push("<:" + created.name + ":" + created.id + "> " + record.item.name);
             if (record.isAnimated) animatedSlotsLeft = Math.max(0, animatedSlotsLeft - 1);
             else staticSlotsLeft = Math.max(0, staticSlotsLeft - 1);
