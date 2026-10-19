@@ -24,19 +24,20 @@ function url(char) {
   const codepoints = Array.from(char).map(c => c.codePointAt(0).toString(16)).join("-");
   return BASE + codepoints + ".png";
 }
-async function install(guild, pack) {
+async function install(guild, pack, onProgress = async () => {}) {
   const created=[], existing=[], failed=[];
   for (let n=0; n<pack.length; n+=2) {
     const name=pack[n], char=pack[n+1];
-    if (guild.emojis.cache.some(e => e.name === name)) { existing.push(name); continue; }
+    if (guild.emojis.cache.some(e => e.name === name)) { existing.push(name); await onProgress(name, "existing"); continue; }
     try {
-      const res=await fetch(url(char));
+      const res=await fetch(url(char), { signal: AbortSignal.timeout(12000) });
       if (!res.ok) throw new Error("descarga no disponible");
       const buffer=Buffer.from(await res.arrayBuffer());
       if (buffer.length > 256 * 1024) throw new Error("archivo demasiado grande");
       const e=await guild.emojis.create({attachment:buffer,name,reason:"Velo Studio emoji pack"});
       created.push("<:"+e.name+":"+e.id+">");
-    } catch (err) { failed.push(name + " (" + err.message + ")"); }
+      await onProgress(name, "created");
+    } catch (err) { failed.push(name + " (" + String(err?.message || err).slice(0, 90) + ")"); await onProgress(name, "failed"); }
   }
   return {created,existing,failed};
 }
@@ -49,13 +50,26 @@ module.exports = {
     const selected=i.options.getString("pack",true);
     await i.deferReply({ephemeral:true});
     const keys=selected==="todo"?Object.keys(PACKS):[selected];
+    const total=keys.reduce((sum,key)=>sum+(PACKS[key]?.length || 0)/2,0);
+    if (!total || keys.some(key=>!PACKS[key])) return i.editReply({content:"❌ El pack seleccionado no existe."});
     const all={created:[],existing:[],failed:[]};
-    for (const key of keys) { const r=await install(i.guild,PACKS[key]); all.created.push(...r.created); all.existing.push(...r.existing); all.failed.push(...r.failed); }
-    const embed=new EmbedBuilder().setColor(0xE11D2E).setTitle("Velo Studio • Emoji Packs").setDescription("Pack solicitado: **"+(selected==="todo"?"Todos":LABELS[selected])+"**\nFuente de imágenes: Twemoji. Puedes explorar packs de tienda y pagos en https://emoji.gg/emojis/shop y https://emoji.gg/emojis/payments").addFields(
+    const live={created:0,existing:0,failed:0,processed:0};
+    let lastUpdate=0;
+    await i.editReply({content:"🟣 Flux STORE • Preparando **"+total+"** emojis…"});
+    const onProgress=async (name,status)=>{
+      live.processed++;
+      if (status==="created") live.created++; else if (status==="existing") live.existing++; else live.failed++;
+      const now=Date.now();
+      if (live.processed%4!==0 && now-lastUpdate<1200 && live.processed<total) return;
+      await i.editReply({content:"🟣 Flux STORE • Instalando **"+live.processed+"/"+total+"** emojis\\n✅ Añadidos: **"+live.created+"** · ♻️ Ya existían: **"+live.existing+"** · ⚠️ Fallaron: **"+live.failed+"**\\nÚltimo: `"+name+"`"}).catch(()=>{});
+      lastUpdate=Date.now();
+    };
+    for (const key of keys) { const r=await install(i.guild,PACKS[key],onProgress); all.created.push(...r.created); all.existing.push(...r.existing); all.failed.push(...r.failed); }
+    const embed=new EmbedBuilder().setColor(0xE11D2E).setTitle("Flux STORE • Emojis").setDescription("Pack solicitado: **"+(selected==="todo"?"Todos":LABELS[selected])+"**\nFuente de imágenes: Twemoji. Puedes explorar packs de tienda y pagos en https://emoji.gg/emojis/shop y https://emoji.gg/emojis/payments").addFields(
       {name:"✅ Instalados ("+all.created.length+")",value:all.created.length?all.created.slice(0,15).join(" "):"Ninguno"},
       {name:"📦 Ya existían ("+all.existing.length+")",value:all.existing.length?all.existing.slice(0,15).map(x=>"`"+x+"`").join(", "):"Ninguno"},
       {name:"⚠️ Fallaron ("+all.failed.length+")",value:all.failed.length?all.failed.slice(0,10).map(x=>"`"+x+"`").join(", "):"Ninguno"}
-    ).setFooter({text:"Velo Studio • Emojis"}).setTimestamp();
+    ).setFooter({text:"Flux STORE • Emojis personalizados"}).setTimestamp();
     await i.editReply({embeds:[embed]});
   }
 };
