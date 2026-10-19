@@ -112,6 +112,20 @@ async function downloadEmoji(url) {
   return buffer;
 }
 
+async function withTimeout(promise, ms, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(label + " (más de " + Math.round(ms / 1000) + " s)")), ms);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function safeError(error) {
   const message = String(error?.message || error || "Error desconocido");
   if (/timed out|timeout|abort/i.test(message)) return "tiempo agotado descargando";
@@ -251,32 +265,52 @@ module.exports = {
 
       const uploadQueue = [...buffers.values()];
       let uploadsFinished = 0;
+      let uploadTimedOut = false;
 
-      const uploadWorker = async () => {
-        while (uploadQueue.length) {
-          const record = uploadQueue.shift();
-          try {
-            const emoji = await interaction.guild.emojis.create({
+      // Discord emoji creation is one REST operation per image. Keep one request active
+      // so a stalled/rate-limited request cannot freeze every worker.
+      for (let index = 0; index < uploadQueue.length; index++) {
+        const record = uploadQueue[index];
+        await interaction.editReply({
+          content: "Flux STORE • Subiendo a Discord **" + (index + 1) + "/" + uploadQueue.length + "**" +
+            "\n✅ Añadidos: " + added.length +
+            " · ♻️ Existían: " + skipped.length +
+            " · ⚠️ Fallaron: " + failed.length +
+            "\nArchivo actual: `" + record.item.name + "`"
+        }).catch(() => {});
+
+        try {
+          const created = await withTimeout(
+            interaction.guild.emojis.create({
               attachment: record.buffer,
               name: record.item.name,
               reason: "Original Emoji.gg PNG/GIF pack for Flux STORE"
-            });
-            added.push("<:" + emoji.name + ":" + emoji.id + "> " + record.item.name);
-          } catch (error) {
-            failed.push(record.item.name + " (Discord: " + safeError(error) + ")");
-          } finally {
-            uploadsFinished++;
-            await updateProgress("Subiendo a Discord", uploadsFinished, buffers.size || 1, record.item.name);
+            }),
+            12000,
+            "Discord no respondió al subir " + record.item.name
+          );
+          added.push("<:" + created.name + ":" + created.id + "> " + record.item.name);
+        } catch (error) {
+          failed.push(record.item.name + " (Discord: " + safeError(error) + ")");
+          if (/no respondió al subir/i.test(String(error?.message || error))) {
+            uploadTimedOut = true;
+            // Stop after a timeout: the request may still finish on Discord's side.
+            // Continuing could create duplicate/orphan emojis.
+            skipped.push(...uploadQueue.slice(index + 1).map(x => x.item.name + " (no intentado tras timeout)"));
+            break;
           }
+        } finally {
+          uploadsFinished++;
         }
-      };
-
-      if (uploadQueue.length) {
-        await Promise.all(Array.from(
-          { length: Math.min(UPLOAD_WORKERS, uploadQueue.length) },
-          () => uploadWorker()
-        ));
       }
+
+      await interaction.editReply({
+        content: "Flux STORE • Subida terminada: " + uploadsFinished + "/" + uploadQueue.length +
+          "\n✅ Añadidos: " + added.length +
+          " · ♻️ Existían: " + skipped.length +
+          " · ⚠️ Fallaron: " + failed.length +
+          (uploadTimedOut ? "\n⏱️ Discord dejó de responder; detuve el pack para evitar duplicados." : "")
+      }).catch(() => {});
 
       const embed = new EmbedBuilder()
         .setColor(config.colors?.primary || 0x8B5CF6)
@@ -287,7 +321,7 @@ module.exports = {
           "Instalados: " + added.length + "\n" +
           "Ya existían: " + skipped.length + "\n" +
           "Fallaron: " + failed.length + "\n\n" +
-          "Las descargas se hacen en paralelo. La subida final depende de los límites de Discord."
+          "Las descargas se hacen en paralelo; la subida muestra cada archivo y se detiene si Discord no responde."
         )
         .setFooter({ text: "Flux STORE • Imágenes originales de Emoji.gg" })
         .setTimestamp();
