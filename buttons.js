@@ -61,7 +61,7 @@ async function createTicket(i) {
   const open = ticketChannels(i.guild, i.user.id);
   if (open.size >= config.ticket.maxOpenPerUser) return i.reply({ content: emoji(i.guild, "warning", "⚠️") + " Ya tienes **" + open.size + "/" + config.ticket.maxOpenPerUser + "** tickets abiertos.", ephemeral: true });
   const me = i.guild.members.me;
-  if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.reply({ content: emoji(i.guild, "error", "❌") + " Velo necesita **Gestionar canales**.", ephemeral: true });
+  if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.reply({ content: emoji(i.guild, "error", "❌") + " Flux Store necesita **Gestionar canales**.", ephemeral: true });
   await i.deferReply({ ephemeral: true });
   const parent = i.guild.channels.cache.get(config.channels.tickets);
   const staff = i.guild.roles.cache.get(config.roles.staff);
@@ -123,13 +123,13 @@ async function sendTranscript(i) {
 }
 
 function applicationQuestions() {
-  const fallback = ["¿Cuál es tu nombre y usuario de Discord?","¿Qué edad tienes?","¿En qué país estás y cuál es tu zona horaria?","¿Cuántas horas al día puedes dedicar de forma realista a Velo Studio?","¿En qué horarios sueles estar disponible?","¿A qué puesto te postulas: Helper, Moderador, Staff, Developer, Configurador o Diseñador?","¿Tienes experiencia como Helper, Moderador o Staff? Explica dónde y qué hacías.","¿Por qué quieres entrar al equipo de Velo Studio?","¿Qué habilidades aportarías al equipo y qué te diferencia?","Un miembro hace spam repetidamente después de recibir una advertencia. ¿Qué harías y por qué?","Ves a alguien intentando estafar a otro miembro. ¿Cómo actuarías y qué pruebas guardarías?","Un amigo tuyo incumple las reglas. ¿Cómo resolverías la situación?","Dos usuarios discuten y ambos dicen tener razón. ¿Cómo investigarías el caso de forma imparcial?","Si no sabes cómo resolver un problema, ¿qué harías antes de tomar una decisión?","¿Cómo protegerías la información privada de los miembros y del equipo?","¿Qué harías si otro miembro del Staff abusa de sus permisos?","¿Cómo reaccionas ante críticas o cuando otro Staff te corrige?","¿Has trabajado en otros servidores o comunidades? Indica cuáles y tus responsabilidades.","¿Puedes comprometerte a respetar las reglas, mantener la actividad acordada y tratar a todos con respeto?","¿Por qué deberíamos seleccionarte para el equipo de Velo Studio?","¿Hay algo más que quieras añadir a tu postulación?"];
+  const fallback = ["¿Cuál es tu nombre y usuario de Discord?","¿Qué edad tienes?","¿En qué país estás y cuál es tu zona horaria?","¿Cuántas horas al día puedes dedicar de forma realista a Flux Store?","¿En qué horarios sueles estar disponible?","¿A qué puesto te postulas: Helper, Moderador, Staff, Developer, Configurador o Diseñador?","¿Tienes experiencia como Helper, Moderador o Staff? Explica dónde y qué hacías.","¿Por qué quieres entrar al equipo de Flux Store?","¿Qué habilidades aportarías al equipo y qué te diferencia?","Un miembro hace spam repetidamente después de recibir una advertencia. ¿Qué harías y por qué?","Ves a alguien intentando estafar a otro miembro. ¿Cómo actuarías y qué pruebas guardarías?","Un amigo tuyo incumple las reglas. ¿Cómo resolverías la situación?","Dos usuarios discuten y ambos dicen tener razón. ¿Cómo investigarías el caso de forma imparcial?","Si no sabes cómo resolver un problema, ¿qué harías antes de tomar una decisión?","¿Cómo protegerías la información privada de los miembros y del equipo?","¿Qué harías si otro miembro del Staff abusa de sus permisos?","¿Cómo reaccionas ante críticas o cuando otro Staff te corrige?","¿Has trabajado en otros servidores o comunidades? Indica cuáles y tus responsabilidades.","¿Puedes comprometerte a respetar las reglas, mantener la actividad acordada y tratar a todos con respeto?","¿Por qué deberíamos seleccionarte para el equipo de Flux Store?","¿Hay algo más que quieras añadir a tu postulación?"];
   const data = readJSON("postulaciones.json", { questions: fallback });
   return Array.isArray(data.questions) && data.questions.length ? data.questions.slice(0, 25) : fallback;
 }
 async function createApplication(i) {
   const me = i.guild.members.me;
-  if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.editReply(emoji(i.guild, "error", "❌") + " Velo necesita **Gestionar canales**.");
+  if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.editReply(emoji(i.guild, "error", "❌") + " Flux Store necesita **Gestionar canales**.");
   const open = i.guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.topic?.startsWith("VeloApplication:" + i.user.id));
   if (open.size) return i.editReply(emoji(i.guild, "info", "ℹ️") + " Ya tienes una postulación abierta: " + open.first());
   const parent = i.guild.channels.cache.get(config.channels.tickets), staff = i.guild.roles.cache.get(config.roles.staff);
