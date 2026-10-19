@@ -82,10 +82,11 @@ async function createTicket(i) {
     new ButtonBuilder().setCustomId("ticket_unlock").setLabel("Desbloquear").setEmoji(emoji(i.guild, "success", "🔓")).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("ticket_close").setLabel("Cerrar").setEmoji(emoji(i.guild, "trash", "🗑️")).setStyle(ButtonStyle.Danger)
   );
+  const ticketIcon = type === "soporte" ? "<:emoji_17:1550144823577542677>" : type === "comprar" ? "<:sellix:1561518136338022602>" : emoji(i.guild, "velo_ticket", "🎫");
   const embed = new EmbedBuilder().setColor(config.colors.primary)
-    .setTitle(emoji(i.guild, "velo_ticket", "🎫") + " " + category.label + " • Flux Shop")
+    .setTitle(ticketIcon + " " + category.label + " • Flux STORE")
     .setDescription("Hola " + i.user + ", tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** " + i.user + "\n\nUn miembro del Staff te atenderá pronto.")
-    .setFooter({ text: "Flux Shop • Ticket " + type }).setTimestamp();
+    .setFooter({ text: "Flux STORE • Ticket " + type }).setTimestamp();
   await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [embed], components: [buttons] });
   return i.editReply(emoji(i.guild, "success", "✅") + " Ticket creado: " + ch);
 }
@@ -122,7 +123,7 @@ async function sendTranscript(i) {
 }
 
 function applicationQuestions() {
-  const fallback = ["¿Cuál es tu nick o nombre con el que te conocen?","¿Qué edad tienes?","¿Por qué quieres ser Staff de Flux Shop?","¿Qué sabes hacer? Cuéntanos tus habilidades y experiencia.","¿A qué puesto te gustaría postularte: Developer, Configurador, Diseñador o Staff?","¿En qué servidores has trabajado anteriormente?","¿Qué lenguajes de programación conoces y cuál dominas mejor?","Menciona 2 plugins que conozcas y explica para qué sirven.","¿Qué experiencia tienes trabajando en servidores o comunidades?","¿Por qué deberíamos aceptarte?","¿Hay algo más que quieras agregar?"];
+  const fallback = ["¿Cuál es tu nick o nombre con el que te conocen?","¿Qué edad tienes?","¿Por qué quieres ser Staff de Flux STORE?","¿Qué sabes hacer? Cuéntanos tus habilidades y experiencia.","¿A qué puesto te gustaría postularte: Developer, Configurador, Diseñador o Staff?","¿En qué servidores has trabajado anteriormente?","¿Qué lenguajes de programación conoces y cuál dominas mejor?","Menciona 2 plugins que conozcas y explica para qué sirven.","¿Qué experiencia tienes trabajando en servidores o comunidades?","¿Por qué deberíamos aceptarte?","¿Hay algo más que quieras agregar?"];
   const data = readJSON("postulaciones.json", { questions: fallback });
   return Array.isArray(data.questions) && data.questions.length ? data.questions.slice(0, 25) : fallback;
 }
