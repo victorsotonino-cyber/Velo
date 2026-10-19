@@ -12,7 +12,6 @@ const MAX_PACK_SIZE = 120;
 const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
 const CATALOG_TIMEOUT_MS = 15000;
 const DOWNLOAD_TIMEOUT_MS = 12000;
-const UPLOAD_TIMEOUT_MS = 45000;
 const DOWNLOAD_WORKERS = 6;
 const UPLOAD_WORKERS = 1;
 
@@ -132,7 +131,7 @@ async function loadCatalog() {
                    !emojiHosts.includes(parsed.hostname.toLowerCase())) {
           continue;
         }
-        if (!/\.(png|gif|webp|jpe?g)$/i.test(parsed.pathname)) continue;
+        if (!/\.(png|gif|webp|jpe?g|svg|avif)$/i.test(parsed.pathname)) continue;
         const searchable = (String(title) + " " + String(item.slug || "") + " " +
           String(item.description || "") + " " + String(item.tags || "")).toLowerCase();
         if (BLOCKED.test(searchable)) continue;
@@ -366,8 +365,74 @@ async function withTimeout(promise, ms, label) {
 
 function safeError(error) {
   const message = String(error?.message || error || "error desconocido");
-  if (/timed out|timeout|abort/i.test(message)) return "tiempo agotado";
+  if (isDiscordRateLimitError(error)) return "límite temporal de Discord";
+  if (/timed out|timeout|abort|ECONNRESET|UND_ERR/i.test(message)) return "tiempo de espera agotado";
   return message.replace(/\s+/g, " ").slice(0, 85);
+}
+
+function isDiscordRateLimitError(error) {
+  const message = String(error?.message || error || "");
+  return error?.name === "RateLimitError" ||
+    error?.constructor?.name === "RateLimitError" ||
+    Number(error?.status) === 429 ||
+    /rate.?limit|too many requests|429/i.test(message);
+}
+
+function isEmojiCapacityError(error) {
+  const message = String(error?.message || error || "");
+  return Number(error?.code) === 30008 ||
+    /maximum number of emojis|maximum number of expressions|emoji slots|emoji limit/i.test(message);
+}
+
+function isNetworkTimeout(error) {
+  const message = String(error?.message || error || "");
+  return /timed out|timeout|abort|ECONNRESET|ECONNREFUSED|UND_ERR/i.test(message);
+}
+
+const guardedRestClients = new WeakSet();
+function guardEmojiRateLimits(client) {
+  const rest = client?.rest;
+  if (!rest?.options || guardedRestClients.has(rest)) return;
+  const previous = rest.options.rejectOnRateLimit;
+
+  rest.options.rejectOnRateLimit = async rateLimitData => {
+    const route = String(rateLimitData?.route || "").toLowerCase();
+    if (/^\/guilds\/(?:\d+|:[^/]+)\/emojis(?:\/|$)/i.test(route)) return true;
+    if (previous === true) return true;
+    if (Array.isArray(previous) && previous.some(prefix => route.startsWith(String(prefix).toLowerCase()))) return true;
+    if (typeof previous === "function") {
+      try { return Boolean(await previous(rateLimitData)); } catch { return false; }
+    }
+    return false;
+  };
+  guardedRestClients.add(rest);
+}
+
+async function createEmojiWithBoundedRest(guild, record) {
+  const rest = guild.client.rest;
+  const oldTimeout = rest?.options?.timeout;
+  const oldRetries = rest?.options?.retries;
+  if (rest?.options) {
+    rest.options.timeout = 12000;
+    rest.options.retries = 0;
+  }
+  try {
+    return await guild.emojis.create({
+      attachment: record.buffer,
+      name: record.item.name,
+      reason: "Emoji.gg / catálogos compatibles • pack Flux STORE"
+    });
+  } finally {
+    if (rest?.options) {
+      if (oldTimeout != null) rest.options.timeout = oldTimeout;
+      if (oldRetries != null) rest.options.retries = oldRetries;
+    }
+  }
+}
+
+function maxEmojiSlotsPerType(guild) {
+  const tier = Math.max(0, Math.min(3, Number(guild?.premiumTier) || 0));
+  return [50, 100, 150, 250][tier];
 }
 
 module.exports = {
@@ -409,15 +474,32 @@ module.exports = {
     }
 
     activeGuilds.add(guildId);
+    guardEmojiRateLimits(interaction.client);
     let deferred = false;
     try {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       deferred = true;
 
       const selected = interaction.options.getString("pack", true);
-      await interaction.editReply({ content: "Flux STORE • Consultando el catálogo oficial de Emoji.gg…" });
+      await interaction.editReply({ content: "Flux STORE • Comprobando permisos, espacios y límites de Discord…" });
+      let currentEmojis;
+      try {
+        currentEmojis = await withTimeout(
+          interaction.guild.emojis.fetch(),
+          10000,
+          "Discord no respondió al comprobar los emojis del servidor"
+        );
+      } catch (error) {
+        if (isDiscordRateLimitError(error)) {
+          return interaction.editReply({
+            content: "Discord mantiene un límite temporal activo en la ruta de emojis. No iniciaré la descarga para evitar otra espera larga. Espera a que termine y vuelve a ejecutar /emojis-pack."
+          });
+        }
+        throw error;
+      }
+      const existingNames = new Set(currentEmojis.map(item => item.name));
+      await interaction.editReply({ content: "Flux STORE • Consultando fuentes de emojis compatibles…" });
       const catalog = await loadCatalog();
-      const existingNames = new Set(interaction.guild.emojis.cache.map(item => item.name));
       const selection = pickItems(catalog, selected, existingNames);
       const items = selection.items;
 
@@ -469,67 +551,84 @@ module.exports = {
       ));
       await progressQueue;
 
-      const uploadQueue = [...buffers.values()];
+      const uploadCandidates = [...buffers.values()];
+      const tierSlotLimit = maxEmojiSlotsPerType(interaction.guild);
+      let staticSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
+      let animatedSlotsLeft = Math.max(0, tierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
+      const uploadQueue = [];
+      for (const record of uploadCandidates) {
+        const metadata = await sharp(record.buffer, { animated: true, limitInputPixels: 16777216 }).metadata();
+        const animated = metadata.format === "gif" || Boolean(metadata.pages && metadata.pages > 1);
+        if (animated && animatedSlotsLeft > 0) {
+          animatedSlotsLeft--;
+          uploadQueue.push(record);
+        } else if (!animated && staticSlotsLeft > 0) {
+          staticSlotsLeft--;
+          uploadQueue.push(record);
+        } else {
+          skipped.push(record.item.name + " (sin espacios de emoji " + (animated ? "animado" : "estático") + ")");
+        }
+      }
+
       let uploadsDone = 0;
-      let consecutiveTimeouts = 0;
+      let uploadStopReason = null;
+
+      if (!uploadQueue.length) {
+        return interaction.editReply({
+          content: "No hay espacios libres para los emojis restantes. Este nivel admite hasta " +
+            tierSlotLimit + " estáticos y " + tierSlotLimit + " animados; los espacios disponibles ya están ocupados."
+        });
+      }
 
       const uploadWorker = async () => {
-        while (uploadQueue.length && consecutiveTimeouts < 3) {
+        while (uploadQueue.length && !uploadStopReason) {
           const record = uploadQueue.shift();
           await interaction.editReply({
-            content: "Flux STORE • Subiendo a Discord " + (uploadsDone + 1) + "/" + buffers.size +
+            content: "Flux STORE • Subiendo a Discord " + (uploadsDone + 1) + "/" + uploadCandidates.length +
               "\nInstalados: " + added.length +
-              " · Existían: " + skipped.length +
+              " · Sin espacio: " + skipped.length +
               " · Fallaron: " + failed.length +
               "\nActual: " + record.item.name
           }).catch(() => {});
 
           try {
-            const created = await withTimeout(
-              interaction.guild.emojis.create({
-                attachment: record.buffer,
-                name: record.item.name,
-                reason: "Emoji.gg original pack for Flux STORE"
-              }),
-              UPLOAD_TIMEOUT_MS,
-              "Discord no respondió al subir " + record.item.name
-            );
+            const created = await createEmojiWithBoundedRest(interaction.guild, record);
             added.push("<:" + created.name + ":" + created.id + "> " + record.item.name);
-            consecutiveTimeouts = 0;
           } catch (error) {
             failed.push(record.item.name + " (Discord: " + safeError(error) + ")");
-            if (/no respondió|más de 20 s|timed out|timeout/i.test(String(error?.message || ""))) {
-              consecutiveTimeouts++;
-            } else {
-              consecutiveTimeouts = 0;
+            if (isDiscordRateLimitError(error)) {
+              uploadStopReason = "Discord activó un límite temporal de subida. El bot se detuvo sin acumular más solicitudes; espera antes de repetir el comando.";
+            } else if (isEmojiCapacityError(error)) {
+              uploadStopReason = "Discord indicó que no quedan espacios para este tipo de emoji.";
+            } else if (isNetworkTimeout(error)) {
+              uploadStopReason = "Discord no respondió dentro del tiempo límite. El bot se detuvo para no dejar más subidas atascadas.";
+            } else if (Number(error?.status) === 403) {
+              uploadStopReason = "Discord rechazó la subida por permisos. Comprueba Gestionar expresiones.";
             }
           } finally {
             uploadsDone++;
-            await progress("Subiendo", uploadsDone, buffers.size, record.item.name);
+            await progress("Subiendo", uploadsDone, uploadCandidates.length, record.item.name);
           }
         }
       };
 
-      await Promise.all(Array.from(
-        { length: Math.min(UPLOAD_WORKERS, uploadQueue.length) },
-        () => uploadWorker()
-      ));
-
-      if (consecutiveTimeouts >= 3 && uploadQueue.length) {
-        failed.push(uploadQueue.length + " emojis no intentados porque Discord dejó de responder.");
+      await uploadWorker();
+      if (uploadStopReason && uploadQueue.length) {
+        failed.push(uploadQueue.length + " emojis no intentados. " + uploadStopReason);
       }
 
       const embed = new EmbedBuilder()
         .setColor(config.colors?.primary || 0x8B5CF6)
-        .setTitle("Flux STORE • Pack de Emoji.gg terminado")
+        .setTitle(uploadStopReason ? "Flux STORE • Pack pausado" : "Flux STORE • Pack de emojis terminado")
         .setURL("https://emoji.gg/")
         .setDescription(
-          "Se priorizaron enlaces originales; fuentes: Emoji.gg y catálogos JSON adicionales configurados.\n\n" +
+          "Se validó el formato de cada imagen y se comprobaron los espacios del servidor. Fuentes: Emoji.gg y catálogos JSON compatibles.\n\n" +
           "Instalados: " + added.length + "\n" +
           "Ya existían: " + skipped.length + "\n" +
           "Fallaron: " + failed.length + "\n" +
           "Objetivo solicitado: " + selection.target + "\nDisponibles en fuentes: " + selection.available + "\n\n" +
-          "La velocidad de subida depende de los límites de Discord."
+          "Espacios restantes estimados: " + staticSlotsLeft + " estáticos y " + animatedSlotsLeft + " animados.\n" +
+          (uploadStopReason ? "Motivo de pausa: " + uploadStopReason : "El lote terminó sin interrupción del límite de subidas.")
         )
         .setFooter({ text: "Flux STORE • Emoji.gg · respeta las licencias de cada autor" })
         .setTimestamp();
@@ -546,7 +645,7 @@ module.exports = {
       return interaction.editReply({ content: null, embeds: [embed] });
     } catch (error) {
       console.error("[Emoji.gg pack] Error:", error);
-      const message = "No pude completar el pack: " + safeError(error) + ". Revisa los permisos y los registros de Railway.";
+      const message = isDiscordRateLimitError(error) ? "Discord mantiene un límite temporal activo en las subidas de emojis. No hice más intentos; espera y vuelve a ejecutar /emojis-pack." : "No pude completar el pack: " + safeError(error) + ". Revisa los permisos y los registros de Railway.";
       if (interaction.deferred || deferred) return interaction.editReply({ content: message, embeds: [] }).catch(() => {});
       return interaction.reply({ content: message, flags: MessageFlags.Ephemeral }).catch(() => {});
     } finally {
