@@ -183,7 +183,7 @@ module.exports = {
 
     const legacyNames = selected === "todo"
       ? [...new Set(Object.values(LEGACY_NAMES).flat())]
-      : [...new Set([...(LEGACY_NAMES[selected] || []), ...(selected === "staff" ? LEGACY_NAMES.extra : [])])];
+      : [...new Set(LEGACY_NAMES[selected] || [])];
 
     let removed = 0;
     let protectedLegacy = 0;
