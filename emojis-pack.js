@@ -186,7 +186,16 @@ async function loadCatalog() {
   }
 }
 function pickItems(entries, selected, existingNames) {
-  const sorted = entries.slice().sort((a, b) => b.faves - a.faves);
+  // Prefer independent catalog providers before Emoji.gg: some hosting IPs (including
+  // bot hosts) may receive HTTP 403 from Emoji.gg's image CDN.
+  const sorted = entries.slice().sort((a, b) => {
+    const aBlockedHost = /^emoji\.gg$/i.test(new URL(a.url).hostname.replace(/^www\./i, "")) ||
+      /^cdn3\.emoji\.gg$/i.test(new URL(a.url).hostname);
+    const bBlockedHost = /^emoji\.gg$/i.test(new URL(b.url).hostname.replace(/^www\./i, "")) ||
+      /^cdn3\.emoji\.gg$/i.test(new URL(b.url).hostname);
+    if (aBlockedHost !== bBlockedHost) return aBlockedHost ? 1 : -1;
+    return b.faves - a.faves;
+  });
   const available = sorted.filter(item => !existingNames.has(item.name));
   const requestedTarget = selected === "todo" ? MAX_PACK_SIZE : (selected === "animados" ? 30 : 25);
   const target = Math.min(requestedTarget, available.length);
@@ -655,7 +664,7 @@ module.exports = {
         return progressQueue;
       };
 
-      await interaction.editReply({ content: "Flux STORE • Descargando " + items.length + " emojis reales de Emoji.gg en paralelo…" });
+      await interaction.editReply({ content: "Flux STORE • Validando " + items.length + " emojis de varias fuentes en paralelo. Se priorizan catálogos alternativos si Emoji.gg devuelve HTTP 403…" });
 
       const downloadWorker = async () => {
         while (downloadQueue.length) {
@@ -842,7 +851,7 @@ module.exports = {
         .setTitle(uploadStopReason ? "Flux STORE • Pack pausado" : "Flux STORE • Pack de emojis terminado")
         .setURL("https://emoji.gg/")
         .setDescription(
-          "Se validó el formato de cada imagen y se comprobaron los espacios del servidor. Fuentes: Emoji.gg y catálogos JSON compatibles.\n\n" +
+          "Se validó el formato de cada imagen y se comprobaron los espacios del servidor. Se priorizan fuentes alternativas cuando están disponibles; algunos enlaces de Emoji.gg pueden responder HTTP 403 desde el hosting.\n\n" +
           "Instalados: " + added.length + "\n" +
           "Reemplazados para liberar espacio: " + deletedNames.length + "\n" +
           "Omitidos / sin espacio: " + skipped.length + "\n" +
