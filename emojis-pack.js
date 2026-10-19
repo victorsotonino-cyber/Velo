@@ -588,6 +588,12 @@ module.exports = {
       const initialStaticSlots = Math.max(0, initialTierSlotLimit - currentEmojis.filter(emoji => !emoji.animated).length);
       const initialAnimatedSlots = Math.max(0, initialTierSlotLimit - currentEmojis.filter(emoji => emoji.animated).length);
       if (initialStaticSlots === 0 && initialAnimatedSlots === 0) {
+        const replaceableCount = currentEmojis.filter(emoji => !emoji.managed).length;
+        if (replaceableCount === 0) {
+          return interaction.editReply({
+            content: "El servidor está lleno y todos los emojis actuales son gestionados por integraciones. No puedo reemplazarlos desde el bot; no se descargó el pack ni se borró nada."
+          });
+        }
         const prepare = await askButtonConfirmation(interaction, {
           content: "El servidor ha alcanzado el límite de emojis. Si continúas, prepararé el pack y te mostraré exactamente qué emojis antiguos tendría que reemplazar. No borraré nada sin una segunda confirmación.",
           confirmLabel: "Preparar reemplazo",
@@ -663,6 +669,7 @@ module.exports = {
       for (const record of uploadCandidates) {
         const metadata = await sharp(record.buffer, { animated: true, limitInputPixels: 16777216 }).metadata();
         const isAnimated = metadata.format === "gif" || Boolean(metadata.pages && metadata.pages > 1);
+        record.isAnimated = isAnimated;
         (isAnimated ? animatedRecords : staticRecords).push(record);
       }
 
@@ -766,6 +773,8 @@ module.exports = {
           try {
             const created = await createEmojiWithBoundedRest(interaction.guild, record);
             added.push("<:" + created.name + ":" + created.id + "> " + record.item.name);
+            if (record.isAnimated) animatedSlotsLeft = Math.max(0, animatedSlotsLeft - 1);
+            else staticSlotsLeft = Math.max(0, staticSlotsLeft - 1);
           } catch (error) {
             failed.push(record.item.name + " (Discord: " + safeError(error) + ")");
             if (isDiscordRateLimitError(error)) {
