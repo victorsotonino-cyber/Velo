@@ -150,6 +150,82 @@ client.on(Events.MessageCreate, async message => {
       }
       case "ping":
         return ok("Pong • " + (Date.now() - message.createdTimestamp) + " ms | API " + client.ws.ping + " ms");
+      case "comandos": {
+        const names = [...client.commands.keys()].sort((a, b) => a.localeCompare(b, "es"));
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary || 0x8B5CF6)
+          .setTitle("Flux STORE • Centro de comandos")
+          .setDescription(names.map(n => "\`/" + n + "\`").join(" · ").slice(0, 4000))
+          .addFields({ name: "Comandos con prefijo", value: "\`!help\` \`!ping\` \`!userinfo\` \`!roleinfo\` \`!poll\` \`!unban\` \`!ban\` \`!kick\` \`!timeout\` \`!clear\` \`!lock\` \`!unlock\` \`!slowmode\`" })
+          .setFooter({ text: "Comandos cargados: " + names.length + " • Prefijo: " + PREFIX });
+        return message.reply({ embeds: [embed] });
+      }
+      case "unban": {
+        if (!need(PermissionFlagsBits.BanMembers)) return;
+        const targetId = (args[0] || "").replace(/\\D/g, "");
+        if (!/^\\d{17,20}$/.test(targetId)) return fail("Uso: \`!unban ID [razón]\`. Copia el ID del usuario baneado.");
+        const reason = args.slice(1).join(" ") || "Baneo retirado por " + message.author.tag;
+        await message.guild.bans.remove(targetId, reason);
+        return ok("Baneo retirado para el usuario ID \`" + targetId + "\`.");
+      }
+      case "userinfo":
+      case "whois": {
+        const target = message.mentions.users.first() || message.author;
+        const targetMember = await message.guild.members.fetch(target.id).catch(() => null);
+        const roles = targetMember
+          ? targetMember.roles.cache.filter(r => r.id !== message.guild.id).sort((a, b) => b.position - a.position).map(r => r.toString()).slice(0, 10).join(" ")
+          : "No es miembro de este servidor.";
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary || 0x8B5CF6)
+          .setTitle("Información de usuario • " + target.tag)
+          .setThumbnail(target.displayAvatarURL({ size: 512 }))
+          .addFields(
+            { name: "ID", value: target.id, inline: true },
+            { name: "Bot", value: target.bot ? "Sí" : "No", inline: true },
+            { name: "Cuenta creada", value: "<t:" + Math.floor(target.createdTimestamp / 1000) + ":F>", inline: false },
+            { name: "Se unió al servidor", value: targetMember?.joinedTimestamp ? "<t:" + Math.floor(targetMember.joinedTimestamp / 1000) + ":F>" : "No disponible", inline: false },
+            { name: "Roles", value: (roles || "Sin roles adicionales").slice(0, 1024), inline: false }
+          )
+          .setFooter({ text: "Flux STORE • User Info" });
+        return message.reply({ embeds: [embed] });
+      }
+      case "roleinfo": {
+        const roleId = (args[0] || "").replace(/\\D/g, "");
+        const role = message.mentions.roles.first() || (roleId ? message.guild.roles.cache.get(roleId) || await message.guild.roles.fetch(roleId).catch(() => null) : null);
+        if (!role) return fail("Uso: \`!roleinfo @rol\` o \`!roleinfo ID\`.");
+        const permissions = role.permissions.toArray().slice(0, 12).map(p => "\`" + p + "\`").join(", ") || "Ningún permiso especial";
+        const embed = new EmbedBuilder()
+          .setColor(role.color || config.colors.primary || 0x8B5CF6)
+          .setTitle("Información del rol • " + role.name)
+          .addFields(
+            { name: "ID", value: role.id, inline: true },
+            { name: "Miembros en caché", value: String(role.members.size), inline: true },
+            { name: "Posición", value: String(role.position), inline: true },
+            { name: "Creado", value: "<t:" + Math.floor(role.createdTimestamp / 1000) + ":F>", inline: false },
+            { name: "Permisos principales", value: permissions.slice(0, 1024), inline: false },
+            { name: "Mencionable", value: role.mentionable ? "Sí" : "No", inline: true },
+            { name: "Gestionado por integración", value: role.managed ? "Sí" : "No", inline: true }
+          )
+          .setFooter({ text: "Flux STORE • Role Info" });
+        return message.reply({ embeds: [embed] });
+      }
+      case "poll": {
+        const raw = message.content.slice(PREFIX.length + command.length).trim();
+        const parts = raw.split("|").map(x => x.trim()).filter(Boolean);
+        const question = parts.shift();
+        if (!question || parts.length < 2 || parts.length > 10) return fail("Uso: \`!poll pregunta | opción 1 | opción 2\` (de 2 a 10 opciones).");
+        if (parts.some(x => x.length > 80)) return fail("Cada opción debe tener 80 caracteres o menos.");
+        const reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary || 0x8B5CF6)
+          .setTitle("📊 " + question.slice(0, 240))
+          .setDescription(parts.map((x, n) => reactions[n] + " **" + x + "**").join("\n"))
+          .setFooter({ text: "Flux STORE • Vota con una reacción" })
+          .setTimestamp();
+        const pollMessage = await message.channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+        for (let n = 0; n < parts.length; n++) await pollMessage.react(reactions[n]).catch(() => {});
+        return;
+      }
       case "afk": {
         const reason = args.join(" ").slice(0, 180) || "AFK";
         afkUsers.set(userKey, { message: reason, since: Date.now() });
