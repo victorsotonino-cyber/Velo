@@ -203,69 +203,79 @@ module.exports = {
     )),
 
   async execute(i) {
+    if (!i.guild) return i.reply({ content: "❌ Este comando solo funciona dentro de un servidor.", ephemeral: true });
     if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({ content: emoji(i.guild, "velo_error", "") + " Necesitas el permiso **Gestionar expresiones**.", ephemeral: true });
+      return i.reply({ content: "❌ Necesitas el permiso **Gestionar expresiones**.", ephemeral: true });
     }
-
     const me = i.guild.members.me;
     if (!me?.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
-      return i.reply({ content: emoji(i.guild, "error", "❌") + " Velo necesita **Gestionar expresiones** para subir emojis.", ephemeral: true });
+      return i.reply({ content: "❌ Flux STORE necesita **Gestionar expresiones** para subir emojis.", ephemeral: true });
     }
 
-    const tipo = i.options.getString("tipo");
+    const tipo = i.options.getString("tipo", true);
     const fluxPack = FLUX_PACK.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
     const staticPack = STATIC_EMOJIS.map(x => ({ url: x[0], name: x[1], animated: false }));
-    const shopPack = FLUX_PACK.filter(x => x[1].startsWith("Flux_")).map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
+    const shopPack = FLUX_PACK.map(x => ({ generated: true, name: x[1], kind: x[2], animated: false }));
     const animatedPack = ANIMATED.map(x => ({ url: x[0], name: x[1], animated: true }));
-    const list = tipo === "velo_staff"
-      ? fluxPack
-      : tipo === "tienda"
-        ? shopPack
-        : tipo === "normales"
-        ? staticPack
-        : tipo === "animados"
-          ? animatedPack
-          : [...fluxPack, ...staticPack, ...animatedPack];
+    const list = tipo === "velo_staff" ? fluxPack
+      : tipo === "tienda" ? shopPack
+      : tipo === "normales" ? staticPack
+      : tipo === "animados" ? animatedPack
+      : [...fluxPack, ...staticPack, ...animatedPack];
 
+    // Reconoce la interacción inmediatamente para evitar que Discord la deje cargando.
     await i.deferReply({ ephemeral: true });
     const existing = new Set(i.guild.emojis.cache.map(e => e.name));
     const added = [];
     const skipped = [];
     const failed = [];
+    let processed = 0;
+    let lastProgressAt = Date.now();
 
-    let processed = 0;\n    for (const item of list) {
+    await i.editReply({ content: "🟣 Flux STORE • Preparando **" + list.length + "** emojis…" });
+
+    for (const item of list) {
       if (existing.has(item.name)) {
         skipped.push(item.name + " (ya existe)");
-        continue;
+        processed++;
+      } else {
+        try {
+          // Los emojis se crean de uno en uno para respetar los límites de Discord.
+          const buffer = item.generated ? generatedFluxEmoji(item.kind) : await download(item.url);
+          const created = await i.guild.emojis.create({
+            attachment: buffer,
+            name: item.name,
+            reason: "Pack de emojis personalizados de Flux STORE"
+          });
+          added.push(created.toString() + " \`" + item.name + "\`");
+          existing.add(item.name);
+        } catch (e) {
+          failed.push(item.name + " (" + String(e.message || e).slice(0, 80) + ")");
+        }
+        processed++;
       }
 
-      try {
-        const buffer = item.generated ? generatedFluxEmoji(item.kind) : await download(item.url);
-        const created = await i.guild.emojis.create({
-          attachment: buffer,
-          name: item.name,
-          reason: "Pack de emojis personalizados de Flux STORE"
-        });
-        added.push(created.toString() + " \`" + item.name + "\`");
-        existing.add(item.name);
-      } catch (e) {
-        failed.push(item.name + " (" + e.message + ")");
+      // Actualiza la respuesta cada 3 elementos o cada segundo, para que no parezca bloqueado.
+      if (processed % 3 === 0 || Date.now() - lastProgressAt > 1000 || processed === list.length) {
+        await i.editReply({
+          content: "🟣 Flux STORE • Procesando emojis: **" + processed + "/" + list.length + "**\n✅ Añadidos: " + added.length + " · ♻️ Existían: " + skipped.length + " · ❌ Fallaron: " + failed.length
+        }).catch(() => {});
+        lastProgressAt = Date.now();
       }
     }
 
-    const e = new EmbedBuilder()
-      .setColor(config.colors.primary)
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.primary || 0x8B5CF6)
       .setTitle("Flux STORE • Emojis personalizados")
       .setDescription(
-        "Emojis personalizados reales de Discord, no Unicode.\n\n" +
-        emoji(i.guild, "velo_success", "") + " Añadidos: **" + added.length + "**\n" +
-        emoji(i.guild, "velo_new", "") + " Ya existían: **" + skipped.length + "**\n" +
-        emoji(i.guild, "error", "❌") + " Fallaron: **" + failed.length + "**"
+        "Pack terminado.\n\n" +
+        "✅ Añadidos: **" + added.length + "**\n" +
+        "♻️ Ya existían: **" + skipped.length + "**\n" +
+        "❌ Fallaron: **" + failed.length + "**"
       );
 
-    if (added.length) e.addFields({ name: emoji(i.guild, "velo_new", "") + " Emojis añadidos", value: added.slice(0, 20).join("\n").slice(0, 1024) });
-    if (failed.length) e.addFields({ name: emoji(i.guild, "error", "❌") + " No se pudieron subir", value: failed.slice(0, 10).join("\n").slice(0, 1024) });
-
-    return i.editReply({ embeds: [e] });
+    if (added.length) embed.addFields({ name: "Emojis añadidos (muestra)", value: added.slice(0, 15).join("\n").slice(0, 1024) });
+    if (failed.length) embed.addFields({ name: "No se pudieron subir (muestra)", value: failed.slice(0, 10).join("\n").slice(0, 1024) });
+    return i.editReply({ content: null, embeds: [embed] });
   }
 };
