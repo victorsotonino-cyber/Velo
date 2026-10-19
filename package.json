@@ -1,7 +1,7 @@
 {
-  "name": "velo-studio-bot",
+  "name": "flux-store-bot",
   "version": "1.0.0",
-  "description": "Bot de Discord Velo Studio",
+  "description": "Bot de Discord Flux Store",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
