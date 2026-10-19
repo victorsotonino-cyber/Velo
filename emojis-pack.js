@@ -5,6 +5,7 @@ const {
   MessageFlags
 } = require("discord.js");
 const config = require("./config");
+const sharp = require("sharp");
 
 const API_URL = "https://emoji.gg/api";
 const MAX_PACK_SIZE = 120;
@@ -160,18 +161,39 @@ function pickItems(entries, selected, existingNames) {
 }
 
 async function downloadEmoji(url) {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" || parsed.hostname !== "cdn3.emoji.gg") {
+    throw new Error("el enlace no pertenece al CDN seguro de Emoji.gg");
+  }
+
   const response = await fetch(url, {
     signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    headers: { "User-Agent": "FluxSTORE-EmojiInstaller/3.0" }
+    headers: { "User-Agent": "FluxSTORE-EmojiInstaller/3.1" }
   });
   if (!response.ok) throw new Error("Emoji.gg HTTP " + response.status);
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (!buffer.length) throw new Error("imagen vacía");
-  if (buffer.length > MAX_DOWNLOAD_BYTES) throw new Error("imagen mayor de 8 MB");
-  const png = buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
-  const gif = buffer.length >= 6 && ["GIF87a", "GIF89a"].includes(buffer.subarray(0,6).toString("ascii"));
+
+  const input = Buffer.from(await response.arrayBuffer());
+  if (!input.length) throw new Error("imagen vacía");
+  if (input.length > MAX_DOWNLOAD_BYTES) throw new Error("imagen original mayor de 8 MB");
+
+  const png = input.length >= 8 && input.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  const gif = input.length >= 6 && ["GIF87a", "GIF89a"].includes(input.subarray(0,6).toString("ascii"));
   if (!png && !gif) throw new Error("el enlace no devolvió PNG/GIF válido");
-  return buffer;
+
+  // Discord bot uploads have a much stricter size cap than Emoji.gg originals.
+  // Resize/compress while preserving animation for GIFs.
+  for (const size of [128, 96, 64]) {
+    const image = sharp(input, { animated: gif, limitInputPixels: 16777216 })
+      .resize(size, size, { fit: "inside", withoutEnlargement: true });
+
+    const output = gif
+      ? await image.gif({ quality: 78, effort: 10, dither: 0.7 }).toBuffer()
+      : await image.png({ palette: true, quality: 82, effort: 10, compressionLevel: 9 }).toBuffer();
+
+    if (output.length <= 256 * 1024) return output;
+  }
+
+  throw new Error("no se pudo comprimir por debajo de 256 KB sin perder el formato");
 }
 
 async function withTimeout(promise, ms, label) {
