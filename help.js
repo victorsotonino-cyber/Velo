@@ -23,7 +23,7 @@ module.exports = {
       .setTitle(emoji(i.guild, "brand", "✨") + " Velo Studio — Centro de comandos")
       .setDescription("Selecciona **Comunidad** o **Administración** para ver sus comandos. Los comandos disponibles también aparecen en la lista de abajo.")
       .addFields({ name: "Comandos slash cargados", value: commands.length ? commands.map(n => "`/" + n + "`").join(" • ").slice(0, 1024) : "No se pudo obtener la lista de comandos." })
-      .setFooter({ text: "Velo Studio • Usa /comandos para consultar las funciones disponibles" });
+      .setFooter({ text: "Flux STORE • Usa /comandos para ver la lista completa" });
 
     await i.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
   }
