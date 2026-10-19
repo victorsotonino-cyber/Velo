@@ -425,6 +425,7 @@ async function createEmojiWithBoundedRest(guild, record) {
 
 
 async function retryDiscordRateLimited(operation, onWait, maxRetries = 8) {
+  const MAX_INLINE_WAIT_MS = 15000;
   for (let attempt = 0; ; attempt++) {
     try {
       return await operation();
@@ -432,6 +433,19 @@ async function retryDiscordRateLimited(operation, onWait, maxRetries = 8) {
       if (!isDiscordRateLimitError(error) || attempt >= maxRetries) throw error;
       const suggestedMs = Number(error.retryAfter || error.timeToReset || error.sublimitTimeout) || 1000;
       const waitMs = Math.max(250, suggestedMs + 100);
+
+      // Do not hold an interaction open for minutes or hours. Respect Discord's
+      // retry-after by stopping this run instead of trying to bypass the limit.
+      if (waitMs > MAX_INLINE_WAIT_MS) {
+        const deferred = new Error(
+          "Discord exige esperar " + Math.ceil(waitMs / 1000) +
+          " segundos. El proceso se pausó para no mantener el comando bloqueado."
+        );
+        deferred.code = "FLUX_LONG_RATE_LIMIT";
+        deferred.retryAfterMs = waitMs;
+        throw deferred;
+      }
+
       if (onWait) await onWait(waitMs, attempt + 1);
       await new Promise(resolve => setTimeout(resolve, waitMs));
     }
@@ -727,7 +741,9 @@ module.exports = {
             deletedNames.push(emoji.name);
           } catch (error) {
             failed.push(emoji.name + " (no se pudo reemplazar: " + safeError(error) + ")");
-            if (isDiscordRateLimitError(error)) {
+            if (error?.code === "FLUX_LONG_RATE_LIMIT") {
+              uploadStopReason = error.message + " Vuelve a ejecutar /emojis-pack cuando haya pasado ese tiempo.";
+            } else if (isDiscordRateLimitError(error)) {
               uploadStopReason = "Discord activó un límite temporal al liberar espacio. Se detuvo el proceso.";
             } else if (Number(error?.status) === 403) {
               uploadStopReason = "Discord rechazó la eliminación por permisos. Comprueba Gestionar expresiones.";
@@ -798,7 +814,9 @@ module.exports = {
             else staticSlotsLeft = Math.max(0, staticSlotsLeft - 1);
           } catch (error) {
             failed.push(record.item.name + " (Discord: " + safeError(error) + ")");
-            if (isDiscordRateLimitError(error)) {
+            if (error?.code === "FLUX_LONG_RATE_LIMIT") {
+              uploadStopReason = error.message + " No se intentarán más subidas en esta ejecución.";
+            } else if (isDiscordRateLimitError(error)) {
               uploadStopReason = "Discord activó un límite temporal. El bot se detuvo sin acumular más solicitudes; espera antes de repetir el comando.";
             } else if (isEmojiCapacityError(error)) {
               uploadStopReason = "Discord indicó que no quedan espacios para este tipo de emoji.";
