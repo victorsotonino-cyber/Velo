@@ -588,7 +588,7 @@ module.exports = {
         }
         throw error;
       }
-      const initialExistingNames = new Set(currentEmojis.map(item => item.name));
+      const initialExistingNames = new Set([...currentEmojis.values()].map(item => item.name));
       const initialTierSlotLimit = maxEmojiSlotsPerType(interaction.guild);
       const initialStaticSlots = Math.max(0, initialTierSlotLimit - [...currentEmojis.values()].filter(emoji => !emoji.animated).length);
       const initialAnimatedSlots = Math.max(0, initialTierSlotLimit - [...currentEmojis.values()].filter(emoji => emoji.animated).length);
