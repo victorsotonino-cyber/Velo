@@ -195,24 +195,6 @@ module.exports = {
 
     await i.editReply({ content: "Flux STORE • Preparando " + items.length + " imágenes originales de Emoji.gg..." });
 
-    // Only delete a legacy emoji after confirming the bot created it.
-    for (const name of legacyNames) {
-      const old = i.guild.emojis.cache.find(e => e.name === name);
-      if (!old) continue;
-      const author = await emojiAuthor(old);
-      if (author?.id === i.client.user.id) {
-        try {
-          await old.delete("Replacing old Unicode/Twemoji icon with an Emoji.gg asset");
-          removed++;
-        } catch (error) {
-          protectedLegacy++;
-          failed.push(name + " (no se pudo reemplazar: " + String(error?.message || error).slice(0, 60) + ")");
-        }
-      } else {
-        protectedLegacy++;
-      }
-    }
-
     for (const item of items) {
       const exists = i.guild.emojis.cache.find(e => e.name === item.name);
       if (exists) {
@@ -238,6 +220,28 @@ module.exports = {
           content: "Flux STORE • Instalando " + processed + "/" + items.length + " emojis de Emoji.gg\nAñadidos: " + added.length + " · Existían: " + skipped.length + " · Antiguos retirados: " + removed + " · Fallaron: " + failed.length
         }).catch(() => {});
         lastProgress = Date.now();
+      }
+    }
+
+    // Replace old icons only after at least one genuine Emoji.gg image installed successfully.
+    // Never delete an emoji unless its creator is confirmed to be this bot.
+    if (added.length > 0) {
+      await i.editReply({ content: "Emoji.gg • Revisando los iconos antiguos creados por este bot..." }).catch(() => {});
+      for (const name of legacyNames) {
+        const old = i.guild.emojis.cache.find(e => e.name === name);
+        if (!old) continue;
+        const author = await emojiAuthor(old);
+        if (author?.id === i.client.user.id) {
+          try {
+            await old.delete("Replacing old Unicode/Twemoji icon with an Emoji.gg asset");
+            removed++;
+          } catch (error) {
+            protectedLegacy++;
+            failed.push(name + " (no se pudo reemplazar: " + String(error?.message || error).slice(0, 60) + ")");
+          }
+        } else {
+          protectedLegacy++;
+        }
       }
     }
 
