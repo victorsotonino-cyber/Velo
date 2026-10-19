@@ -2,7 +2,10 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits,
   EmbedBuilder,
-  MessageFlags
+  MessageFlags,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require("discord.js");
 const config = require("./config");
 const sharp = require("sharp");
@@ -433,6 +436,89 @@ async function createEmojiWithBoundedRest(guild, record) {
 function maxEmojiSlotsPerType(guild) {
   const tier = Math.max(0, Math.min(3, Number(guild?.premiumTier) || 0));
   return [50, 100, 150, 250][tier];
+}
+
+
+async function askButtonConfirmation(interaction, options) {
+  const yesId = "emoji_pack_yes_" + interaction.id;
+  const noId = "emoji_pack_no_" + interaction.id;
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(yesId)
+      .setLabel(options.confirmLabel || "Confirmar")
+      .setStyle(options.confirmStyle || ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(noId)
+      .setLabel(options.cancelLabel || "Cancelar")
+      .setStyle(ButtonStyle.Secondary)
+  );
+  await interaction.editReply({
+    content: options.content,
+    embeds: options.embeds || [],
+    components: [row]
+  });
+
+  let clicked;
+  try {
+    const message = await interaction.fetchReply();
+    clicked = await message.awaitMessageComponent({
+      filter: component => component.user.id === interaction.user.id &&
+        (component.customId === yesId || component.customId === noId),
+      time: 60000
+    });
+  } catch {
+    await interaction.editReply({
+      content: options.timeoutText || "La confirmación caducó. No se borró ningún emoji.",
+      embeds: [],
+      components: []
+    }).catch(() => {});
+    return false;
+  }
+
+  const accepted = clicked.customId === yesId;
+  await clicked.update({
+    content: accepted
+      ? (options.confirmText || "Confirmado.")
+      : (options.cancelText || "Cancelado. No se borró ningún emoji."),
+    embeds: [],
+    components: []
+  });
+  return accepted;
+}
+
+function compareEmojiAge(a, b) {
+  // First reuse old emojis from this bot's pack, then the oldest user-uploaded emojis.
+  const aPack = /^(flux_|velo_)/i.test(a.name) ? 0 : 1;
+  const bPack = /^(flux_|velo_)/i.test(b.name) ? 0 : 1;
+  if (aPack !== bPack) return aPack - bPack;
+  try {
+    const left = BigInt(a.id);
+    const right = BigInt(b.id);
+    return left < right ? -1 : left > right ? 1 : 0;
+  } catch {
+    return String(a.id).localeCompare(String(b.id));
+  }
+}
+
+function makeReplacementEmbed(staticEmojis, animatedEmojis, uploadCount) {
+  const embed = new EmbedBuilder()
+    .setColor(0xE11D2E)
+    .setTitle("Flux STORE • Confirmación de reemplazo")
+    .setDescription(
+      "Para instalar hasta **" + uploadCount + " emojis nuevos**, hay que borrar exactamente **" +
+      (staticEmojis.length + animatedEmojis.length) + " emojis existentes** para liberar espacio. " +
+      "No se puede deshacer automáticamente. No se borrará nada hasta que pulses «Confirmar reemplazo»."
+    );
+  const addNames = (label, list) => {
+    for (let i = 0; i < list.length; i += 15) {
+      embed.addFields({
+        name: label + (list.length > 15 ? " (" + (Math.floor(i / 15) + 1) + ")" : ""),
+        value: list.slice(i, i + 15).map(emoji => "• " + emoji.name).join("\n").slice(0, 1024)
+      });
+    }
+  };
+  if (staticEmojis.length) addNames("Emojis estáticos que se borrarían", staticEmojis);
+  if (animatedEmojis.length) addNames("Emojis animados que se borrarían", animatedEmojis);
+  embed.setFooter({ text: "Se priorizan los emojis flux_/velo_ antiguos y después los más antiguos disponibles." });
+  return embed;
 }
 
 module.exports = {
