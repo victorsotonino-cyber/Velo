@@ -42,7 +42,7 @@ async function install(guild, pack, onProgress = async () => {}) {
   return {created,existing,failed};
 }
 module.exports = {
-  data: new SlashCommandBuilder().setName("emojis-pack").setDescription("Instala packs de emojis para Velo Studio.").setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions).addStringOption(o=>o.setName("pack").setDescription("Elige el pack").setRequired(true).addChoices(...choices)),
+  data: new SlashCommandBuilder().setName("emojis-pack").setDescription("Instala packs de emojis personalizados para Flux STORE.").setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions).addStringOption(o=>o.setName("pack").setDescription("Elige el pack").setRequired(true).addChoices(...choices)),
   async execute(i) {
     if (!i.guild) return i.reply({content:"❌ Solo funciona en un servidor.",ephemeral:true});
     if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuildExpressions)) return i.reply({content:"❌ Necesitas el permiso Gestionar expresiones.",ephemeral:true});
