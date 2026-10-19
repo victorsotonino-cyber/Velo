@@ -36,7 +36,10 @@ for (const file of fs.readdirSync(__dirname).filter(f =>
     const command = require(path.join(__dirname, file));
     if (command.data && command.execute) {
       const name = command.data.name;
-      if (client.commands.has(name)) console.warn("Comando duplicado:", name, "en", file);
+      if (client.commands.has(name)) {
+        console.error("Comando duplicado ignorado:", name, "en", file, "(ya existe uno registrado)");
+        continue;
+      }
       client.commands.set(name, command);
     }
   } catch (e) {
