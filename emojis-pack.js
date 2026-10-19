@@ -21,7 +21,7 @@ const LABELS = {
 const choices = Object.entries(LABELS).map(([name,label]) => ({name:label,value:name}));
 choices.push({name:"📦 Todo",value:"todo"});
 function url(char) {
-  const codepoints = Array.from(char).map(c => c.codePointAt(0).toString(16)).join("-");
+  const codepoints = Array.from(char).map(c => c.codePointAt(0)).filter(cp => cp !== 0xFE0F).map(cp => cp.toString(16)).join("-");
   return BASE + codepoints + ".png";
 }
 async function install(guild, pack, onProgress = async () => {}) {
