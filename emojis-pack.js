@@ -80,9 +80,10 @@ function unpackCatalog(body) {
 }
 
 function extraFeedUrls() {
-  return String(process.env.EMOJI_EXTRA_API_URLS || "")
-    .split(",").map(value => value.trim()).filter(Boolean)
-    .slice(0, 8);
+  const configured = String(process.env.EMOJI_EXTRA_API_URLS || "")
+    .split(",").map(value => value.trim()).filter(Boolean);
+  // Legacy public emoji catalog: use only its JSON API, never scrape HTML pages.
+  return [...new Set(["https://discordemoji.com/api/", ...configured])].slice(0, 8);
 }
 
 function extraImageHosts() {
@@ -123,7 +124,7 @@ async function loadCatalog() {
         let parsed;
         try { parsed = new URL(String(imageValue), sourceUrl); } catch { continue; }
         if (parsed.protocol !== "https:") continue;
-        const emojiHosts = ["emoji.gg", "www.emoji.gg", "cdn3.emoji.gg"];
+        const emojiHosts = ["emoji.gg", "www.emoji.gg", "cdn3.emoji.gg", "discordemoji.com", "www.discordemoji.com"];
         if (source.official) {
           if (!emojiHosts.includes(parsed.hostname.toLowerCase())) continue;
         } else if (parsed.hostname.toLowerCase() !== sourceUrl.hostname.toLowerCase() &&
@@ -241,7 +242,7 @@ function pickItems(entries, selected, existingNames) {
 
 async function downloadEmoji(url) {
   const allowedHosts = new Set([
-    "emoji.gg", "www.emoji.gg", "cdn3.emoji.gg",
+    "emoji.gg", "www.emoji.gg", "cdn3.emoji.gg", "discordemoji.com", "www.discordemoji.com",
     ...extraImageHosts()
   ]);
   let parsed;
@@ -251,7 +252,7 @@ async function downloadEmoji(url) {
   }
 
   const candidates = [parsed.href];
-  if (["cdn3.emoji.gg", "emoji.gg", "www.emoji.gg"].includes(parsed.hostname.toLowerCase())) {
+  if (["cdn3.emoji.gg", "emoji.gg", "www.emoji.gg", "discordemoji.com", "www.discordemoji.com"].includes(parsed.hostname.toLowerCase())) {
     const filename = parsed.pathname.split("/").pop();
     if (filename && /\.(png|gif|webp|jpe?g)$/i.test(filename)) {
       candidates.push(
