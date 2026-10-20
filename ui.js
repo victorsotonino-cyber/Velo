@@ -4,6 +4,7 @@
 const FALLBACKS = {
   brand: "🛍️", success: "✅", error: "❌", info: "ℹ️", ticket: "🎫",
   moderation: "🛡️", staff: "🛡️", fun: "🎮", warning: "⚠️", slow: "🐢",
+  emoji_138: "💬", emoji_139: "🚨", shopeepay: "🛍️", emoji_20: "🤝",
   lock: "🔒", announcement: "📢", settings: "⚙️", users: "👥",
   channel: "📁", money: "💰", edit: "✏️", trash: "🗑️", add: "➕",
   remove: "➖", bot: "🤖", arrow: "➡️", minecraft: "⛏️", pvp: "⚔️",
@@ -30,6 +31,10 @@ const NAMES = {
   error: ["error", "failed", "cancel", "denied", "cross", "wrong"],
   info: ["info", "information", "question", "help"],
   ticket: ["ticket", "support_ticket", "ticket_open", "helpdesk"],
+  emoji_138: ["emoji_138", "emoji138"],
+  emoji_139: ["emoji_139", "emoji139"],
+  shopeepay: ["shopeepay", "shopee_pay", "emoji_shopeepay"],
+  emoji_20: ["emoji_20", "emoji20"],
   moderation: ["staff", "moderator", "moderation", "admin", "team"],
   staff: ["staff", "staff_team", "team", "helper", "moderator", "admin"],
   fun: ["fun", "gaming", "game"],
