@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const config = require("./config");
 const { emoji, emojiData } = require("./ui");
+const PANEL_TITLE = "Flux STORE • Centro de tickets";
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -20,7 +21,7 @@ module.exports = {
 
     const menu = new StringSelectMenuBuilder()
       .setCustomId("ticket_create")
-      .setPlaceholder("🎫 Selecciona el tipo de ticket")
+      .setPlaceholder("🧾 Selecciona una categoría de ayuda")
       .setMinValues(1)
       .setMaxValues(1)
       .addOptions(categories.map(([value, c]) => {
@@ -49,13 +50,24 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary || 0xE11D2E)
-      .setTitle(emoji(i.guild, "brand", "✨") + " Flux STORE • Centro de tickets")
+      .setTitle(emoji(i.guild, "brand", "✨") + " " + PANEL_TITLE)
       .setDescription("¿Necesitas ayuda? Selecciona una categoría en el menú y el equipo te atenderá.\n\n" + description)
       .setFooter({ text: "Flux STORE • Sistema de soporte" })
       .setTimestamp();
 
     try {
-      await i.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+      // Edita el panel ya existente en este canal para evitar duplicados.
+      const recent = await i.channel.messages.fetch({ limit: 50 });
+      const existing = recent.find(m =>
+        m.author?.id === i.client.user.id &&
+        m.embeds?.some(e => (e.title || "").includes(PANEL_TITLE))
+      );
+      if (existing) {
+        await existing.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+        await i.reply({ content: "✅ Panel de tickets actualizado. No se publicó un duplicado.", ephemeral: true });
+      } else {
+        await i.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+      }
     } catch (error) {
       console.error("Error publicando /ticket-panel:", error);
       const message = "❌ No pude publicar el panel. Comprueba que tengo permiso para enviar mensajes, insertar enlaces y usar emojis externos/personalizados.";
