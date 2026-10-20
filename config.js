@@ -28,10 +28,11 @@ module.exports = {
     maxOpenPerUser: Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER || 2))),
     closeDelayMs: 5000,
     categories: {
-      soporte: { label: "Soporte", emojiKey: "velo_support", description: "Ayuda, dudas o problemas con Flux Store." },
-      comprar: { label: "Comprar", emojiKey: "velo_buy", description: "Compras, productos, precios y servicios." },
-      reclamos: { label: "Reclamos", emojiKey: "velo_reclaim", description: "Reclamos, incidencias o problemas con una compra." },
-      otros: { label: "Otros", emojiKey: "velo_ticket", description: "Cualquier consulta que no encaje en las anteriores." }
+      compras: { label: "Compras", emojiKey: "shopeepay", description: "Pedidos, productos, pagos y entregas de Velo Studio." },
+      dudas: { label: "Dudas", emojiKey: "emoji_138", description: "Resuelve preguntas sobre nuestros servicios antes de comprar." },
+      reportes: { label: "Reportes", emojiKey: "emoji_139", description: "Informa de un problema, incidencia o situación que debamos revisar." },
+      partner: { label: "Partner", emojiKey: "emoji_20", description: "Propuestas de colaboración y acuerdos con Velo Studio." },
+      ally: { label: "Alianzas", emojiKey: "emoji_139", description: "Solicita una alianza o promoción entre comunidades." }
     }
   }
 };
