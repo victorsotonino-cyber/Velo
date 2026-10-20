@@ -337,11 +337,26 @@ client.on(Events.MessageCreate, async message => {
           emoji: emojiData(message.guild, c.emojiKey || value, "🎫")
         }));
         const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
-        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle(emoji(message.guild, "shop", "🛍️") + " Flux Store | Centro de soporte")
-          .setDescription("¿Necesitas ayuda? Selecciona la categoría que mejor describa tu consulta.\n\n" + categories.map(([type, c]) =>
-            emoji(message.guild, c.emojiKey || type, "🎫") + " **" + c.label + "** — " + c.description
-          ).join("\n"))
-          .setFooter({ text: "Flux Store • Atención y soporte" });
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary)
+          .setTitle("VELO STUDIO  •  CENTRO DE ATENCIÓN")
+          .setDescription([
+            "¡Bienvenido al centro de ayuda de **Velo Studio**!",
+            "Abre una solicitud eligiendo abajo la opción que mejor encaje. Nuestro equipo la revisará en cuanto esté disponible.",
+            "",
+            "✦ **CÓMO FUNCIONA**",
+            "› Selecciona una categoría para crear tu canal privado.",
+            "› Explica tu solicitud con todos los detalles importantes.",
+            "› No compartas contraseñas ni datos sensibles.",
+            "› Evita abrir solicitudes duplicadas; puedes tener hasta " + config.ticket.maxOpenPerUser + " tickets abiertos.",
+            "",
+            "✦ **TIPOS DE SOLICITUD**",
+            categories.map(([type, c]) => emoji(message.guild, c.emojiKey || type, "🎫") + " **" + c.label + "**\\n" + c.description).join("\\n\\n"),
+            "",
+            "Gracias por confiar en **Velo Studio**."
+          ].join("\\n"))
+          .setFooter({ text: "VELO STUDIO  •  Atención privada • Sistema de tickets" })
+          .setTimestamp();
         return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
       default:
