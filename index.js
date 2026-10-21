@@ -141,7 +141,7 @@ client.on(Events.MessageCreate, async message => {
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
             "**Tickets, mensajes y sorteos**",
-            "`!ticket-panel` `!setup-sorteos` `!say texto`",
+            "`!ticket-panel` `!setup-plantilla` `!setup-sorteos` `!say texto`",
             "`!giveaway start [#canal] 1h 1 Premio | descripción`",
             "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
             "**También disponible con /**",
@@ -325,6 +325,70 @@ client.on(Events.MessageCreate, async message => {
         if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) return fail("Uso: `!slowmode 0-21600` segundos.");
         await message.channel.setRateLimitPerUser(seconds);
         return ok("Modo lento configurado a " + seconds + " segundos.");
+      }
+      case "setup-plantilla": {
+        if (!need(PermissionFlagsBits.ManageChannels)) return;
+        const everyone = message.guild.roles.everyone;
+        const staffRole = message.guild.roles.cache.get(config.roles.staff);
+        const adminRole = message.guild.roles.cache.get(config.roles.admin);
+        const staffRoles = [staffRole, adminRole].filter(Boolean);
+        const publicView = { ViewChannel: true, ReadMessageHistory: true };
+        const makeCategory = async (name, staffOnly = false) => {
+          let cat = message.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === name);
+          const overwrites = staffOnly
+            ? [
+                { id: everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+                ...staffRoles.map(role => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages] }))
+              ]
+            : [{ id: everyone.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] }];
+          if (!cat) cat = await message.guild.channels.create({ name, type: ChannelType.GuildCategory, permissionOverwrites: overwrites, reason: "Plantilla renovada de Flux STORE" });
+          else await cat.permissionOverwrites.set(overwrites).catch(() => {});
+          return cat;
+        };
+        const makeText = async (category, name, options = {}) => {
+          let ch = message.guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name && c.parentId === category.id);
+          const staffOnly = Boolean(options.staffOnly);
+          const overwrites = staffOnly
+            ? [
+                { id: everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+                ...staffRoles.map(role => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages] }))
+              ]
+            : [
+                { id: everyone.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, ...(options.readOnly ? [] : [PermissionFlagsBits.SendMessages])], ...(options.readOnly ? {} : {}) },
+                ...staffRoles.map(role => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
+              ];
+          if (options.readOnly) overwrites[0].deny = [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions];
+          if (!ch) ch = await message.guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, permissionOverwrites: overwrites, topic: options.topic || "Canal oficial de Flux STORE." });
+          else {
+            await ch.permissionOverwrites.set(overwrites).catch(() => {});
+            if (ch.parentId !== category.id) await ch.setParent(category.id).catch(() => {});
+          }
+          return ch;
+        };
+        const plans = [
+          { name: "📌・INICIO", channels: [["👋・bienvenida"], ["📢・anuncios", {readOnly:true}], ["📜・normas", {readOnly:true}], ["🧾・terminos", {readOnly:true}]] },
+          { name: "🛍️・FLUX STORE", channels: [["🛒・catalogo"], ["💳・metodos-de-pago", {readOnly:true}], ["🆕・novedades", {readOnly:true}], ["❓・preguntas-frecuentes", {readOnly:true}]] },
+          { name: "💬・COMUNIDAD", channels: [["💭・chat"], ["🤖・comandos"], ["📸・media"], ["🔊・general-voice", {voice:true}]] },
+          { name: "🌟・REPUTACIÓN", channels: [["💬・vouches"], ["⭐・reviews"], ["✅・legit-check"]] },
+          { name: "🎉・SORTEOS", channels: [["🎁・giveaways", {readOnly:true}], ["🏆・ganadores", {readOnly:true}]] },
+          { name: "🎫・ATENCIÓN", channels: [["🎟️・tickets", {readOnly:true}]] },
+          { name: "🛡️・ZONA STAFF", staffOnly:true, channels: [["🔒・staff-chat", {staffOnly:true}], ["📋・staff-anuncios", {staffOnly:true}], ["🧾・logs-staff", {staffOnly:true}], ["🚨・reportes-staff", {staffOnly:true}]] }
+        ];
+        let created = 0;
+        for (const plan of plans) {
+          const cat = await makeCategory(plan.name, Boolean(plan.staffOnly));
+          for (const [name, opts = {}] of plan.channels) {
+            if (opts.voice) {
+              let ch = message.guild.channels.cache.find(c => c.type === ChannelType.GuildVoice && c.name === name && c.parentId === cat.id);
+              if (!ch) { await message.guild.channels.create({ name, type: ChannelType.GuildVoice, parent: cat.id }); created++; }
+            } else {
+              const before = message.guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name && c.parentId === cat.id);
+              await makeText(cat, name, { ...opts, staffOnly: Boolean(plan.staffOnly || opts.staffOnly) });
+              if (!before) created++;
+            }
+          }
+        }
+        return ok("Plantilla Flux STORE lista. Canales nuevos: **" + created + "**. La zona staff queda oculta para @everyone. " + (staffRoles.length ? "Permisos aplicados a los roles de staff/admin configurados." : "⚠️ No encontré los roles de staff/admin configurados: revisa STAFF_ROLE_ID y ADMIN_ROLE_ID en config.js."));
       }
       case "setup-sorteos": {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
