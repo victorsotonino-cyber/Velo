@@ -141,7 +141,7 @@ client.on(Events.MessageCreate, async message => {
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
             "**Tickets, mensajes y sorteos**",
-            "`!ticket-panel` `!say texto`",
+            "`!ticket-panel` `!setup-sorteos` `!say texto`",
             "`!giveaway start [#canal] 1h 1 Premio | descripción`",
             "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
             "**También disponible con /**",
@@ -326,6 +326,27 @@ client.on(Events.MessageCreate, async message => {
         await message.channel.setRateLimitPerUser(seconds);
         return ok("Modo lento configurado a " + seconds + " segundos.");
       }
+      case "setup-sorteos": {
+        if (!need(PermissionFlagsBits.ManageChannels)) return;
+        const categoryName = "🎉・SORTEOS";
+        const channelName = "🎁・giveaways";
+        let category = message.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === categoryName);
+        if (!category) category = await message.guild.channels.create({ name: categoryName, type: ChannelType.GuildCategory, reason: "Crear categoría de sorteos para Flux STORE" });
+        let channel = message.guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === channelName && c.parentId === category.id);
+        if (!channel) channel = await message.guild.channels.create({
+          name: channelName,
+          type: ChannelType.GuildText,
+          parent: category.id,
+          topic: "🎉 Sorteos oficiales de Flux STORE. Participa usando los botones de cada sorteo."
+        });
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary)
+          .setTitle("🎉 𝐒𝐎𝐑𝐓𝐄𝐎𝐒 ・ 𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄")
+          .setDescription("Aquí se publicarán los sorteos oficiales, premios y ganadores.\n\n✦ Revisa los requisitos de cada sorteo.\n✦ Participa desde el botón del mensaje.\n✦ No compartas contraseñas ni códigos de acceso.")
+          .setFooter({ text: "FLUX STORE ✦ ¡Mucha suerte!" });
+        await channel.send({ embeds: [embed] }).catch(() => {});
+        return ok("Categoría de sorteos lista: " + category + " • Canal: " + channel);
+      }
       case "ticket-panel": {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
         const categories = Object.entries(config.ticket.categories || {});
@@ -339,23 +360,25 @@ client.on(Events.MessageCreate, async message => {
         const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
         const embed = new EmbedBuilder()
           .setColor(config.colors.primary)
-          .setTitle("VELO STUDIO  •  CENTRO DE ATENCIÓN")
+          .setTitle("✦ 𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄 ・ 𝐂𝐄𝐍𝐓𝐑𝐎 𝐃𝐄 𝐀𝐓𝐄𝐍𝐂𝐈Ó𝐍 ✦")
           .setDescription([
-            "¡Bienvenido al centro de ayuda de **Velo Studio**!",
-            "Abre una solicitud eligiendo abajo la opción que mejor encaje. Nuestro equipo la revisará en cuanto esté disponible.",
+            "╭─────────────── ⋆｡°✩",
+            "  ¡𝐁𝐢𝐞𝐧𝐯𝐞𝐧𝐢𝐝𝐨 𝐚 **Flux STORE**!",
+            "  Estamos aquí para ayudarte con tus compras, dudas y colaboraciones.",
+            "╰─────────────── ⋆｡°✩",
             "",
-            "✦ **CÓMO FUNCIONA**",
-            "› Selecciona una categoría para crear tu canal privado.",
-            "› Explica tu solicitud con todos los detalles importantes.",
-            "› No compartas contraseñas ni datos sensibles.",
-            "› Evita abrir solicitudes duplicadas; puedes tener hasta " + config.ticket.maxOpenPerUser + " tickets abiertos.",
+            "✧ **𝐂Ó𝐌𝐎 𝐅𝐔𝐍𝐂𝐈𝐎𝐍𝐀**",
+            "┊ Elige una opción del menú para abrir un canal privado.",
+            "┊ Describe tu solicitud con claridad para que podamos ayudarte más rápido.",
+            "┊ Nunca compartas contraseñas ni datos sensibles.",
+            "┊ Máximo de tickets abiertos por persona: **" + config.ticket.maxOpenPerUser + "**.",
             "",
-            "✦ **TIPOS DE SOLICITUD**",
-            categories.map(([type, c]) => emoji(message.guild, c.emojiKey || type, "🎫") + " **" + c.label + "**\\n" + c.description).join("\\n\\n"),
+            "✧ **𝐄𝐋𝐈𝐆𝐄 𝐓𝐔 𝐒𝐎𝐋𝐈𝐂𝐈𝐓𝐔𝐃**",
+            categories.map(([type, c]) => emoji(message.guild, c.emojiKey || type, "🎫") + " **" + c.label + "**\n_" + c.description + "_").join("\n\n"),
             "",
-            "Gracias por confiar en **Velo Studio**."
-          ].join("\\n"))
-          .setFooter({ text: "VELO STUDIO  •  Atención privada • Sistema de tickets" })
+            "୨୧ Gracias por formar parte de **Flux STORE**. Nuestro equipo te atenderá en cuanto pueda."
+          ].join("\n"))
+          .setFooter({ text: "FLUX STORE  ✦  Soporte privado • Atención al cliente" })
           .setTimestamp();
         return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
