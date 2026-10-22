@@ -10,6 +10,7 @@ const commands = [
   require("../commands/store/sugerencia"),
   require("../commands/store/estadisticas"),
   require("../commands/store/pagos"),
+  require("../commands/store/carrito"),
   require("../commands/community/encuesta"),
   require("../commands/general/userinfo")
 ];
