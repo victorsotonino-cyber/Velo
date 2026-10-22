@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const env = (name, fallback) => process.env[name] || fallback;
+const env = name => process.env[name] || "";
 
 module.exports = {
   token: process.env.DISCORD_TOKEN,
@@ -14,15 +14,18 @@ module.exports = {
     error: 0xEF4444
   },
   channels: {
-    welcome: env("WELCOME_CHANNEL_ID", "1562615450834178179"),
-    logs: env("LOGS_CHANNEL_ID", "1550131492578132010"),
-    tickets: env("TICKETS_CATEGORY_ID", "1554962090295562240"),
-    announcements: env("ANNOUNCEMENTS_CHANNEL_ID", "1550131491588014181")
+    terms: env("TERMS_CHANNEL_ID"),
+    paymentMethods: env("PAYMENT_METHODS_CHANNEL_ID"),
+    ticketInfo: env("TICKETS_INFO_CHANNEL_ID"),
+    welcome: env("WELCOME_CHANNEL_ID"),
+    logs: env("LOGS_CHANNEL_ID"),
+    tickets: env("TICKETS_CATEGORY_ID"),
+    announcements: env("ANNOUNCEMENTS_CHANNEL_ID")
   },
   roles: {
-    admin: env("ADMIN_ROLE_ID", "1550131491151945778"),
-    staff: env("STAFF_ROLE_ID", "1552119717597028515"),
-    member: env("MEMBER_ROLE_ID", "1562619913485557901")
+    admin: env("ADMIN_ROLE_ID"),
+    staff: env("STAFF_ROLE_ID"),
+    member: env("MEMBER_ROLE_ID")
   },
   ticket: {
     maxOpenPerUser: Number.isFinite(Number(process.env.MAX_TICKETS_PER_USER)) && process.env.MAX_TICKETS_PER_USER
@@ -30,11 +33,11 @@ module.exports = {
       : 2,
     closeDelayMs: 5000,
     categories: {
-      compras: { label: "Compras y pedidos", emojiId: "1550146329915949077", emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos, entregas y seguimiento de compras." },
-      dudas: { label: "Dudas y soporte", emojiId: "1561921833203142757", emojiName: "emoji_138", emojiKey: "emoji_138", description: "Resuelve preguntas sobre productos, servicios o cómo comprar." },
-      reportes: { label: "Reportes e incidencias", emojiId: "1561921915658969099", emojiName: "emoji_139", emojiKey: "emoji_139", description: "Comunica problemas, incidencias o situaciones que requieran revisión." },
-      partner: { label: "Partner / Colaboraciones", emojiId: "1561698594136920214", emojiName: "flux_pandahiyapolice_2219", emojiKey: "flux_pandahiyapolice_2219", description: "Presenta propuestas de colaboración y acuerdos con FLUX STORE." },
-      ally: { label: "Alianzas", emojiId: "1561551235285385227", emojiName: "flux_owner_4264", emojiKey: "flux_owner_4264", description: "Solicita una alianza, promoción o colaboración entre comunidades." }
+      compras: { label: "Compras y pedidos", emojiId: env("TICKET_EMOJI_COMPRAS_ID"), emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos, entregas y seguimiento de compras." },
+      dudas: { label: "Dudas y soporte", emojiId: env("TICKET_EMOJI_DUDAS_ID"), emojiName: "emoji_138", emojiKey: "emoji_138", description: "Resuelve preguntas sobre productos, servicios o cómo comprar." },
+      reportes: { label: "Reportes e incidencias", emojiId: env("TICKET_EMOJI_REPORTES_ID"), emojiName: "emoji_139", emojiKey: "emoji_139", description: "Comunica problemas, incidencias o situaciones que requieran revisión." },
+      partner: { label: "Partner / Colaboraciones", emojiId: env("TICKET_EMOJI_PARTNER_ID"), emojiName: "flux_pandahiyapolice_2219", emojiKey: "flux_pandahiyapolice_2219", description: "Presenta propuestas de colaboración y acuerdos con FLUX STORE." },
+      ally: { label: "Alianzas", emojiId: env("TICKET_EMOJI_ALLY_ID"), emojiName: "flux_owner_4264", emojiKey: "flux_owner_4264", description: "Solicita una alianza, promoción o colaboración entre comunidades." }
     }
   }
 };
