@@ -73,3 +73,9 @@ AutoMod puede bloquear invitaciones de Discord, exceso de menciones, mensajes re
 - \`npm start\`: inicia el bot.
 
 Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: producto con stock 1, segundo intento de compra, cancelación de pedido y una reseña de pedido no completado.
+
+
+### Automatización de tickets (FLUX STORE)
+- El módulo `ticket-tool-x-automation.js` añade aviso de inactividad con botón para cancelar, cierre por inactividad configurable y transcript HTML con entrega a logs/DM según `ticket-config.json`.
+- Para activar el autocierre, configura en `ticket-config.json` el objeto de tu servidor (`guildId`) con `autoCloseEnabled: true`, `autoCloseHours: 24`, `transcriptMode: "channel"` (o `"dm"` / `"both"`) y `logChannelId` o `transcriptChannelId`. Los datos del ticket deben conservar el formato de tema `VeloTicket:<userId>:<tipo>:<staffId opcional>`.
+- Este módulo es una implementación propia basada en patrones habituales de bots de tickets. El repositorio [MinusTech/Ticket-Tool-X-](https://github.com/MinusTech/Ticket-Tool-X-) se usa como referencia de funcionalidades (transcripts, aviso/cancelación y autocierre); no se copia su archivo fuente íntegro.
