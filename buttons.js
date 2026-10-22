@@ -268,7 +268,7 @@ async function closeApplication(i) {
 async function helpCategory(i, client) {
   const entries = {
     comunidad: [
-      ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
+      ["carrito", "Carrito de compras"], ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
       ["encuesta", "Crear encuesta interactiva"], ["sugerencia", "Enviar ideas y votar"],
       ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
       ["say", "Enviar mensaje como el bot"]
@@ -299,7 +299,7 @@ async function helpCategory(i, client) {
       ["postulaciones-config", "Configurar preguntas"]
     ],
     diversion: [
-      ["giveaway", "Sorteos"], ["tienda", "Ver el catálogo"], ["ventas", "Contador de ventas"], ["help", "Centro de comandos"]
+      ["carrito", "Carrito de compras"], ["giveaway", "Sorteos"], ["tienda", "Ver el catálogo"], ["ventas", "Contador de ventas"], ["help", "Centro de comandos"]
     ]
   };
   const titles = {
