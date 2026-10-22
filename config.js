@@ -28,11 +28,11 @@ module.exports = {
     maxOpenPerUser: Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER || 2))),
     closeDelayMs: 5000,
     categories: {
-      compras: { label: "Compras", emojiKey: "flux_stockpenguin_4079", description: "Pedidos, productos, pagos y entregas de Flux STORE." },
-      dudas: { label: "Dudas", emojiKey: "emoji_138", description: "Resuelve preguntas sobre nuestros servicios antes de comprar." },
-      reportes: { label: "Reportes", emojiKey: "emoji_139", description: "Informa de un problema, incidencia o situación que debamos revisar." },
-      partner: { label: "Partner", emojiKey: "flux_discord_staff_5163", description: "Propuestas de colaboración y acuerdos con Flux STORE." },
-      ally: { label: "Alianzas", emojiKey: "flux_discord_staff_5163", description: "Solicita una alianza o promoción entre comunidades." }
+      compras: { label: "Compras", emojiId: "1550146329915949077", emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos y entregas de Flux STORE." },
+      dudas: { label: "Dudas", emojiId: "1561921833203142757", emojiName: "emoji_138", emojiKey: "emoji_138", description: "Resuelve preguntas sobre nuestros servicios antes de comprar." },
+      reportes: { label: "Reportes", emojiId: "1561921915658969099", emojiName: "emoji_139", emojiKey: "emoji_139", description: "Informa de un problema, incidencia o situación que debamos revisar." },
+      partner: { label: "Partner", emojiId: "1561698594136920214", emojiName: "flux_pandahiyapolice_2219", emojiKey: "flux_pandahiyapolice_2219", description: "Propuestas de colaboración y acuerdos con Flux STORE." },
+      ally: { label: "Alianzas", emojiId: "1561551235285385227", emojiName: "flux_owner_4264", emojiKey: "flux_owner_4264", description: "Solicita una alianza o promoción entre comunidades." }
     }
   }
 };
