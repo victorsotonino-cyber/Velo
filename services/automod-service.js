@@ -25,7 +25,7 @@ async function logModeration(guild, text) {
 }
 
 async function handle(message, prefix) {
-  if (process.env.AUTOMOD_ENABLED === "false") return false;
+  if (String(process.env.AUTOMOD_ENABLED || "true").toLowerCase() === "false") return false;
   if (!message.guild || message.author.bot || !message.member) return false;
   const content = String(message.content || "").trim();
   if (!content || content.startsWith(prefix) || /^\+vouch(?:\s|$)/i.test(content)) return false;
