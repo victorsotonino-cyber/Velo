@@ -22,7 +22,7 @@ module.exports = {
   roles: {
     admin: env("ADMIN_ROLE_ID", "1550131491151945778"),
     staff: env("STAFF_ROLE_ID", "1552119717597028515"),
-    member: env("MEMBER_ROLE_ID", "1550131491080507477")
+    member: env("MEMBER_ROLE_ID", "1562619913485557901")
   },
   ticket: {
     maxOpenPerUser: Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER || 2))),
