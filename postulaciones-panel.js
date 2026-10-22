@@ -37,7 +37,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(config.colors.primary)
-        .setTitle(staff + " Postulaciones — Velo Studio")
+        .setTitle(staff + " Postulaciones — FLUX STORE")
         .setDescription(
           nuevo + " **¿Quieres formar parte del equipo?**\n\n" +
           verified + " Pulsa el botón de abajo para abrir una **postulación privada**.\n" +
@@ -46,7 +46,7 @@ module.exports = {
           designer + " **Diseñador**\n" +
           staff + " **Staff / Configurador**"
         )
-        .setFooter({ text: "Velo Studio • Sistema de postulaciones" })
+        .setFooter({ text: "FLUX STORE • Sistema de postulaciones" })
         .setTimestamp();
 
       const buttonEmoji = emojiData(i.guild, "velo_new", "🆕");
