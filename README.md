@@ -39,12 +39,14 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - `/carrito confirmar` acepta la opción opcional `cupon`; el bot recalcula el total desde el catálogo y comprueba el límite de usos antes de aplicar el descuento.
 - \`/carrito agregar\`, \`/carrito ver\`, \`/carrito quitar\`, \`/carrito vaciar\`.
 
-### Panel editable y moderación de tickets
-- `m!ticket setup`: abre el panel de configuración actual.
-- En **Avanzado → Editor visual del panel** puedes guardar título, descripción, color hexadecimal y pie del panel para las próximas publicaciones.
-- En **Avanzado → Editor de categorías** puedes editar la etiqueta, descripción y emoji de cada tipo de ticket, por servidor.
-- En **Avanzado → Moderación de tickets** puedes configurar el máximo de tickets abiertos por usuario, autocierre y horas de inactividad, y recordatorios al staff.
-- Los recordatorios se activan si se configura una hora válida y se envían cuando el último mensaje humano del ticket es del cliente y no hay respuesta posterior del staff. El autocierre sigue desactivado por defecto.
+### Panel profesional y moderación de tickets
+- `f!ticket setup`: abre la consola de administración de tickets (solo administradores o el rol administrador configurado).
+- La consola muestra el estado de puesta en marcha y permite elegir canal público, roles de soporte y categoría de Discord antes de publicar el panel.
+- El panel público utiliza un diseño de atención profesional con pasos de apertura, indicación de privacidad y el selector de categorías.
+- En **Ajustes avanzados → Editor visual del panel** puedes guardar el título, la descripción, el color hexadecimal y el pie para las próximas publicaciones.
+- En **Ajustes avanzados → Editor de categorías** puedes editar por servidor la etiqueta, la descripción y el emoji de cada tipo de ticket.
+- En **Ajustes avanzados → Moderación de tickets** puedes configurar el límite de tickets por miembro, el autocierre y las horas de recordatorio al equipo.
+- Los recordatorios se envían cuando el último mensaje humano del ticket es del cliente y no hay respuesta posterior del equipo. El autocierre sigue desactivado por defecto.
 - \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
 
 Los productos antiguos sin propiedad \`stock\` siguen teniendo stock ilimitado por compatibilidad. Configura su stock con \`/tienda stock\` para habilitar el control de inventario. El precio debe contener una única cantidad numérica, por ejemplo \`7.50 USD\`; los importes escritos como rangos no se aceptan para el checkout.
