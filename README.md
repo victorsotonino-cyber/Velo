@@ -43,9 +43,11 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - `f!ticket setup`: abre la consola de administración de tickets (solo administradores o el rol administrador configurado).
 - La consola muestra el estado de puesta en marcha y permite elegir canal público, roles de soporte y categoría de Discord antes de publicar el panel.
 - El panel público utiliza un diseño de atención profesional con pasos de apertura, indicación de privacidad y el selector de categorías.
-- En **Ajustes avanzados → Apariencia del panel y tickets** puedes cambiar el título, descripción, color hexadecimal, pie y texto del selector.
-- En ese mismo módulo, el selector de tipos permite editar el nombre visible, el título del embed que se crea dentro de cada ticket, la descripción y el emoji (Unicode, ID o emoji personalizado instalado en el servidor).
-- También puedes elegir ahí el formato del nombre de los nuevos canales de ticket. Los cambios del mensaje público se ven al publicar el panel de nuevo; los títulos de ticket y el formato de canales se aplican a los tickets nuevos.
+- En **Ajustes avanzados → Apariencia del panel y tickets** puedes editar título, descripción, color hexadecimal, pie, texto del selector, miniatura y banner HTTPS.
+- El diseño público se puede publicar como **menú desplegable** (hasta 25 categorías) o **botones por categoría** (hasta 5 categorías).
+- Cada categoría tiene nombre visible, descripción del selector, título del embed, emoji personalizado/Unicode y color propio; otro formulario permite personalizar el mensaje inicial que aparece dentro del ticket usando `{user}`, `{name}`, `{emoji}` y `{type}`.
+- También puedes elegir el formato de los nombres de canales nuevos. Al volver a publicar en el mismo canal, el bot intenta editar el panel guardado en vez de crear uno duplicado; si el mensaje fue borrado o cambiaste de canal, publica uno nuevo.
+- Las imágenes admiten únicamente URL HTTPS. Los cambios del panel público se aplican al pulsar **Publicar panel**; la apariencia y el mensaje de cada ticket se aplican a los tickets nuevos.
 - En **Ajustes avanzados → Moderación de tickets** puedes configurar el límite de tickets por miembro, el autocierre y las horas de recordatorio al equipo.
 - Los recordatorios se envían cuando el último mensaje humano del ticket es del cliente y no hay respuesta posterior del equipo. El autocierre sigue desactivado por defecto.
 - \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
