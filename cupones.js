@@ -31,7 +31,7 @@ module.exports = {
   async execute(interaction) {
     if (!interaction.guildId) return interaction.reply({ content: "Este comando solo funciona dentro de un servidor.", ephemeral: true });
     const action = interaction.options.getSubcommand();
-    const code = coupons.normalizeCode(interaction.options.getString("codigo") || "");
+    const code = coupons.normalizeCode(interaction.options.getString("codigo", false) || "");
 
     if (action === "validar") {
       const result = coupons.validateCoupon(interaction.guildId, code);
