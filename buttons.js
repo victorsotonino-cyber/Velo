@@ -294,10 +294,11 @@ async function helpCategory(i, client) {
     comunidad: [
       ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
       ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
+      ["resena", "Reseñas verificadas"], ["sugerencia", "Proponer mejoras"], ["userinfo", "Información de usuario"],
       ["say", "Enviar mensaje como el bot"]
     ],
     administracion: [
-      ["tienda", "Administrar el catálogo de productos y precios"], ["ventas", "Ver y editar el contador de ventas"], ["legit", "Publicar el panel de verificación legit"],
+      ["tienda", "Administrar catálogo y stock"], ["ventas", "Ver y editar el contador de ventas"], ["estadisticas-tienda", "Ver métricas de pedidos e ingresos"], ["cupones", "Crear y validar cupones"], ["legit", "Publicar el panel de verificación legit"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
