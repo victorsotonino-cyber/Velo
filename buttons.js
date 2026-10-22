@@ -146,8 +146,13 @@ async function createTicketLocked(i) {
   const ticketIcon = configuredEmoji
     ? configuredEmoji.toString()
     : category.emojiUnicode || emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
+  const ticketTitle = String(category.ticketTitle || "{emoji} {name} • FLUX STORE")
+    .replaceAll("{emoji}", ticketIcon)
+    .replaceAll("{name}", String(category.label || type))
+    .replaceAll("{type}", type)
+    .slice(0, 256);
   const embed = new EmbedBuilder().setColor(config.colors.primary)
-    .setTitle(ticketIcon + " " + category.label + " • Flux STORE")
+    .setTitle(ticketTitle)
     .setDescription("Hola <@" + i.user.id + ">, tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** <@" + i.user.id + ">\n\nUn miembro del Staff te atenderá pronto.")
     .setFooter({ text: "Flux STORE • Ticket " + type }).setTimestamp();
   await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [embed], components: [buttons] });
