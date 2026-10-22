@@ -11,6 +11,9 @@ module.exports = {
     .addStringOption(o => o.setName("motivo").setDescription("Motivo de la advertencia").setRequired(false).setMaxLength(500))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
+      return i.reply({ content: emoji(i.guild,"error","❌")+" Necesitas **Moderar miembros** para usar este comando.",ephemeral:true });
+    }
     const user = i.options.getUser("usuario");
     const reason = i.options.getString("motivo") || "Sin motivo indicado";
     const member = await i.guild.members.fetch(user.id).catch(() => null);
