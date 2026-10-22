@@ -30,3 +30,15 @@ test("/pedido and /tienda expose autocompletion handlers", () => {
   assert.equal(typeof require("../pedidos").autocomplete, "function");
   assert.equal(typeof require("../tienda").autocomplete, "function");
 });
+
+const eventInstallers = [
+  require("../events/ready"),
+  require("../events/interactionCreate"),
+  require("../events/messageCreate"),
+  require("../events/guildMemberAdd"),
+  require("../events/guildMemberRemove")
+];
+
+test("event modules export client installers", () => {
+  for (const register of eventInstallers) assert.equal(typeof register, "function");
+});
