@@ -17,6 +17,7 @@ module.exports = client => {
   client.on("interactionCreate", async i => {
     try {
       if (i.isStringSelectMenu() && i.customId === "ticket_create") return createTicket(i);
+      if (i.isButton() && i.customId.startsWith("ticket_create:")) return createTicket(i);
       if (i.isButton() && i.customId.startsWith("giveaway:join:")) {
         await i.deferReply({ ephemeral: true });
         const giveawayId = i.customId.split(":")[2];
@@ -73,7 +74,7 @@ async function createTicket(i) {
 }
 
 async function createTicketLocked(i) {
-  const type = i.values[0];
+  const type = i.isStringSelectMenu() ? i.values?.[0] : i.customId.split(":")[1];
   const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
   const baseCategory = config.ticket.categories[type];
   const categoryOverride = (ticketSettings.categoryOverrides || {})[type] || {};
@@ -151,10 +152,18 @@ async function createTicketLocked(i) {
     .replaceAll("{name}", String(category.label || type))
     .replaceAll("{type}", type)
     .slice(0, 256);
-  const embed = new EmbedBuilder().setColor(config.colors.primary)
+  const ticketMessage = String(category.ticketMessage || "Hola {user}, tu ticket está abierto.\n\n**Categoría:** {name}\n**Creador:** {user}\n\nUn miembro del Staff te atenderá pronto.")
+    .replaceAll("{user}", "<@" + i.user.id + ">")
+    .replaceAll("{name}", String(category.label || type))
+    .replaceAll("{emoji}", ticketIcon)
+    .replaceAll("{type}", type)
+    .slice(0, 4096);
+  const ticketColor = String(category.ticketColor || ticketSettings.panelColor || "");
+  const embed = new EmbedBuilder()
+    .setColor(/^#[0-9A-Fa-f]{6}$/.test(ticketColor) ? parseInt(ticketColor.slice(1), 16) : (config.colors.primary || 0x8B5CF6))
     .setTitle(ticketTitle)
-    .setDescription("Hola <@" + i.user.id + ">, tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** <@" + i.user.id + ">\n\nUn miembro del Staff te atenderá pronto.")
-    .setFooter({ text: "Flux STORE • Ticket " + type }).setTimestamp();
+    .setDescription(ticketMessage)
+    .setFooter({ text: "FLUX STORE • Ticket " + type }).setTimestamp();
   await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [embed], components: [buttons] });
   return i.editReply(emoji(i.guild, "success", "✅") + " Ticket creado: " + ch);
 }
