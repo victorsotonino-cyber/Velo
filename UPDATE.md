@@ -26,6 +26,7 @@ Rama de desarrollo: `feat/flux-commerce-tools`
 - Comando `/userinfo`.
 - Automod básico configurable para spam repetitivo e invitaciones.
 - Los comandos nuevos se organizan en subcarpetas y el cargador y el despliegue slash las detectan automáticamente.
+- Los eventos de inicio, interacciones, mensajes, entradas y salidas se cargan desde `events/`; utilidades compartidas viven en `utils/`.
 - Se añade una suite de pruebas y validación mediante GitHub Actions.
 
 ### Referencias de código revisadas
