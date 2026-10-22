@@ -196,7 +196,7 @@ function advancedDescription(key, saved, guild) {
     payments: "Métodos guardados: " + ((saved.paymentMethods || []).join(", ") || "ninguno") + ". La lista es de configuración; no procesa pagos automáticamente.",
     tools: "Roles de soporte: " + ((saved.supportRoleIds || []).map(id => "<@&" + id + ">").join(", ") || "sin configurar") +
       "\nEmojis disponibles en el servidor: " + guild.emojis.cache.size + ".",
-    panel_editor: "Título: **" + (saved.panelTitle || "✦ FLUX STORE • Centro de atención") + "**\nColor: **" + (saved.panelColor || "#8B5CF6") + "**\nDescripción: " + (saved.panelDescription || "Selecciona el tipo de solicitud para abrir un ticket privado.").slice(0, 500),
+    panel_editor: "Título: **" + (saved.panelTitle || "FLUX STORE • Centro de atención") + "**\\nColor: **" + (saved.panelColor || "#8B5CF6") + "**\\nTexto del selector: **" + (saved.panelPlaceholder || "Selecciona el motivo de tu solicitud") + "**\\nPlantilla de canal: `" + (saved.channelNameTemplate || "ticket-{type}-{username}") + "`\\nUsa los controles de este módulo para editar el título, la descripción, el nombre, la descripción y el emoji de cada tipo de ticket.",
     moderation: "Máximo de tickets abiertos por usuario: **" + (saved.maxOpenPerUser || 2) + "**\nAutocierre: **" + (saved.autoCloseEnabled ? "activado" : "desactivado") + "**\nHoras de inactividad: **" + (saved.autoCloseHours || 24) + "**\nRecordatorio al staff: **" + (saved.staffReminderHours || 4) + " h**"
   };
   return details[key] || "Opción de configuración no reconocida.";
@@ -206,7 +206,7 @@ function panelEditorModal(saved) {
   const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_panel_editor").setTitle("Editar panel de tickets");
   modal.addComponents(
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_title").setLabel("Título del panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(saved.panelTitle || "✦ FLUX STORE • Centro de atención").slice(0, 256))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_description").setLabel("Descripción del panel").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000).setValue(String(saved.panelDescription || "Selecciona el tipo de solicitud para abrir un ticket privado.").slice(0, 4000))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_description").setLabel("Descripción del panel").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1400).setValue(String(saved.panelDescription || "Selecciona el tipo de solicitud para abrir un ticket privado.").slice(0, 1400))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_color").setLabel("Color hexadecimal (ej. #8B5CF6)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7).setValue(String(saved.panelColor || "#8B5CF6"))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_footer").setLabel("Texto del pie").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(saved.panelFooter || "FLUX STORE • Soporte privado").slice(0, 100))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_placeholder").setLabel("Texto del selector de tickets").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(saved.panelPlaceholder || "Selecciona el motivo de tu solicitud").slice(0, 100)))
@@ -396,8 +396,8 @@ module.exports = function registerTicketConfigurator(client) {
           .setDescription([
             "Configura con precisión el comportamiento de los tickets de **FLUX STORE**.",
             "",
-            "**APARIENCIA** · título, descripción, color y pie del panel.",
-            "**CATEGORÍAS** · etiquetas, descripciones y emojis por tipo de solicitud.",
+            "**APARIENCIA Y TICKETS** · título, descripción, color, nombres y emojis por tipo de solicitud.",
+            "**NOMBRES DE CANAL** · formato aplicado cuando se crean tickets nuevos.",
             "**OPERACIÓN** · límite por miembro, recordatorios, transcripciones y autocierre.",
             "",
             "Elige un módulo en el menú. Los cambios se guardan en este servidor."
@@ -427,6 +427,21 @@ module.exports = function registerTicketConfigurator(client) {
         const label = interaction.fields.getTextInputValue("category_label").trim();
         const description = interaction.fields.getTextInputValue("category_description").trim();
         const emojiInput = interaction.fields.getTextInputValue("category_emoji").trim();
+        if (emojiInput) {
+          const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\\d{17,20})>$/);
+          const customId = customMatch?.[2] || (/^\\d{17,20}$/.test(emojiInput) ? emojiInput : null);
+          const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
+          const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
+          const isUnicode = /\\p{Extended_Pictographic}/u.test(emojiInput);
+          if (customId && !guild.emojis.cache.has(customId)) {
+            await interaction.reply({ content: "Ese emoji personalizado no está disponible en este servidor. Añádelo al servidor o usa un emoji Unicode.", ephemeral: true });
+            return;
+          }
+          if (!customId && !isUnicode && !emojiByName) {
+            await interaction.reply({ content: "No encontré un emoji con ese nombre en este servidor. Usa un emoji Unicode, un ID disponible o el formato <:nombre:ID>.", ephemeral: true });
+            return;
+          }
+        }
         if (!label || !description) {
           await interaction.reply({ content: "El nombre y la descripción son obligatorios.", ephemeral: true });
           return;
