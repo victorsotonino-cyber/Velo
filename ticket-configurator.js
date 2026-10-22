@@ -25,9 +25,8 @@ const ADVANCED_OPTIONS = [
   { label: "🔢 Cantidades", value: "quantities", description: "Límites de tickets abiertos" },
   { label: "💳 Métodos de pago", value: "payments", description: "LTC, Binance, bancos y PayPal" },
   { label: "🛠️ Sellers / Limpieza / Emojis", value: "tools", description: "Opciones de staff y vista previa de emojis" },
-  { label: "🎨 Editor visual del panel", value: "panel_editor", description: "Editar título, descripción, color y pie" },
+  { label: "🎨 Apariencia del panel y tickets", value: "panel_editor", description: "Título, texto, nombres, emojis y categorías" },
   { label: "🛡️ Moderación de tickets", value: "moderation", description: "Límites, recordatorios y autocierre" },
-  { label: "📂 Editor de categorías", value: "category_editor", description: "Editar nombre, descripción y emoji por tipo" }
 ];
 
 function readStore() {
@@ -209,7 +208,8 @@ function panelEditorModal(saved) {
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_title").setLabel("Título del panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(saved.panelTitle || "✦ FLUX STORE • Centro de atención").slice(0, 256))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_description").setLabel("Descripción del panel").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000).setValue(String(saved.panelDescription || "Selecciona el tipo de solicitud para abrir un ticket privado.").slice(0, 4000))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_color").setLabel("Color hexadecimal (ej. #8B5CF6)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7).setValue(String(saved.panelColor || "#8B5CF6"))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_footer").setLabel("Texto del pie").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(saved.panelFooter || "FLUX STORE • Soporte privado").slice(0, 100)))
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_footer").setLabel("Texto del pie").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(saved.panelFooter || "FLUX STORE • Soporte privado").slice(0, 100))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("panel_placeholder").setLabel("Texto del selector de tickets").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(saved.panelPlaceholder || "Selecciona el motivo de tu solicitud").slice(0, 100)))
   );
   return modal;
 }
@@ -232,12 +232,12 @@ function categoryEditorModal(saved, categoryKey) {
   modal.addComponents(
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre visible").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(override.label || defaults.label || categoryKey).slice(0, 100))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(override.description || defaults.description || "Abre un ticket privado").slice(0, 1000))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji opcional: nombre, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100)))
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji Unicode, nombre del servidor, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100)))
   );
   return modal;
 }
 
-function effectiveCategories(guildId) {
+function effectiveCategories(guildId, guild = null) {
   const base = config.ticket.categories || {};
   const saved = guildConfig(guildId);
   const overrides = saved.categoryOverrides || {};
@@ -252,37 +252,65 @@ function effectiveCategories(guildId) {
         merged.emojiName = match[1];
         merged.emojiId = match[2];
       } else if (/^\d{17,20}$/.test(input)) {
+        const serverEmoji = guild?.emojis?.cache?.get(input);
         merged.emojiId = input;
+        if (serverEmoji) merged.emojiName = serverEmoji.name;
       } else if (/\p{Extended_Pictographic}/u.test(input)) {
         merged.emojiId = null;
         merged.emojiUnicode = input;
         merged.emojiName = null;
       } else {
-        // A name alone is not enough for a Discord custom emoji unless its ID is also supplied.
-        merged.emojiId = null;
-        merged.emojiName = input.replace(/^:/, "").replace(/:$/, "");
+        const emojiName = input.replace(/^:/, "").replace(/:$/, "");
+        const serverEmoji = guild?.emojis?.cache?.find(e => e.name === emojiName);
+        merged.emojiId = serverEmoji?.id || null;
+        merged.emojiName = serverEmoji?.name || emojiName;
+        if (!serverEmoji) merged.emojiUnicode = null;
       }
     }
     return [key, merged];
   });
 }
 
-function advancedDetailComponents(key, guildId) {
-  if (key === "category_editor") {
-    const categories = effectiveCategories(guildId).slice(0, 25);
-    const select = new StringSelectMenuBuilder().setCustomId("flux_ticket_config:category_edit_select")
-      .setPlaceholder("Selecciona la categoría que quieres editar")
-      .addOptions(categories.map(([value, item]) => ({
-        label: String(item.label || value).slice(0, 100),
-        value,
-        description: String(item.description || "Editar esta categoría").slice(0, 100)
-      })));
-    return [new ActionRowBuilder().addComponents(select)];
+function advancedDetailComponents(key, guildId, guild = null) {
+  if (key === "panel_editor") {
+    const rows = [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("flux_ticket_config:edit_panel")
+          .setLabel("Editar título y apariencia")
+          .setStyle(ButtonStyle.Primary)
+      )
+    ];
+    const categories = effectiveCategories(guildId, guild).slice(0, 25);
+    if (categories.length) {
+      const categorySelect = new StringSelectMenuBuilder()
+        .setCustomId("flux_ticket_config:category_edit_select")
+        .setPlaceholder("Editar nombre, descripción o emoji de un ticket")
+        .addOptions(categories.map(([value, item]) => ({
+          label: String(item.label || value).slice(0, 100),
+          value,
+          description: String(item.description || "Editar este tipo de ticket").slice(0, 100),
+          ...(item.emojiId ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
+            : item.emojiUnicode ? { emoji: { name: String(item.emojiUnicode).slice(0, 32) } } : {})
+        })));
+      rows.push(new ActionRowBuilder().addComponents(categorySelect));
+    }
+    const currentTemplate = String(guildConfig(guildId).channelNameTemplate || "ticket-{type}-{username}");
+    const nameSelect = new StringSelectMenuBuilder()
+      .setCustomId("flux_ticket_config:name_template")
+      .setPlaceholder("Cambiar formato del nombre de los canales")
+      .addOptions(
+        { label: "ticket-{type}-{username}", value: "ticket-{type}-{username}", description: "Ej.: ticket-compras-usuario", default: currentTemplate === "ticket-{type}-{username}" },
+        { label: "{type}-{username}", value: "{type}-{username}", description: "Ej.: compras-usuario", default: currentTemplate === "{type}-{username}" },
+        { label: "ticket-{ticket}", value: "ticket-{ticket}", description: "Ej.: ticket-123456", default: currentTemplate === "ticket-{ticket}" }
+      );
+    rows.push(new ActionRowBuilder().addComponents(nameSelect));
+    return rows;
   }
-  if (key === "panel_editor" || key === "moderation") {
+  if (key === "moderation") {
     return [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(key === "panel_editor" ? "flux_ticket_config:edit_panel" : "flux_ticket_config:edit_moderation")
-        .setLabel(key === "panel_editor" ? "Editar apariencia" : "Editar moderación")
+      new ButtonBuilder().setCustomId("flux_ticket_config:edit_moderation")
+        .setLabel("Editar moderación")
         .setStyle(ButtonStyle.Primary)
     )];
   }
@@ -423,6 +451,7 @@ module.exports = function registerTicketConfigurator(client) {
         const description = interaction.fields.getTextInputValue("panel_description").trim();
         const color = interaction.fields.getTextInputValue("panel_color").trim();
         const footer = interaction.fields.getTextInputValue("panel_footer").trim();
+        const placeholder = interaction.fields.getTextInputValue("panel_placeholder").trim();
         if (!title || !description || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
           await interaction.reply({ content: "Título y descripción son obligatorios; el color debe tener formato #RRGGBB.", ephemeral: true });
           return;
@@ -432,8 +461,9 @@ module.exports = function registerTicketConfigurator(client) {
           saved.panelDescription = description;
           saved.panelColor = color.toUpperCase();
           saved.panelFooter = footer || "FLUX STORE • Soporte privado";
+          saved.panelPlaceholder = placeholder || "Selecciona el motivo de tu solicitud";
         });
-        await interaction.reply({ content: "✅ Apariencia guardada. Los próximos paneles usarán estos valores; vuelve a publicar el panel para actualizar uno ya enviado.", ephemeral: true });
+        await interaction.reply({ content: "✅ Apariencia guardada. En este mismo módulo puedes editar las categorías, sus emojis y el formato de los nombres de canal. Publica de nuevo el panel para actualizar el mensaje ya enviado.", ephemeral: true });
         return;
       }
       if (action === "save_moderation") {
@@ -463,7 +493,7 @@ module.exports = function registerTicketConfigurator(client) {
         const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("⚙️ " + (ADVANCED_OPTIONS.find(x => x.value === key)?.label || "Configuración"))
           .setDescription(advancedDescription(key, saved, guild));
-        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key, guild.id), ...advancedComponents()] });
+        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key, guild.id, guild), ...advancedComponents()] });
         return;
       }
       if (action === "transcript_mode") {
@@ -511,7 +541,7 @@ module.exports = function registerTicketConfigurator(client) {
           await interaction.reply({ content: "Selecciona al menos un rol de soporte.", ephemeral: true });
           return;
         }
-        const categories = effectiveCategories(guild.id);
+        const categories = effectiveCategories(guild.id, guild);
         const categoryOptions = categories.slice(0, 25).map(([value, item]) => {
           const option = {
             label: String(item.label || value).slice(0, 100),
@@ -529,7 +559,7 @@ module.exports = function registerTicketConfigurator(client) {
           return option;
         });
         const menu = new StringSelectMenuBuilder().setCustomId("ticket_create")
-          .setPlaceholder("Selecciona el motivo de tu solicitud")
+          .setPlaceholder(String(saved.panelPlaceholder || "Selecciona el motivo de tu solicitud").slice(0, 100))
           .setMinValues(1).setMaxValues(1)
           .addOptions(categoryOptions);
 
