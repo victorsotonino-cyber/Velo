@@ -1,11 +1,16 @@
 {
   "name": "flux-store-bot",
-  "version": "1.0.0",
-  "description": "Bot de Discord Flux Store",
+  "version": "1.1.0",
+  "description": "Bot de Discord FLUX STORE con tienda, pedidos, cupones y herramientas de comunidad",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "deploy": "node deploy-commands.js"
+    "deploy": "node deploy-commands.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "discord.js": "^14.25.1",
