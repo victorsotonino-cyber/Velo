@@ -189,7 +189,16 @@ module.exports = {
       return i.reply({ content: "✅ Producto actualizado: **" + product.name + "**.", ephemeral: true });
     }
 
-    // Conserva el stock de productos reservados en pedidos pendientes; eliminar no revoca pedidos ya registrados.
+    const reserved = commerce.getOrders().some(function (order) {
+      if (order.guildId !== i.guildId || !["pendiente", "pago_verificado", "procesando"].includes(order.status)) return false;
+      return Array.isArray(order.items) && order.items.some(function (item) {
+        return commerce.normalize(item.productName) === commerce.normalize(product.name) && item.stockTracked;
+      });
+    });
+    if (reserved) {
+      return i.reply({ content: "❌ No puedes eliminar ese producto mientras haya pedidos pendientes que tengan stock reservado. Completa o cancela primero esos pedidos.", ephemeral: true });
+    }
+
     products.splice(products.indexOf(product), 1);
     store.saveProducts(products);
     return i.reply({
