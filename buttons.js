@@ -10,6 +10,7 @@ const { readJSON, writeJSON } = require("./storage");
 const giveaways = require("./giveaway-service");
 const storeStats = require("./store-service");
 const communityService = require("./services/community-service");
+const permissions = require("./utils/permissions");
 
 const applicationAnswers = new Map();
 const ticketCreationLocks = new Set();
@@ -87,11 +88,7 @@ function ticketChannels(guild, userId) {
 }
 
 function isStaff(i) {
-  return Boolean(
-    i.member?.permissions?.has(PermissionFlagsBits.ManageChannels) ||
-    i.member?.roles?.cache?.has(config.roles.staff) ||
-    i.member?.roles?.cache?.has(config.roles.admin)
-  );
+  return permissions.isTicketStaff(i.member, config);
 }
 
 async function createTicket(i) {
