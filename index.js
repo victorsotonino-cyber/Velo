@@ -114,13 +114,13 @@ client.on(Events.MessageCreate, async message => {
   }
 
   // Vouches de tienda: +vouch @cliente Producto | Pago y precio
-  if (/^\\+vouch(?:\\s|$)/i.test(message.content)) {
+  if (/^\+vouch(?:\s|$)/i.test(message.content)) {
     if (!storeService.isStoreStaff(message.member)) {
       return message.reply("❌ Solo el equipo autorizado puede registrar ventas.").catch(() => {});
     }
     const buyer = message.mentions.members.first();
     if (!buyer) return message.reply("Uso: +vouch @cliente Producto | Método de pago [precio]").catch(() => {});
-    const details = message.content.replace(/^\\+vouch\\s*/i, "").replace(/<@!?\\d+>/, "").trim();
+    const details = message.content.replace(/^\+vouch\s*/i, "").replace(/<@!?\d+>/, "").trim();
     if (!details) return message.reply("Indica el producto y el método de pago. Ejemplo: +vouch @cliente Nitro 1 mes | PayPal [7€]").catch(() => {});
     const stats = await storeService.addVouch(message.guild, {
       buyerId: buyer.id,
@@ -132,7 +132,7 @@ client.on(Events.MessageCreate, async message => {
     const embed = new EmbedBuilder()
       .setColor(config.colors.success)
       .setTitle("⚡ ᴠᴏᴜᴄʜ ʀᴇɢɪsᴛʀᴀᴅᴏ")
-      .setDescription("**Cliente:** " + buyer + "\\n**Compra:** " + details.slice(0, 900) + "\\n**Registrado por:** " + message.author)
+      .setDescription("**Cliente:** " + buyer + "\n**Compra:** " + details.slice(0, 900) + "\n**Registrado por:** " + message.author)
       .setFooter({ text: "Flux STORE • Venta #" + stats.sales })
       .setTimestamp();
     await message.channel.send({ embeds: [embed] });
@@ -448,18 +448,17 @@ client.on(Events.MessageCreate, async message => {
             if (opts.voice) {
               const counterStats = storeService.getStats();
               const counterNames = { sales: "🛒・ventas: " + counterStats.sales, legit: "✅・legit: " + counterStats.legit, members: "👥・miembros: " + message.guild.memberCount, bots: "🤖・bots: " + message.guild.members.cache.filter(m => m.user.bot).size };
+              const counterPrefixes = { sales: "🛒・ventas:", legit: "✅・legit:", members: "👥・miembros:", bots: "🤖・bots:" };
               const voiceName = opts.counter ? counterNames[opts.counter] : name;
-              let ch = message.guild.channels.cache.find(c => c.type === ChannelType.GuildVoice && (opts.counter ? c.topic === "flux-counter:" + opts.counter : c.name === name) && c.parentId === cat.id);
+              let ch = message.guild.channels.cache.find(c => c.type === ChannelType.GuildVoice && (opts.counter ? c.name.startsWith(counterPrefixes[opts.counter]) : c.name === name) && c.parentId === cat.id);
               if (!ch) {
                 ch = await message.guild.channels.create({
                   name: voiceName, type: ChannelType.GuildVoice, parent: cat.id,
-                  ...(opts.counter ? { topic: "flux-counter:" + opts.counter } : {}),
                   permissionOverwrites: [{ id: everyone.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.Connect] }]
                 });
                 created++;
-              } else {
-                if (ch.name !== voiceName) await ch.setName(voiceName).catch(() => {});
-                if (opts.counter && ch.topic !== "flux-counter:" + opts.counter) await ch.setTopic("flux-counter:" + opts.counter).catch(() => {});
+              } else if (ch.name !== voiceName) {
+                await ch.setName(voiceName).catch(() => {});
               }
             } else {
               const before = message.guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name && c.parentId === cat.id);
@@ -478,7 +477,7 @@ client.on(Events.MessageCreate, async message => {
         const products = storeService.getProducts();
         if (action === "catalogo" || action === "lista") {
           const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🛍️ ᴄᴀᴛáʟᴏɢᴏ ᴅᴇ ғʟᴜx sᴛᴏʀᴇ")
-            .setDescription(products.length ? products.slice(0, 25).map(p => "✦ **" + p.name + "** — **" + p.price + "**\\n" + (p.description || "Consulta por ticket para más información.")).join("\\n\\n") : "El catálogo está vacío.")
+            .setDescription(products.length ? products.slice(0, 25).map(p => "✦ **" + p.name + "** — **" + p.price + "**\n" + (p.description || "Consulta por ticket para más información.")).join("\n\n") : "El catálogo está vacío.")
             .setFooter({ text: "Flux STORE • Catálogo editable" });
           return message.reply({ embeds: [embed] });
         }
@@ -531,7 +530,7 @@ client.on(Events.MessageCreate, async message => {
       case "legit": {
         const stats = storeService.getStats();
         const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("✦ ᴇs ғʟᴜx sᴛᴏʀᴇ ʟᴇɢɪᴛ? ✦")
-          .setDescription("Si tu experiencia con la tienda fue positiva, confirma abajo. Cada persona cuenta una sola vez.\\n\\n✅ **ᴘᴇʀsᴏɴᴀs ǫᴜᴇ ᴠᴇʀɪғɪᴄᴀʀᴏɴ ǫᴜᴇ sᴏᴍᴏs ʟᴇɢɪᴛ:** **" + stats.legit + "**")
+          .setDescription("Si tu experiencia con la tienda fue positiva, confirma abajo. Cada persona cuenta una sola vez.\n\n✅ **ᴘᴇʀsᴏɴᴀs ǫᴜᴇ ᴠᴇʀɪғɪᴄᴀʀᴏɴ ǫᴜᴇ sᴏᴍᴏs ʟᴇɢɪᴛ:** **" + stats.legit + "**")
           .setFooter({ text: "Flux STORE • Puedes actualizar tu respuesta" }).setTimestamp();
         const row = new ActionRowBuilder().addComponents(
           new (require("discord.js").ButtonBuilder)().setCustomId("flux_legit_yes").setLabel("Sí").setEmoji("✅").setStyle(require("discord.js").ButtonStyle.Success),
@@ -609,7 +608,7 @@ client.on(Events.GuildMemberAdd, async member => {
   if (ch?.isTextBased()) {
     const embed = new EmbedBuilder().setColor(config.colors.primary)
       .setTitle("✦ ʙɪᴇɴᴠᴇɴɪᴅᴏ ᴀ ғʟᴜx sᴛᴏʀᴇ ✦")
-      .setDescription("¡Qué bueno tenerte por aquí, " + member + "!\\n\\nExplora los canales, revisa las normas y abre un ticket si necesitas ayuda.\\n\\n✧ **ᴍɪᴇᴍʙʀᴏ ɴᴜᴍᴇʀᴏ:** " + member.guild.memberCount)
+      .setDescription("¡Qué bueno tenerte por aquí, " + member + "!\n\nExplora los canales, revisa las normas y abre un ticket si necesitas ayuda.\n\n✧ **ᴍɪᴇᴍʙʀᴏ ɴᴜᴍᴇʀᴏ:** " + member.guild.memberCount)
       .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
       .setFooter({ text: "Flux STORE • Gracias por unirte a la comunidad" }).setTimestamp();
     await ch.send({ embeds: [embed] }).catch(() => {});
