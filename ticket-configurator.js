@@ -1049,16 +1049,47 @@ module.exports = function registerTicketConfigurator(client) {
       if (action === "create_panel") {
         const saved = guildConfig(guild.id);
         const channel = saved.panelChannelId ? guild.channels.cache.get(saved.panelChannelId) : null;
-        if (!channel?.isTextBased() || !channel.send) {
-          await interaction.reply({ content: "Selecciona primero un canal de texto para el panel.", ephemeral: true });
+        if (!channel || channel.type !== ChannelType.GuildText || !channel.send) {
+          await interaction.reply({ content: "Selecciona un canal de texto normal para publicar el panel.", ephemeral: true });
           return;
         }
-        if (!saved.ticketCategoryId || !guild.channels.cache.has(saved.ticketCategoryId)) {
-          await interaction.reply({ content: "Selecciona primero una categoría de tickets.", ephemeral: true });
+
+        const ticketParent = saved.ticketCategoryId ? guild.channels.cache.get(saved.ticketCategoryId) : null;
+        if (!ticketParent || ticketParent.type !== ChannelType.GuildCategory) {
+          await interaction.reply({ content: "La categoría de tickets no existe o ya no es una categoría. Selecciona una categoría válida en el panel principal.", ephemeral: true });
           return;
         }
-        if (!saved.supportRoleIds?.length) {
-          await interaction.reply({ content: "Selecciona al menos un rol de soporte.", ephemeral: true });
+
+        const supportRoles = (Array.isArray(saved.supportRoleIds) ? saved.supportRoleIds : [])
+          .map(id => guild.roles.cache.get(id)).filter(Boolean);
+        if (!supportRoles.length) {
+          await interaction.reply({ content: "Selecciona al menos un rol de soporte que siga existiendo en el servidor.", ephemeral: true });
+          return;
+        }
+
+        const botMember = guild.members.me;
+        if (!botMember) {
+          await interaction.reply({ content: "No pude comprobar los permisos de FLUX STORE en este servidor. Espera a que el bot cargue y vuelve a intentarlo.", ephemeral: true });
+          return;
+        }
+        if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
+          await interaction.reply({ content: "FLUX STORE necesita el permiso **Gestionar canales** para crear los canales privados de ticket.", ephemeral: true });
+          return;
+        }
+
+        const channelPermissions = channel.permissionsFor(botMember);
+        const missingPanelPermissions = [
+          [PermissionFlagsBits.ViewChannel, "Ver canal"],
+          [PermissionFlagsBits.SendMessages, "Enviar mensajes"],
+          [PermissionFlagsBits.EmbedLinks, "Insertar enlaces"],
+          [PermissionFlagsBits.ReadMessageHistory, "Leer historial de mensajes"]
+        ].filter(([permission]) => !channelPermissions?.has(permission)).map(([, label]) => label);
+        if (missingPanelPermissions.length) {
+          await interaction.reply({
+            content: "No puedo publicar o actualizar el panel en " + channel.toString() +
+              ". Dale a FLUX STORE estos permisos en ese canal: **" + missingPanelPermissions.join(", ") + "**.",
+            ephemeral: true
+          });
           return;
         }
         const categories = effectiveCategories(guild.id, guild).slice(0, 25);
@@ -1114,8 +1145,21 @@ module.exports = function registerTicketConfigurator(client) {
           }
         }
 
+        const categoryPermissions = ticketParent.permissionsFor(botMember);
+        if (!categoryPermissions?.has(PermissionFlagsBits.ViewChannel) ||
+            !categoryPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+          await interaction.reply({
+            content: "Revisa la categoría de tickets " + ticketParent.toString() +
+              ": FLUX STORE necesita **Ver canal** y **Gestionar canales** para crear tickets allí.",
+            ephemeral: true
+          });
+          return;
+        }
+
         const panel = publicPanelEmbed(guild, saved);
 
+        // Acknowledge before any REST calls so Discord does not expire the interaction.
+        await interaction.deferReply({ ephemeral: true });
         let sent = null;
         let publishAction = "publicado";
         if (saved.panelMessageId && saved.publishedPanelChannelId === channel.id) {
@@ -1134,9 +1178,9 @@ module.exports = function registerTicketConfigurator(client) {
           current.publishedPanelChannelId = channel.id;
           current.panelLayout = saved.panelLayout === "buttons" && categories.length <= 5 ? "buttons" : "select";
         });
-        await interaction.reply({
+        await interaction.editReply({
           content: "✅ Panel " + publishAction + " en " + channel.toString() + ". Mensaje: " + sent.url + layoutNotice,
-          ephemeral: true
+          allowedMentions: { parse: [] }
         });
 
         return;
