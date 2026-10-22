@@ -18,6 +18,10 @@ function isValidCategoryKey(value) {
   return /^[a-z][a-z0-9_-]{0,31}$/.test(String(value || "").trim());
 }
 
+function modalTitle(prefix, value) {
+  return (String(prefix || "") + String(value || "")).slice(0, 45);
+}
+
 function isUnicodeEmoji(value) {
   const input = String(value || "").trim();
   // Include pictographs and regional-indicator flags; reject whitespace-separated prose.
@@ -58,6 +62,7 @@ module.exports = {
   isHexColor,
   isOptionalHttpsUrl,
   isValidCategoryKey,
+  modalTitle,
   isUnicodeEmoji,
   ticketConfigErrorMessage
 };
