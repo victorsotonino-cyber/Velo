@@ -174,6 +174,11 @@ client.on(Events.MessageCreate, async message => {
           allowedMentions: { parse: [] }
         });
       }
+      case "update": {
+        const updateCommand = client.commands.get("update");
+        if (!updateCommand?.buildUpdateEmbed) return fail("El panel de actualizaciones no está disponible.");
+        return message.reply({ embeds: [updateCommand.buildUpdateEmbed()] });
+      }
       case "giveaway": return giveawayService.executePrefix(message, args, client);
       case "help":
       case "ayuda": {
@@ -187,6 +192,7 @@ client.on(Events.MessageCreate, async message => {
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
             "**Tickets, mensajes y sorteos**",
             "`!ticket-panel` `!setup-plantilla` `!setup-sorteos` `!crear-roles-tienda` `!say texto`",
+            "`!update` — novedades del bot",
             "`!giveaway start [#canal] 1h 1 Premio | descripción`",
             "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
             "**También disponible con /**",
@@ -623,7 +629,16 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  const ch = member.guild.channels.cache.get("1562615450834178179");
+  // Autorol de FLUX STORE: el ID se configura en config.js / MEMBER_ROLE_ID.
+  if (config.roles.member) {
+    try {
+      await member.roles.add(config.roles.member, "Autorol automático de FLUX STORE");
+      console.log("Autorol asignado a " + member.user.tag + " en " + member.guild.name);
+    } catch (error) {
+      console.error("No se pudo asignar el autorol a " + member.user.tag + ":", error?.message || error);
+    }
+  }
+  const ch = member.guild.channels.cache.get(config.channels.welcome || "1562615450834178179");
   if (ch?.isTextBased()) {
     const embed = new EmbedBuilder()
       .setColor(0xFFFFFF)
