@@ -55,8 +55,12 @@ function ticketChannels(guild, userId) {
 }
 
 function isStaff(i) {
-  return i.member?.permissions?.has(PermissionFlagsBits.ManageChannels) ||
-    i.member?.roles?.cache?.has(config.roles.staff);
+  return Boolean(
+    i.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+    i.member?.permissions?.has(PermissionFlagsBits.ManageChannels) ||
+    i.member?.roles?.cache?.has(config.roles.staff) ||
+    i.member?.roles?.cache?.has(config.roles.admin)
+  );
 }
 
 async function createTicket(i) {
