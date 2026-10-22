@@ -7,7 +7,7 @@
     "start": "node index.js",
     "deploy": "node deploy-commands.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check index.js && node --check buttons.js && node --check commerce-service.js && node --check automod-service.js && node --check carrito.js && node --check resena.js && node --check sugerencia.js && node --check estadisticas-tienda.js && node --check userinfo.js && node --check pedidos.js && node --check tienda.js && node --check cupones.js"
+    "check": "node scripts/check.js"
   },
   "dependencies": {
     "discord.js": "^14.25.1",
