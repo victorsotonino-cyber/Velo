@@ -39,8 +39,9 @@ module.exports = client => {
     } catch (e) {
       console.error("Error en interacción:", e);
       const msg = emoji(i.guild, "error", "❌") + " No pude completar esa acción. Revisa los permisos del bot.";
-      if (i.replied || i.deferred) await i.followUp({ content: msg, ephemeral: true }).catch(() => {});
-      else await i.reply({ content: msg, ephemeral: true }).catch(() => {});
+      if (i.deferred) await i.editReply({ content: msg, allowedMentions: { parse: [] } }).catch(() => {});
+      else if (i.replied) await i.followUp({ content: msg, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+      else await i.reply({ content: msg, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
     }
   });
 };
