@@ -238,18 +238,25 @@ async function helpCategory(i, client) {
     comunidad: [
       ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
       ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
-      ["say", "Enviar mensaje como el bot"]
+      ["sugerencia", "Enviar una idea para mejorar el servidor"], ["encuesta", "Crear una encuesta"],
+      ["userinfo", "Ver información pública de usuario"], ["say", "Enviar mensaje como el bot"]
+    ],
+    tienda: [
+      ["tienda", "Ver y administrar el catálogo"], ["carrito", "Añadir productos y crear pedidos"],
+      ["pedido", "Consultar historial o actualizar pedidos"], ["cupones", "Crear y validar cupones"],
+      ["pagos", "Ver métodos e instrucciones de pago"], ["ventas", "Contadores y estadísticas de ventas"],
+      ["resena", "Publicar una reseña de una compra completada"]
     ],
     administracion: [
-      ["tienda", "Administrar el catálogo de productos y precios"], ["ventas", "Ver y editar el contador de ventas"], ["legit", "Publicar el panel de verificación legit"],
+      ["tienda", "Administrar catálogo, precios y stock"], ["cupones", "Administrar cupones"], ["ventas", "Ver y editar estadísticas de ventas"], ["legit", "Publicar el panel de verificación legit"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
       ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"], ["slowmode", "Configurar modo lento"]
     ],
     utilidad: [
-      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"],
-      ["help", "Centro de comandos"]
+      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["userinfo", "Información de usuario"],
+      ["serverinfo", "Información del servidor"], ["pagos", "Métodos de pago"], ["help", "Centro de comandos"]
     ],
     moderacion: [
       ["ban", "Banear miembro"], ["kick", "Expulsar miembro"], ["timeout", "Aplicar timeout"],
@@ -263,7 +270,7 @@ async function helpCategory(i, client) {
       ["postulaciones-config", "Configurar preguntas"]
     ],
     diversion: [
-      ["giveaway", "Sorteos"], ["tienda", "Ver el catálogo"], ["ventas", "Contador de ventas"], ["help", "Centro de comandos"]
+      ["giveaway", "Sorteos"], ["encuesta", "Crear una encuesta"], ["sugerencia", "Enviar sugerencias"], ["help", "Centro de comandos"]
     ]
   };
   const titles = {
@@ -272,6 +279,7 @@ async function helpCategory(i, client) {
     utilidad: "🧰 UTILIDAD",
     moderacion: "🛡️ MODERACIÓN",
     tickets: "🎫 TICKETS Y POSTULACIONES",
+    tienda: "🛒 TIENDA Y PEDIDOS",
     diversion: "🎮 DIVERSIÓN"
   };
   const list = entries[i.values[0]] || [];
