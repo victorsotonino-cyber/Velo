@@ -810,7 +810,7 @@ module.exports = function registerTicketConfigurator(client) {
           return;
         }
         if (allCategories(guild.id, guild).length >= 25) {
-          await interaction.reply({ content: "El panel admite hasta 25 categorías configuradas. Desactiva o elimina alguna antes de crear otra.", ephemeral: true });
+          await interaction.reply({ content: "El panel admite hasta 25 categorías configuradas. Elimina una categoría personalizada antes de crear otra.", ephemeral: true });
           return;
         }
         if (!label || !description || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
