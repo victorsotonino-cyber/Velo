@@ -138,14 +138,31 @@ async function ticketButton(i) {
     }
     ticketClosing.add(i.channel.id);
     try {
-      await i.deferReply();
-      await sendTranscript(i);
-      await i.editReply(emoji(i.guild, "trash", "🗑️") + " Ticket cerrado. Se eliminará en 5 segundos.");
+      await i.deferReply({ ephemeral: true });
+      const transcriptSaved = await sendTranscript(i);
+      if (!transcriptSaved) {
+        ticketClosing.delete(i.channel.id);
+        return i.editReply(
+          emoji(i.guild, "error", "❌") +
+          " No pude guardar la transcripción; el ticket sigue abierto para no perder el historial. Revisa LOGS_CHANNEL_ID y los permisos del canal de registros."
+        );
+      }
+
+      const delayMs = config.ticket.closeDelayMs;
+      const delaySeconds = Math.ceil(delayMs / 1000);
+      await i.editReply(
+        emoji(i.guild, "trash", "🗑️") +
+        " Transcripción guardada. Ticket cerrado; se eliminará en " + delaySeconds +
+        (delaySeconds === 1 ? " segundo." : " segundos.")
+      );
       setTimeout(async () => {
         try { await i.channel.delete("Ticket cerrado por " + i.user.tag); }
-        catch (_) {}
-        finally { ticketClosing.delete(i.channel.id); }
-      }, config.ticket.closeDelayMs);
+        catch (error) {
+          console.error("No se pudo eliminar el ticket " + i.channel.id + ":", error.message);
+        } finally {
+          ticketClosing.delete(i.channel.id);
+        }
+      }, delayMs);
     } catch (error) {
       ticketClosing.delete(i.channel.id);
       throw error;
@@ -154,13 +171,24 @@ async function ticketButton(i) {
 }
 
 async function sendTranscript(i) {
-  const log = i.guild.channels.cache.get(config.channels.logs);
-  if (!log?.isTextBased()) return;
+  if (!config.channels.logs) {
+    console.error("No se cerró el ticket: LOGS_CHANNEL_ID no está configurado.");
+    return false;
+  }
+
+  const log = await i.guild.channels.fetch(config.channels.logs).catch(error => {
+    console.error("No se pudo acceder al canal de registros:", error.message);
+    return null;
+  });
+  if (!log?.isTextBased() || typeof log.send !== "function") {
+    console.error("No se cerró el ticket: LOGS_CHANNEL_ID no apunta a un canal de texto accesible.");
+    return false;
+  }
+
   try {
     const messages = [];
     let before;
-    // Discord devuelve hasta 100 mensajes por petición; paginamos hasta 2.000 para no perder
-    // el historial antiguo en tickets largos ni pedir un volumen ilimitado de datos.
+    // Discord devuelve hasta 100 mensajes por petición; el historial se limita a 2.000.
     for (let page = 0; page < 20; page++) {
       const batch = await i.channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
       if (!batch.size) break;
@@ -168,6 +196,7 @@ async function sendTranscript(i) {
       before = batch.last()?.id;
       if (batch.size < 100) break;
     }
+
     const lines = messages.reverse().map(m => {
       const body = (m.content || "[sin texto]").replace(/\r/g, "");
       const embeds = m.embeds.map(e => "[embed: " + String(e.title || e.description || "sin descripción").replace(/\s+/g, " ").slice(0, 300) + "]").join(" ");
@@ -175,8 +204,17 @@ async function sendTranscript(i) {
       return "[" + new Date(m.createdTimestamp).toISOString() + "] " + (m.author?.tag || "Usuario desconocido") + ": " + body + (embeds ? " " + embeds : "") + attachments;
     });
     if (messages.length >= 2000) lines.unshift("[Nota: transcripción limitada a los 2.000 mensajes más recientes.]");
-    await log.send({ content: emoji(i.guild, "ticket", "🎫") + " Transcripción de **" + i.channel.name + "** (" + messages.length + " mensajes) cerrada por " + i.user + ".", files: [{ attachment: Buffer.from(lines.join("\n"), "utf8"), name: i.channel.name + "-transcript.txt" }] });
-  } catch (e) { console.error("No se pudo guardar transcript:", e.message); }
+
+    const sent = await log.send({
+      content: emoji(i.guild, "ticket", "🎫") + " Transcripción de **" + i.channel.name + "** (" + messages.length + " mensajes) cerrada por <@" + i.user.id + ">.",
+      files: [{ attachment: Buffer.from(lines.join("\n"), "utf8"), name: i.channel.name + "-transcript.txt" }],
+      allowedMentions: { parse: [] }
+    });
+    return Boolean(sent?.id);
+  } catch (error) {
+    console.error("No se pudo guardar la transcripción del ticket " + i.channel.id + ":", error.message);
+    return false;
+  }
 }
 
 async function handleSuggestionVote(i) {
@@ -296,7 +334,7 @@ async function helpCategory(i, client) {
       ["say", "Enviar mensaje como el bot"]
     ],
     administracion: [
-      ["tienda", "Administrar catálogo y stock"], ["ventas", "Ver y editar el contador de ventas"], ["estadisticas-tienda", "Ver métricas de pedidos e ingresos"], ["cupones", "Crear y validar cupones"], ["legit", "Publicar el panel de verificación legit"],
+      ["tienda", "Administrar catálogo y stock"], ["ventas", "Ver y editar el contador de ventas"], ["estadisticas-tienda", "Ver métricas de pedidos e ingresos"], ["legit", "Publicar el panel de verificación legit"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
