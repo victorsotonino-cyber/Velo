@@ -9,7 +9,7 @@ const storeService = require("./store-service");
 const automodService = require("./automod-service");
 
 if (!config.token) {
-  console.error("Falta DISCORD_TOKEN en Railway.");
+  console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
   process.exit(1);
 }
 
@@ -162,8 +162,10 @@ client.on(Events.MessageCreate, async message => {
 
   try {
     switch (command) {
-      case "test-bienvenida":
-      case "bienvenida-test": {
+      case "test-bienvenida": {
+        if (!storeService.isStoreStaff(message.member)) {
+          return fail("Solo el equipo autorizado puede probar la bienvenida.");
+        }
         const previewEmbed = new EmbedBuilder()
           .setColor(0xFFFFFF)
           .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
@@ -507,26 +509,50 @@ client.on(Events.MessageCreate, async message => {
         const action = (args.shift() || "catalogo").toLowerCase();
         const parts = rawArgs.slice(action === "catalogo" ? rawArgs.length : action.length).trim().split("|").map(s => s.trim());
         const products = storeService.getProducts();
-        if (action === "catalogo" || action === "lista") {
+        if (action === "catalogo") {
+          const available = products.filter(p =>
+            p.enabled !== false && p.active !== false &&
+            (!Object.prototype.hasOwnProperty.call(p, "stock") || Number(p.stock) > 0)
+          );
           const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🛍️ ᴄᴀᴛáʟᴏɢᴏ ᴅᴇ ғʟᴜx sᴛᴏʀᴇ")
-            .setDescription(products.length ? products.slice(0, 25).map(p => "✦ **" + p.name + "** — **" + p.price + "**\n" + (p.description || "Consulta por ticket para más información.")).join("\n\n") : "El catálogo está vacío.")
+            .setDescription(available.length ? available.slice(0, 25).map(p =>
+              "✦ **" + String(p.name).slice(0, 80) + "** — **" + String(p.price).slice(0, 40) + "**\n" +
+              String(p.description || "Consulta por ticket para más información.").slice(0, 350) +
+              "\n_" + (!Object.prototype.hasOwnProperty.call(p, "stock") ? "Stock ilimitado" : "Stock: " + Number(p.stock)) + "_"
+            ).join("\n\n") : "No hay productos disponibles en este momento.")
             .setFooter({ text: "Flux STORE • Catálogo editable" });
-          return message.reply({ embeds: [embed] });
+          return message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
         }
         if (!storeService.isStoreStaff(message.member)) return fail("Solo el equipo autorizado puede modificar el catálogo.");
         if (action === "agregar") {
           if (parts.length < 2 || !parts[0] || !parts[1]) return fail("Uso: !tienda agregar Nombre | Precio | Descripción");
-          if (products.some(p => p.name.toLowerCase() === parts[0].toLowerCase())) return fail("Ese producto ya existe; usa !tienda editar.");
-          products.push({ name: parts[0].slice(0,80), price: parts[1].slice(0,40), description: (parts[2] || "").slice(0,500), updatedAt: new Date().toISOString() });
+          const productName = parts[0].trim().slice(0, 80);
+          const productPrice = parts[1].trim().slice(0, 40);
+          if (!productName) return fail("Indica un nombre válido.");
+          if (products.some(p => p.name.toLowerCase() === productName.toLowerCase())) return fail("Ese producto ya existe; usa !tienda editar.");
+          try { commerce.parsePrice(productPrice); }
+          catch (error) { return fail(error.message); }
+          products.push({
+            name: productName,
+            price: productPrice,
+            description: (parts[2] || "").trim().slice(0, 500),
+            enabled: true,
+            updatedAt: new Date().toISOString()
+          });
           storeService.saveProducts(products);
-          return ok("Producto añadido al catálogo: " + parts[0] + ".");
+          return ok("Producto añadido al catálogo: " + productName + ".");
         }
         if (action === "editar") {
           if (!parts[0] || (!parts[1] && parts.length < 3)) return fail("Uso: !tienda editar Nombre actual | Nuevo precio | Nueva descripción");
           const p = products.find(x => x.name.toLowerCase() === parts[0].toLowerCase());
           if (!p) return fail("No encontré ese producto.");
-          if (parts[1]) p.price = parts[1].slice(0,40);
-          if (parts.length >= 3) p.description = (parts[2] || "").slice(0,500);
+          if (parts[1]) {
+            const newPrice = parts[1].trim().slice(0, 40);
+            try { commerce.parsePrice(newPrice); }
+            catch (error) { return fail(error.message); }
+            p.price = newPrice;
+          }
+          if (parts.length >= 3) p.description = (parts[2] || "").trim().slice(0, 500);
           p.updatedAt = new Date().toISOString(); storeService.saveProducts(products);
           return ok("Producto actualizado: " + p.name + ".");
         }
@@ -534,6 +560,15 @@ client.on(Events.MessageCreate, async message => {
           const name = rawArgs.slice(action.length).trim();
           const index = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
           if (index < 0) return fail("No encontré ese producto. Uso: !tienda eliminar Nombre");
+          const targetProduct = products[index];
+          const reserved = commerce.getOrders().some(order =>
+            order.guildId === message.guild.id &&
+            ["pendiente", "pago_verificado", "procesando"].includes(order.status) &&
+            Array.isArray(order.items) && order.items.some(item =>
+              commerce.normalize(item.productName) === commerce.normalize(targetProduct.name) && item.stockTracked
+            )
+          );
+          if (reserved) return fail("No puedes eliminar ese producto mientras tenga stock reservado por pedidos pendientes. Cancela o completa esos pedidos primero.");
           const [removed] = products.splice(index, 1); storeService.saveProducts(products);
           return ok("Producto eliminado: " + removed.name + ".");
         }
