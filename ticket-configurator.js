@@ -196,7 +196,7 @@ function advancedDescription(key, saved, guild) {
     payments: "Métodos guardados: " + ((saved.paymentMethods || []).join(", ") || "ninguno") + ". La lista es de configuración; no procesa pagos automáticamente.",
     tools: "Roles de soporte: " + ((saved.supportRoleIds || []).map(id => "<@&" + id + ">").join(", ") || "sin configurar") +
       "\nEmojis disponibles en el servidor: " + guild.emojis.cache.size + ".",
-    panel_editor: "Título: **" + (saved.panelTitle || "FLUX STORE • Centro de atención") + "**\\nColor: **" + (saved.panelColor || "#8B5CF6") + "**\\nTexto del selector: **" + (saved.panelPlaceholder || "Selecciona el motivo de tu solicitud") + "**\\nPlantilla de canal: `" + (saved.channelNameTemplate || "ticket-{type}-{username}") + "`\\nUsa los controles de este módulo para editar el título, la descripción, el nombre, la descripción y el emoji de cada tipo de ticket.",
+    panel_editor: "Título: **" + (saved.panelTitle || "FLUX STORE • Centro de atención") + "**\nColor: **" + (saved.panelColor || "#8B5CF6") + "**\nTexto del selector: **" + (saved.panelPlaceholder || "Selecciona el motivo de tu solicitud") + "**\nPlantilla de canal: " + (saved.channelNameTemplate || "ticket-{type}-{username}") + "\nDesde este módulo puedes editar el título, la descripción, el nombre y el emoji de cada tipo de ticket.",
     moderation: "Máximo de tickets abiertos por usuario: **" + (saved.maxOpenPerUser || 2) + "**\nAutocierre: **" + (saved.autoCloseEnabled ? "activado" : "desactivado") + "**\nHoras de inactividad: **" + (saved.autoCloseHours || 24) + "**\nRecordatorio al staff: **" + (saved.staffReminderHours || 4) + " h**"
   };
   return details[key] || "Opción de configuración no reconocida.";
@@ -244,6 +244,13 @@ function effectiveCategories(guildId, guild = null) {
   return Object.entries(base).map(([key, item]) => {
     const override = overrides[key] || {};
     const merged = { ...item, ...override };
+    if (!merged.emojiId && guild?.emojis?.cache) {
+      const defaultEmoji = guild.emojis.cache.find(e => e.name === merged.emojiName || e.name === merged.emojiKey);
+      if (defaultEmoji) {
+        merged.emojiId = defaultEmoji.id;
+        merged.emojiName = defaultEmoji.name;
+      }
+    }
     if (override.emojiInput) {
       const input = String(override.emojiInput).trim();
       const match = input.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
@@ -428,11 +435,11 @@ module.exports = function registerTicketConfigurator(client) {
         const description = interaction.fields.getTextInputValue("category_description").trim();
         const emojiInput = interaction.fields.getTextInputValue("category_emoji").trim();
         if (emojiInput) {
-          const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\\d{17,20})>$/);
-          const customId = customMatch?.[2] || (/^\\d{17,20}$/.test(emojiInput) ? emojiInput : null);
+          const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
+          const customId = customMatch?.[2] || (/^\d{17,20}$/.test(emojiInput) ? emojiInput : null);
           const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
           const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
-          const isUnicode = /\\p{Extended_Pictographic}/u.test(emojiInput);
+          const isUnicode = /\p{Extended_Pictographic}/u.test(emojiInput);
           if (customId && !guild.emojis.cache.has(customId)) {
             await interaction.reply({ content: "Ese emoji personalizado no está disponible en este servidor. Añádelo al servidor o usa un emoji Unicode.", ephemeral: true });
             return;
