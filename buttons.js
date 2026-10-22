@@ -79,14 +79,25 @@ async function createTicketLocked(i) {
   const categoryOverride = (ticketSettings.categoryOverrides || {})[type] || {};
   const category = baseCategory ? { ...baseCategory, ...categoryOverride } : null;
   if (category?.emojiInput) {
-    const customEmoji = category.emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
+    const input = String(category.emojiInput).trim();
+    const customEmoji = input.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
     if (customEmoji) {
       category.emojiName = customEmoji[1];
       category.emojiId = customEmoji[2];
-    } else if (/^\d{17,20}$/.test(category.emojiInput)) {
-      category.emojiId = category.emojiInput;
+      category.emojiUnicode = null;
+    } else if (/^\d{17,20}$/.test(input)) {
+      category.emojiId = input;
+      category.emojiName = i.guild.emojis.cache.get(input)?.name || category.emojiName;
+      category.emojiUnicode = null;
+    } else if (/\p{Extended_Pictographic}/u.test(input)) {
+      category.emojiId = null;
+      category.emojiName = null;
+      category.emojiUnicode = input;
     } else {
-      category.emojiName = category.emojiInput.replace(/^:/, "").replace(/:$/, "");
+      category.emojiName = input.replace(/^:/, "").replace(/:$/, "");
+      const serverEmoji = i.guild.emojis.cache.find(item => item.name === category.emojiName);
+      if (serverEmoji) category.emojiId = serverEmoji.id;
+      category.emojiUnicode = null;
     }
   }
   if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
@@ -134,7 +145,7 @@ async function createTicketLocked(i) {
     || (category.emojiName && i.guild.emojis.cache.find(e => e.name === category.emojiName));
   const ticketIcon = configuredEmoji
     ? configuredEmoji.toString()
-    : emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
+    : category.emojiUnicode || emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
   const embed = new EmbedBuilder().setColor(config.colors.primary)
     .setTitle(ticketIcon + " " + category.label + " • Flux STORE")
     .setDescription("Hola <@" + i.user.id + ">, tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** <@" + i.user.id + ">\n\nUn miembro del Staff te atenderá pronto.")
