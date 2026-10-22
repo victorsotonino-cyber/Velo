@@ -223,7 +223,7 @@ async function helpCategory(i, client) {
     const exists = client.commands.has(name);
     return (exists ? "🟢" : "🟠") + " **/" + name + "** — " + desc + (exists ? "" : " *(no está cargado en esta versión)*");
   });
-  const content = `**${titles[i.values[0]]}**\n${lines.join("\n")}\n\n**COMANDOS DE TIENDA:** `!tienda catalogo` · `!tienda agregar Nombre | Precio | Descripción` · `!tienda editar Nombre | Precio | Descripción` · `!tienda eliminar Nombre` · `!ventas ver` · `!ventas sumar 1` · `!ventas establecer 8` · `!legit` · `+vouch @cliente Producto | Pago [precio]`;
+  const content = "**" + titles[i.values[0]] + "**\n" + lines.join("\n") + "\n\n**COMANDOS DE TIENDA:** `!tienda catalogo` · `!tienda agregar Nombre | Precio | Descripción` · `!tienda editar Nombre | Precio | Descripción` · `!tienda eliminar Nombre` · `!ventas ver` · `!ventas sumar 1` · `!ventas establecer 8` · `!legit` · `+vouch @cliente Producto | Pago [precio]`";
   return i.reply({ content: content.slice(0, 1900), ephemeral: true });
 }
 
