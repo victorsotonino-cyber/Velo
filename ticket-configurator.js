@@ -503,6 +503,35 @@ module.exports = function registerTicketConfigurator(client) {
         await interaction.showModal(categoryEditorModal(guildConfig(guild.id), categoryKey));
         return;
       }
+      if (action === "category_content_select") {
+        const categoryKey = interaction.values?.[0];
+        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        await interaction.showModal(categoryContentModal(guildConfig(guild.id), categoryKey));
+        return;
+      }
+      if (action === "save_category_content") {
+        const categoryKey = interaction.customId.split(":")[2];
+        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        const ticketMessage = interaction.fields.getTextInputValue("ticket_message").trim();
+        const ticketColor = interaction.fields.getTextInputValue("ticket_color").trim();
+        if (!ticketMessage || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
+          await interaction.reply({ content: "El mensaje inicial es obligatorio y el color debe usar el formato #RRGGBB.", ephemeral: true });
+          return;
+        }
+        updateGuild(guild.id, saved => {
+          saved.categoryOverrides = saved.categoryOverrides || {};
+          saved.categoryOverrides[categoryKey] = {
+            ...(saved.categoryOverrides[categoryKey] || {}),
+            ticketMessage,
+            ticketColor: ticketColor.toUpperCase()
+          };
+        });
+        await interaction.reply({
+          content: "✅ Mensaje interno y color guardados para la categoría. Se aplicarán a los tickets nuevos.",
+          ephemeral: true
+        });
+        return;
+      }
       if (action === "save_category") {
         const categoryKey = interaction.customId.split(":")[2];
         if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
@@ -510,6 +539,7 @@ module.exports = function registerTicketConfigurator(client) {
         const ticketTitle = interaction.fields.getTextInputValue("category_title").trim();
         const description = interaction.fields.getTextInputValue("category_description").trim();
         const emojiInput = interaction.fields.getTextInputValue("category_emoji").trim();
+        const ticketColor = interaction.fields.getTextInputValue("category_color").trim();
         if (emojiInput) {
           const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
           const customId = customMatch?.[2] || (/^\d{17,20}$/.test(emojiInput) ? emojiInput : null);
@@ -525,19 +555,40 @@ module.exports = function registerTicketConfigurator(client) {
             return;
           }
         }
-        if (!label || !ticketTitle || !description) {
-          await interaction.reply({ content: "El nombre y la descripción son obligatorios.", ephemeral: true });
+        if (!label || !ticketTitle || !description || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
+          await interaction.reply({ content: "Completa el nombre, título, descripción y un color válido con formato #RRGGBB.", ephemeral: true });
           return;
         }
         updateGuild(guild.id, saved => {
           saved.categoryOverrides = saved.categoryOverrides || {};
-          saved.categoryOverrides[categoryKey] = { label, ticketTitle, description, emojiInput };
+          saved.categoryOverrides[categoryKey] = { ...(saved.categoryOverrides[categoryKey] || {}), label, ticketTitle, description, emojiInput, ticketColor: ticketColor.toUpperCase() };
         });
         await interaction.reply({ content: "✅ Categoría **" + label + "** guardada. El título se aplicará al embed del ticket y el nombre, descripción y emoji al panel. Publica de nuevo el panel para ver los cambios visuales.", ephemeral: true });
         return;
       }
       if (action === "edit_panel") {
         await interaction.showModal(panelEditorModal(guildConfig(guild.id)));
+        return;
+      }
+      if (action === "edit_panel_images") {
+        await interaction.showModal(panelImagesModal(guildConfig(guild.id)));
+        return;
+      }
+      if (action === "save_panel_images") {
+        const thumbnailUrl = interaction.fields.getTextInputValue("panel_thumbnail_url").trim();
+        const bannerUrl = interaction.fields.getTextInputValue("panel_banner_url").trim();
+        if (!isOptionalHttpsUrl(thumbnailUrl) || !isOptionalHttpsUrl(bannerUrl)) {
+          await interaction.reply({ content: "Las imágenes deben usar enlaces HTTPS directos. Deja el campo vacío para quitar una imagen.", ephemeral: true });
+          return;
+        }
+        updateGuild(guild.id, saved => {
+          saved.panelThumbnailUrl = thumbnailUrl || null;
+          saved.panelBannerUrl = bannerUrl || null;
+        });
+        await interaction.reply({
+          content: "✅ Imágenes del panel guardadas. Pulsa Publicar panel para actualizar el mensaje existente.",
+          ephemeral: true
+        });
         return;
       }
       if (action === "edit_moderation") {
@@ -591,7 +642,8 @@ module.exports = function registerTicketConfigurator(client) {
         const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("⚙️ " + (ADVANCED_OPTIONS.find(x => x.value === key)?.label || "Configuración"))
           .setDescription(advancedDescription(key, saved, guild));
-        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key, guild.id, guild), ...advancedComponents()] });
+        const detailComponents = advancedDetailComponents(key, guild.id, guild);
+        await interaction.update({ embeds: [embed], components: key === "panel_editor" ? detailComponents : [...detailComponents, ...advancedComponents()] });
         return;
       }
       if (action === "transcript_mode") {
@@ -614,6 +666,34 @@ module.exports = function registerTicketConfigurator(client) {
         const channelId = interaction.values?.[0];
         updateGuild(guild.id, saved => { saved.reviewsChannelId = channelId; });
         await interaction.update({ embeds: [new EmbedBuilder().setColor(config.colors.success || 0x22C55E).setTitle("✅ Canal de opiniones guardado").setDescription("Canal configurado: <#" + channelId + ">.")], components: advancedComponents() });
+        return;
+      }
+      if (action === "panel_layout") {
+        const layout = interaction.values?.[0];
+        if (!["select", "buttons"].includes(layout)) throw new Error("Diseño de panel no válido.");
+        updateGuild(guild.id, saved => { saved.panelLayout = layout; });
+        await interaction.update({
+          embeds: [new EmbedBuilder()
+            .setColor(config.colors.success || 0x22C55E)
+            .setTitle("✅ Diseño del panel guardado")
+            .setDescription(layout === "buttons"
+              ? "Las categorías aparecerán como botones directos (máximo cinco categorías)."
+              : "Las categorías aparecerán en un menú desplegable (hasta 25 categorías).")],
+          components: advancedDetailComponents("panel_editor", guild.id, guild)
+        });
+        return;
+      }
+      if (action === "appearance_name_template") {
+        const template = interaction.values?.[0];
+        const allowed = ["ticket-{type}-{username}", "{type}-{username}", "ticket-{ticket}"];
+        if (!allowed.includes(template)) throw new Error("Plantilla no válida.");
+        updateGuild(guild.id, saved => { saved.channelNameTemplate = template; });
+        await interaction.update({
+          embeds: [new EmbedBuilder().setColor(config.colors.success || 0x22C55E)
+            .setTitle("✅ Formato de canal guardado")
+            .setDescription("Los tickets nuevos usarán la plantilla: " + template)],
+          components: advancedDetailComponents("panel_editor", guild.id, guild)
+        });
         return;
       }
       if (action === "name_template") {
@@ -639,14 +719,14 @@ module.exports = function registerTicketConfigurator(client) {
           await interaction.reply({ content: "Selecciona al menos un rol de soporte.", ephemeral: true });
           return;
         }
-        const categories = effectiveCategories(guild.id, guild);
-        const categoryOptions = categories.slice(0, 25).map(([value, item]) => {
+        const categories = effectiveCategories(guild.id, guild).slice(0, 25);
+        const categoryOptions = categories.map(([value, item]) => {
           const option = {
             label: String(item.label || value).slice(0, 100),
             value,
             description: String(item.description || "Abre una solicitud privada").slice(0, 100)
           };
-          if (item.emojiId && /^\d{17,20}$/.test(String(item.emojiId))) {
+          if (item.emojiId && guild.emojis.cache.has(String(item.emojiId))) {
             option.emoji = {
               id: String(item.emojiId),
               name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32)
@@ -656,16 +736,43 @@ module.exports = function registerTicketConfigurator(client) {
           }
           return option;
         });
-        const menu = new StringSelectMenuBuilder().setCustomId("ticket_create")
-          .setPlaceholder(String(saved.panelPlaceholder || "Selecciona el motivo de tu solicitud").slice(0, 100))
-          .setMinValues(1).setMaxValues(1)
-          .addOptions(categoryOptions);
+
+        let panelComponents;
+        let layoutNotice = "";
+        if (saved.panelLayout === "buttons" && categories.length <= 5) {
+          const categoryButtons = categories.map(([key, item]) => {
+            const button = new ButtonBuilder()
+              .setCustomId("ticket_create:" + key)
+              .setLabel(String(item.label || key).slice(0, 80))
+              .setStyle(ButtonStyle.Secondary);
+            if (item.emojiId && guild.emojis.cache.has(String(item.emojiId))) {
+              button.setEmoji({
+                id: String(item.emojiId),
+                name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32)
+              });
+            } else if (item.emojiUnicode) {
+              button.setEmoji({ name: String(item.emojiUnicode).slice(0, 32) });
+            }
+            return button;
+          });
+          panelComponents = [new ActionRowBuilder().addComponents(categoryButtons)];
+        } else {
+          const menu = new StringSelectMenuBuilder()
+            .setCustomId("ticket_create")
+            .setPlaceholder(String(saved.panelPlaceholder || "Selecciona el motivo de tu solicitud").slice(0, 100))
+            .setMinValues(1).setMaxValues(1)
+            .addOptions(categoryOptions);
+          panelComponents = [new ActionRowBuilder().addComponents(menu)];
+          if (saved.panelLayout === "buttons" && categories.length > 5) {
+            layoutNotice = " Hay más de cinco categorías, así que se usó el menú desplegable para respetar los límites de Discord.";
+          }
+        }
 
         const panelDescription = [
           String(saved.panelDescription || "Te damos la bienvenida al centro oficial de atención de FLUX STORE. Selecciona una categoría para iniciar una solicitud privada.").trim().slice(0, 1400),
           "",
           "**CÓMO FUNCIONA**",
-          "01 · Selecciona el tipo de solicitud en el menú inferior.",
+          "01 · Selecciona el tipo de solicitud en el menú o los botones.",
           "02 · Se creará un canal privado para atender tu caso.",
           "03 · El equipo de FLUX STORE continuará la atención dentro del ticket.",
           "",
@@ -682,8 +789,32 @@ module.exports = function registerTicketConfigurator(client) {
         panel.setAuthor(panelIcon
           ? { name: "FLUX STORE  /  CENTRO DE SOPORTE", iconURL: panelIcon }
           : { name: "FLUX STORE  /  CENTRO DE SOPORTE" });
-        const sent = await channel.send({ embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] });
-        await interaction.reply({ content: "✅ Panel enviado a " + channel.toString() + ". Mensaje: " + sent.url, ephemeral: true });
+        if (isOptionalHttpsUrl(saved.panelThumbnailUrl) && saved.panelThumbnailUrl) panel.setThumbnail(saved.panelThumbnailUrl);
+        if (isOptionalHttpsUrl(saved.panelBannerUrl) && saved.panelBannerUrl) panel.setImage(saved.panelBannerUrl);
+
+        let sent = null;
+        let publishAction = "publicado";
+        if (saved.panelMessageId && saved.publishedPanelChannelId === channel.id) {
+          const previous = await channel.messages.fetch(saved.panelMessageId).catch(() => null);
+          if (previous) {
+            sent = await previous.edit({ embeds: [panel], components: panelComponents });
+            publishAction = "actualizado";
+          }
+        }
+        if (!sent) {
+          sent = await channel.send({ embeds: [panel], components: panelComponents });
+          publishAction = "publicado";
+        }
+        updateGuild(guild.id, current => {
+          current.panelMessageId = sent.id;
+          current.publishedPanelChannelId = channel.id;
+          current.panelLayout = saved.panelLayout === "buttons" && categories.length <= 5 ? "buttons" : "select";
+        });
+        await interaction.reply({
+          content: "✅ Panel " + publishAction + " en " + channel.toString() + ". Mensaje: " + sent.url + layoutNotice,
+          ephemeral: true
+        });
+
         return;
       }
     } catch (error) {
