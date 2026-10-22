@@ -9,6 +9,7 @@ const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
 const automodService = require("./automod-service");
 const { canModerateTarget } = require("./utils/permissions");
+const prefixCommandSuite = require("./utils/prefix-command-suite");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
@@ -695,8 +696,11 @@ client.on(Events.MessageCreate, async message => {
           .setTimestamp();
         return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
-      default:
+      default: {
+        const handled = await prefixCommandSuite.executePrefix(message, command, args, client);
+        if (handled) return;
         return fail("No conozco ese comando. Usa `!help` para ver los comandos.");
+      }
     }
   } catch (e) {
     console.error("Error en !" + command + ":", e);
