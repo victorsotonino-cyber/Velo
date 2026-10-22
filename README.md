@@ -83,6 +83,12 @@ Los pagos no se verifican automáticamente. Elegir un método no significa que e
 ### AutoMod
 AutoMod puede bloquear invitaciones de Discord, exceso de menciones, mensajes repetidos y ráfagas de mensajes. Las variables \`AUTOMOD_*\` permiten ajustar su comportamiento. Es una capa básica, no sustituye las herramientas de AutoMod nativas de Discord ni la revisión del personal.
 
+## Diagnóstico del panel de tickets
+
+Si el panel no se publica, primero selecciona un canal de texto, una categoría de Discord y al menos un rol de soporte que siga existiendo. El configurador comprueba además los permisos del bot antes de publicar: en el canal público necesita ver el canal, enviar mensajes, insertar enlaces y leer el historial para actualizar el panel existente; en la categoría privada necesita ver el canal y gestionar canales para poder crear tickets.
+
+Los errores se diferencian para que no todos aparezcan como “revisa los permisos”: el código de Discord \`50013\` indica permisos insuficientes, \`50001\` indica que falta acceso al recurso y \`50035\` suele indicar que Discord rechazó el formato enviado. En el segundo caso, revisa los logs del hosting y la longitud de los campos o los emojis configurados. Los títulos de los formularios se limitan automáticamente al máximo admitido por Discord.
+
 ## Ayuda y comprobaciones
 
 - \`npm run check\`: comprueba sintaxis de los archivos JavaScript principales.
