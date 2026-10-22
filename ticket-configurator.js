@@ -144,6 +144,18 @@ function mainEmbed(guild, saved) {
           ? "Autocierre activado · " + String(saved.autoCloseHours || 24) + " h"
           : "Autocierre desactivado por seguridad",
         inline: true
+      },
+      {
+        name: "🎛️ Diseño público",
+        value: saved.panelLayout === "buttons" ? "Botones por categoría" : "Menú desplegable",
+        inline: true
+      },
+      {
+        name: "📌 Publicación",
+        value: saved.panelMessageId && saved.publishedPanelChannelId
+          ? "Actualizable en <#" + saved.publishedPanelChannelId + ">"
+          : "Aún no publicado",
+        inline: true
       }
     )
     .setFooter({ text: "FLUX STORE • Consola administrativa • Guardado automático" })
@@ -206,7 +218,7 @@ function advancedDescription(key, saved, guild) {
     payments: "Métodos guardados: " + ((saved.paymentMethods || []).join(", ") || "ninguno") + ". La lista es de configuración; no procesa pagos automáticamente.",
     tools: "Roles de soporte: " + ((saved.supportRoleIds || []).map(id => "<@&" + id + ">").join(", ") || "sin configurar") +
       "\nEmojis disponibles en el servidor: " + guild.emojis.cache.size + ".",
-    panel_editor: "Título: **" + (saved.panelTitle || "FLUX STORE • Centro de atención") + "**\nColor: **" + (saved.panelColor || "#8B5CF6") + "**\nTexto del selector: **" + (saved.panelPlaceholder || "Selecciona el motivo de tu solicitud") + "**\nPlantilla de canal: " + (saved.channelNameTemplate || "ticket-{type}-{username}") + "\nDesde este módulo puedes editar el título, la descripción, el nombre y el emoji de cada tipo de ticket.",
+    panel_editor: "Título: **" + (saved.panelTitle || "FLUX STORE • Centro de atención") + "**\nColor: **" + (saved.panelColor || "#8B5CF6") + "**\nDiseño: **" + (saved.panelLayout === "buttons" ? "Botones" : "Menú desplegable") + "**\nTexto del selector: **" + (saved.panelPlaceholder || "Selecciona el motivo de tu solicitud") + "**\nMiniatura: **" + (saved.panelThumbnailUrl ? "Configurada" : "No configurada") + "**\nBanner: **" + (saved.panelBannerUrl ? "Configurado" : "No configurado") + "**\nPlantilla de canal: " + (saved.channelNameTemplate || "ticket-{type}-{username}") + "\nDesde aquí editas cada categoría, su mensaje interno, sus emojis y colores. Al volver a publicar, el mensaje existente se actualiza cuando sigue disponible.",
     moderation: "Máximo de tickets abiertos por usuario: **" + (saved.maxOpenPerUser || 2) + "**\nAutocierre: **" + (saved.autoCloseEnabled ? "activado" : "desactivado") + "**\nHoras de inactividad: **" + (saved.autoCloseHours || 24) + "**\nRecordatorio al staff: **" + (saved.staffReminderHours || 4) + " h**"
   };
   return details[key] || "Opción de configuración no reconocida.";
