@@ -9,7 +9,7 @@ const storeService = require("./store-service");
 const automodService = require("./automod-service");
 
 if (!config.token) {
-  console.error("Falta DISCORD_TOKEN en Railway.");
+  console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
   process.exit(1);
 }
 
