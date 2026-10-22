@@ -102,7 +102,6 @@ module.exports = {
 
     if (next === "cancelado") {
       commerce.releaseReservedStock(order);
-      commerce.releaseCouponRedemption(order);
     }
     const now = new Date().toISOString();
     order.status = next;
