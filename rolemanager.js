@@ -31,13 +31,14 @@ module.exports = {
     }
     if (!target.manageable) return i.reply({ content: "El bot no puede gestionar a ese miembro por la jerarquía de roles.", ephemeral: true });
     const reason = i.options.getString("motivo") || "Role manager ejecutado por " + i.user.tag;
+    if (action === "add" && target.roles.cache.has(role.id)) return i.reply({ content: target.toString() + " ya tiene " + role.toString() + ".", ephemeral: true });
+    if (action === "remove" && !target.roles.cache.has(role.id)) return i.reply({ content: target.toString() + " no tiene " + role.toString() + ".", ephemeral: true });
+    await i.deferReply({ ephemeral: true });
     if (action === "add") {
-      if (target.roles.cache.has(role.id)) return i.reply({ content: target.toString() + " ya tiene " + role.toString() + ".", ephemeral: true });
       await target.roles.add(role, reason);
-      return i.reply({ content: "✅ Se asignó " + role.toString() + " a " + target.toString() + ".", allowedMentions: { parse: [] } });
+      return i.editReply({ content: "✅ Se asignó " + role.toString() + " a " + target.toString() + ".", allowedMentions: { parse: [] } });
     }
-    if (!target.roles.cache.has(role.id)) return i.reply({ content: target.toString() + " no tiene " + role.toString() + ".", ephemeral: true });
     await target.roles.remove(role, reason);
-    return i.reply({ content: "✅ Se retiró " + role.toString() + " de " + target.toString() + ".", allowedMentions: { parse: [] } });
+    return i.editReply({ content: "✅ Se retiró " + role.toString() + " de " + target.toString() + ".", allowedMentions: { parse: [] } });
   }
 };
