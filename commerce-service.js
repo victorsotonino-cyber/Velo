@@ -7,7 +7,6 @@ const { readJSON, writeJSON } = require("./storage");
 
 const CARTS_FILE = "flux-store-carts.json";
 const ORDERS_FILE = "flux-store-orders.json";
-const COUPONS_FILE = "flux-store-coupons.json";
 const CURRENCY = String(process.env.STORE_CURRENCY || "USD").toUpperCase();
 const MAX_QUANTITY = 25;
 
@@ -27,11 +26,6 @@ function getCarts() {
 
 function getOrders() {
   const value = readJSON(ORDERS_FILE, []);
-  return Array.isArray(value) ? value : [];
-}
-
-function getCoupons() {
-  const value = readJSON(COUPONS_FILE, []);
   return Array.isArray(value) ? value : [];
 }
 
@@ -205,39 +199,6 @@ function clearCart(guildId, userId) {
   writeJSON(CARTS_FILE, carts);
 }
 
-function findValidCoupon(code, guildId, userId, coupons) {
-  if (!code) return null;
-  const normalizedCode = String(code).trim().toUpperCase();
-  const coupon = coupons.find(function (item) {
-    return String(item.code || "").trim().toUpperCase() === normalizedCode;
-  });
-  if (!coupon) throw new Error("El cupón **" + normalizedCode + "** no existe.");
-
-  if (coupon.expiresAt) {
-    const expires = Date.parse(coupon.expiresAt);
-    if (!Number.isFinite(expires) || Date.now() >= expires) throw new Error("Ese cupón ha caducado.");
-  }
-
-  const maxUses = Number(coupon.maxUses) || 0;
-  const uses = Math.max(0, Number(coupon.uses) || 0);
-  if (maxUses > 0 && uses >= maxUses) throw new Error("Ese cupón alcanzó el límite de usos.");
-
-  const redemptions = Array.isArray(coupon.redemptions) ? coupon.redemptions : [];
-  const buyerKey = String(guildId) + ":" + String(userId);
-  if (redemptions.some(function (entry) {
-    return typeof entry === "string" ? entry === buyerKey :
-      entry && entry.guildId === String(guildId) && entry.userId === String(userId);
-  })) {
-    throw new Error("Ya utilizaste ese cupón anteriormente.");
-  }
-
-  const discount = Number(coupon.discount);
-  if (!Number.isFinite(discount) || discount < 1 || discount > 90) {
-    throw new Error("Ese cupón tiene un descuento mal configurado; avisa al equipo.");
-  }
-  return coupon;
-}
-
 function createOrderFromItems(args) {
   const guildId = String(args.guildId || "");
   const userId = String(args.userId || "");
@@ -270,10 +231,9 @@ function createOrderFromItems(args) {
     });
   }
 
-  const coupons = getCoupons();
-  const coupon = findValidCoupon(args.couponCode, guildId, userId, coupons);
-  const discountCents = coupon ? Math.floor(subtotalCents * Number(coupon.discount) / 100) : 0;
-  const totalCents = Math.max(0, subtotalCents - discountCents);
+  // Todos los pedidos nuevos usan el precio validado del catálogo.
+  const discountCents = 0;
+  const totalCents = subtotalCents;
   const orders = getOrders();
 
   let id;
@@ -297,7 +257,6 @@ function createOrderFromItems(args) {
     discountCents: discountCents,
     totalCents: totalCents,
     price: money(totalCents, CURRENCY),
-    couponCode: coupon ? coupon.code : null,
     paymentMethod: String(args.paymentMethod || "Sin indicar").slice(0, 60),
     details: String(args.details || "").slice(0, 700),
     status: "pendiente",
@@ -317,13 +276,6 @@ function createOrderFromItems(args) {
   writeJSON(ORDERS_FILE, orders.slice(-10000));
   if (orderItems.some(function (item) { return item.stockTracked; })) store.saveProducts(products);
 
-  if (coupon) {
-    coupon.uses = (Number(coupon.uses) || 0) + 1;
-    coupon.redemptions = Array.isArray(coupon.redemptions) ? coupon.redemptions : [];
-    coupon.redemptions.push({ guildId: guildId, userId: userId, orderId: id, at: now });
-    writeJSON(COUPONS_FILE, coupons);
-  }
-
   return order;
 }
 
@@ -336,7 +288,6 @@ function checkout(args) {
     userTag: args.userTag,
     items: view.lines,
     paymentMethod: args.paymentMethod,
-    couponCode: args.couponCode,
     details: args.details
   });
   clearCart(args.guildId, args.userId);
@@ -358,29 +309,6 @@ function releaseReservedStock(order) {
 
   if (changed) store.saveProducts(products);
   order.stockReleasedAt = new Date().toISOString();
-  return true;
-}
-
-function releaseCouponRedemption(order) {
-  if (!order || !order.couponCode || order.couponReleasedAt) return false;
-  const coupons = getCoupons();
-  const normalizedCode = String(order.couponCode).trim().toUpperCase();
-  const coupon = coupons.find(function (item) {
-    return String(item.code || "").trim().toUpperCase() === normalizedCode;
-  });
-  if (!coupon) {
-    order.couponReleasedAt = new Date().toISOString();
-    return false;
-  }
-
-  coupon.redemptions = Array.isArray(coupon.redemptions) ? coupon.redemptions : [];
-  coupon.redemptions = coupon.redemptions.filter(function (entry) {
-    return !(entry && entry.orderId === order.id && entry.guildId === String(order.guildId) &&
-      entry.userId === String(order.userId));
-  });
-  coupon.uses = Math.max(0, (Number(coupon.uses) || 0) - 1);
-  writeJSON(COUPONS_FILE, coupons);
-  order.couponReleasedAt = new Date().toISOString();
   return true;
 }
 
@@ -408,5 +336,5 @@ function getOrderStats(guildId) {
 module.exports = {
   CURRENCY, MAX_QUANTITY, normalize, money, parsePrice, getCart, calculateCart,
   addToCart, removeFromCart, clearCart, checkout, createOrderFromItems,
-  releaseReservedStock, releaseCouponRedemption, getOrderStats, getOrders
+  releaseReservedStock, getOrderStats, getOrders
 };
