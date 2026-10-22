@@ -11,7 +11,7 @@ const giveaways = require("./giveaway-service");
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("giveaway")
-    .setDescription("Sistema profesional de sorteos de Velo Studio.")
+    .setDescription("Sistema profesional de sorteos de FLUX STORE.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(sub => sub
       .setName("crear")
@@ -129,12 +129,12 @@ module.exports = {
       }
       const embed = new EmbedBuilder()
         .setColor(config.colors.primary)
-        .setTitle(emoji(i.guild, "velo_giveaway", "🎉") + " Velo Studio • Sorteos activos")
+        .setTitle(emoji(i.guild, "velo_giveaway", "🎉") + " FLUX STORE • Sorteos activos")
         .setDescription(active.slice(0, 20).map(g =>
           "**" + g.prize + "**\nCanal: <#" + g.channelId + "> · termina <t:" +
           Math.floor(g.endAt / 1000) + ":R>\nID: " + g.messageId
         ).join("\n\n").slice(0, 4000))
-        .setFooter({ text: "Velo Studio • /giveaway terminar | cancelar | reroll" });
+        .setFooter({ text: "FLUX STORE • /giveaway terminar | cancelar | reroll" });
       return i.reply({ embeds: [embed], ephemeral: true });
     }
 
