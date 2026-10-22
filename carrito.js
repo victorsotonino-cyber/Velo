@@ -124,7 +124,7 @@ module.exports = {
           "\n**Subtotal:** " + commerce.money(order.subtotalCents, order.currency) +
           "\n**Total:** **" + order.price + "**" +
           "\n**Método elegido:** " + order.paymentMethod +
-          "\n**Estado:** 🟡 Pendiente" +
+          "\n**Estado:** 🟡 Pendiente"
         )
         .setFooter({ text: "FLUX STORE • El pago debe ser verificado por el equipo." })
         .setTimestamp();
