@@ -5,6 +5,7 @@ const {
   SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType
 } = require("discord.js");
 const config = require("./config");
+const store = require("./store-service");
 const { readJSON, writeJSON } = require("./storage");
 
 const FILE = "flux-store-suggestions.json";
@@ -55,11 +56,64 @@ module.exports = {
     })
     .addSubcommand(function (s) {
       return s.setName("listar").setDescription("Muestra las últimas sugerencias registradas.");
+    })
+    .addSubcommand(function (s) {
+      return s.setName("estado").setDescription("Aprueba, rechaza o reabre una sugerencia (staff).")
+        .addStringOption(function (o) {
+          return o.setName("id").setDescription("ID de la sugerencia")
+            .setMinLength(4).setMaxLength(12).setRequired(true);
+        })
+        .addStringOption(function (o) {
+          return o.setName("estado").setDescription("Nuevo estado de la propuesta").setRequired(true)
+            .addChoices(
+              { name: "Pendiente", value: "pending" },
+              { name: "Aprobada", value: "approved" },
+              { name: "Rechazada", value: "rejected" }
+            );
+        });
     }),
   async execute(i) {
     if (!i.guildId) return i.reply({ content: "Este comando solo funciona dentro del servidor.", ephemeral: true });
     const rows = readSuggestions();
     const action = i.options.getSubcommand();
+
+    if (action === "estado") {
+      if (!store.isStoreStaff(i.member)) {
+        return i.reply({ content: "❌ Solo el personal autorizado puede cambiar el estado.", ephemeral: true });
+      }
+      const id = i.options.getString("id").trim().toUpperCase();
+      const nextStatus = i.options.getString("estado");
+      const suggestion = rows.find(function (row) {
+        return row.guildId === i.guildId && row.id === id;
+      });
+      if (!suggestion) return i.reply({ content: "❌ No encontré esa sugerencia.", ephemeral: true });
+
+      suggestion.status = nextStatus;
+      suggestion.updatedAt = new Date().toISOString();
+      writeJSON(FILE, rows);
+
+      let updated = false;
+      if (suggestion.channelId && suggestion.messageId) {
+        const channel = await i.guild.channels.fetch(suggestion.channelId).catch(function () { return null; });
+        if (channel && channel.isTextBased()) {
+          const message = await channel.messages.fetch(suggestion.messageId).catch(function () { return null; });
+          if (message) {
+            await message.edit({
+              embeds: [suggestionEmbed(suggestion)],
+              components: nextStatus === "pending" ? suggestionButtons(suggestion) : []
+            }).then(function () { updated = true; })
+              .catch(function (error) { console.error("No se pudo actualizar la sugerencia:", error.message); });
+          }
+        }
+      }
+
+      const label = nextStatus === "approved" ? "aprobada" :
+        nextStatus === "rejected" ? "rechazada" : "reabierta para votar";
+      return i.reply({
+        content: "✅ Sugerencia #" + id + " " + label + "." + (updated ? " El mensaje público también fue actualizado." : " El registro se guardó, pero no pude editar el mensaje original."),
+        ephemeral: true
+      });
+    }
 
     if (action === "enviar") {
       const text = i.options.getString("idea").trim();
