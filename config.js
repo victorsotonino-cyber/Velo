@@ -6,7 +6,10 @@ function readId(name) {
 }
 
 function readNumber(name, fallback, min, max) {
-  const value = Number(process.env[name]);
+  const raw = process.env[name];
+  if (raw === undefined || String(raw).trim() === "") return fallback;
+
+  const value = Number(raw);
   if (!Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(value)));
 }
