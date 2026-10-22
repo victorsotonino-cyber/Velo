@@ -818,8 +818,8 @@ module.exports = function registerTicketConfigurator(client) {
           return;
         }
         if (emojiInput) {
-          const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(d{17,20})>$/);
-          const customId = customMatch?.[2] || (/^d{17,20}$/.test(emojiInput) ? emojiInput : null);
+          const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
+          const customId = customMatch?.[2] || (/^\d{17,20}$/.test(emojiInput) ? emojiInput : null);
           const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
           const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
           const isUnicode = /\p{Extended_Pictographic}/u.test(emojiInput);
@@ -874,7 +874,7 @@ module.exports = function registerTicketConfigurator(client) {
       }
       if (action === "save_category") {
         const categoryKey = interaction.customId.split(":")[2];
-        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
         const label = interaction.fields.getTextInputValue("category_label").trim();
         const ticketTitle = interaction.fields.getTextInputValue("category_title").trim();
         const description = interaction.fields.getTextInputValue("category_description").trim();
