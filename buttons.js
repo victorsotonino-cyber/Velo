@@ -76,6 +76,15 @@ async function createTicketLocked(i) {
   const type = i.values[0], category = config.ticket.categories[type];
   if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
   const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
+  const ticketBlacklist = Array.isArray(ticketSettings.ticketBlacklist) ? ticketSettings.ticketBlacklist : [];
+  const blockedEntry = ticketBlacklist.find(entry => entry && entry.userId === i.user.id);
+  if (blockedEntry) {
+    return i.reply({
+      content: emoji(i.guild, "error", "🚫") + " No puedes abrir tickets en este servidor. Razón: " +
+        String(blockedEntry.reason || "Sin razón indicada").slice(0, 300),
+      ephemeral: true
+    });
+  }
   const maxOpenPerUser = Number.isInteger(ticketSettings.maxOpenPerUser) && ticketSettings.maxOpenPerUser > 0
     ? Math.min(ticketSettings.maxOpenPerUser, 10)
     : config.ticket.maxOpenPerUser;
