@@ -132,7 +132,7 @@ client.on(Events.MessageCreate, async message => {
     const embed = new EmbedBuilder()
       .setColor(config.colors.success)
       .setTitle("⚡ ᴠᴏᴜᴄʜ ʀᴇɢɪsᴛʀᴀᴅᴏ")
-      .setDescription("**Cliente:** " + buyer + "\n**Compra:** " + details.slice(0, 900) + "\n**Registrado por:** " + message.author)
+      .setDescription("**Cliente:** <@" + buyer.id + ">\n**Compra:** " + details.slice(0, 900) + "\n**Registrado por:** <@" + message.author.id + ">")
       .setFooter({ text: "Flux STORE • Venta #" + stats.sales })
       .setTimestamp();
     await message.channel.send({ embeds: [embed] });
