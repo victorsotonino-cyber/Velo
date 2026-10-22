@@ -76,7 +76,13 @@ async function createTicket(i) {
 async function createTicketLocked(i) {
   const type = i.isStringSelectMenu() ? i.values?.[0] : i.customId.split(":")[1];
   const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
-  const baseCategory = config.ticket.categories[type];
+  if ((ticketSettings.disabledTicketCategories || []).includes(type)) {
+    return i.reply({
+      content: emoji(i.guild, "info", "ℹ️") + " Esta categoría está temporalmente desactivada. Vuelve al panel y elige otra opción.",
+      ephemeral: true
+    });
+  }
+  const baseCategory = config.ticket.categories[type] || ticketSettings.customCategories?.[type];
   const categoryOverride = (ticketSettings.categoryOverrides || {})[type] || {};
   const category = baseCategory ? { ...baseCategory, ...categoryOverride } : null;
   if (category?.emojiInput) {
