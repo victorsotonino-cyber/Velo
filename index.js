@@ -169,16 +169,10 @@ client.on(Events.MessageCreate, async message => {
           .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
           .setTitle("Welcome to FLUX STORE")
           .setDescription([
-        "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "**Canal no configurado**") + " **TERMINOS**",
-        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
-        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
-      ].join("\n")) + " **TERMINOS**",
-        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
-        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
-      ].join("\n")) + " **TERMINOS**",
-        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
-        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
-      ].join("\n"))
+            "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "**Canal no configurado**") + " **TERMINOS**",
+            "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+            "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+          ].join("\n"))
           .setThumbnail(message.author.displayAvatarURL({ size: 256 }))
           .setFooter({ text: "#" + message.guild.memberCount });
         return message.channel.send({
@@ -668,12 +662,6 @@ client.on(Events.GuildMemberAdd, async member => {
       .setTitle("Welcome to FLUX STORE")
       .setDescription([
         "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "**Canal no configurado**") + " **TERMINOS**",
-        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
-        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
-      ].join("\n")) + " **TERMINOS**",
-        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
-        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
-      ].join("\n")) + " **TERMINOS**",
         "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
         "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
       ].join("\n"))
