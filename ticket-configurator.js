@@ -464,7 +464,7 @@ function categoryContentModal(saved, categoryKey) {
   const current = { ...defaults, ...override };
   const modal = new ModalBuilder()
     .setCustomId("flux_ticket_config:save_category_content:" + categoryKey)
-    .setTitle("Mensaje interno: " + categoryKey.slice(0, 28));
+    .setTitle(modalTitle("Mensaje interno: ", categoryKey));
   modal.addComponents(
     new ActionRowBuilder().addComponents(new TextInputBuilder()
       .setCustomId("ticket_message")
@@ -495,7 +495,7 @@ function categoryEditorModal(saved, categoryKey) {
   const defaults = config.ticket.categories?.[categoryKey] || saved.customCategories?.[categoryKey] || {};
   const override = (saved.categoryOverrides || {})[categoryKey] || {};
   const current = { ...defaults, ...override };
-  const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle("Editar categoría: " + categoryKey.slice(0, 26));
+  const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle(modalTitle("Editar categoría: ", categoryKey));
   modal.addComponents(
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre de la categoría en el panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(current.label || categoryKey).slice(0, 100))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_title").setLabel("Título del embed dentro del ticket").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(current.ticketTitle || "{emoji} {name} • FLUX STORE").slice(0, 256))),
