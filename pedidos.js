@@ -82,12 +82,34 @@ module.exports = {
     if (!store.isStoreStaff(i.member)) return i.reply({ content: "❌ Solo el personal autorizado puede consultar historiales ajenos o cambiar estados.", ephemeral: true });
     if (action === "historial") { const target = i.options.getUser("cliente") || i.user; const rows = orders.filter(o => o.guildId === i.guildId && o.userId === target.id).slice(-15).reverse(); if (!rows.length) return i.reply({ content: "No hay pedidos registrados para ese cliente.", ephemeral: true }); return i.reply({ embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle("🧾 Historial de " + target.tag).setDescription(rows.map(orderLine).join("\n\n")).setFooter({ text: "FLUX STORE • Solo personal autorizado." })], ephemeral: true }); }
     const id = i.options.getString("id").trim().toUpperCase(); const order = orders.find(o => o.guildId === i.guildId && o.id === id); if (!order) return i.reply({ content: "❌ No encontré ese pedido.", ephemeral: true });
-    const next = i.options.getString("estado"); if (!STATUSES.includes(next)) return i.reply({ content: "❌ Estado no válido.", ephemeral: true });
-    if (order.status === "cancelado" && next !== "cancelado") return i.reply({ content: "❌ Un pedido cancelado no se puede reactivar desde este comando.", ephemeral: true });
-    if (next === "completado" && !["pago_verificado", "procesando"].includes(order.status)) return i.reply({ content: "❌ Verifica el pago y prepara el pedido antes de completarlo.", ephemeral: true });
+    const next = i.options.getString("estado");
+    if (!STATUSES.includes(next)) return i.reply({ content: "❌ Estado no válido.", ephemeral: true });
     if (order.status === next) return i.reply({ content: "ℹ️ Ese pedido ya tiene el estado seleccionado.", ephemeral: true });
-    if (next === "cancelado") commerce.releaseReservedStock(order);
-    const now = new Date().toISOString(); order.status = next; order.updatedAt = now; order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : []; order.statusHistory.push({ status: next, by: i.user.id, at: now }); writeJSON(FILE, orders);
+
+    const transitions = {
+      pendiente: ["pago_verificado", "cancelado"],
+      pago_verificado: ["procesando", "cancelado"],
+      procesando: ["completado", "cancelado"],
+      completado: [],
+      cancelado: []
+    };
+    if (!(transitions[order.status] || []).includes(next)) {
+      return i.reply({
+        content: "❌ Transición no permitida. Flujo válido: pendiente → pago verificado → en preparación → completado. Puedes cancelar un pedido antes de completarlo.",
+        ephemeral: true
+      });
+    }
+
+    if (next === "cancelado") {
+      commerce.releaseReservedStock(order);
+      commerce.releaseCouponRedemption(order);
+    }
+    const now = new Date().toISOString();
+    order.status = next;
+    order.updatedAt = now;
+    order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+    order.statusHistory.push({ status: next, by: i.user.id, at: now });
+    writeJSON(FILE, orders);
     const embed = new EmbedBuilder().setColor(config.colors.success).setTitle("✅ Estado actualizado").setDescription("**Pedido:** #" + order.id + "\n**Cliente:** <@" + order.userId + ">\n**Producto:** " + order.product + "\n**Estado:** " + LABELS[next] + "\n**Actualizado por:** <@" + i.user.id + ">").setTimestamp();
     return i.reply({ embeds: [embed], ephemeral: true });
   }
