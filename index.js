@@ -51,6 +51,7 @@ for (const file of fs.readdirSync(__dirname).filter(f =>
 }
 
 require("./buttons")(client);
+require("./ticket-configurator")(client);
 
 async function registerCommands() {
   if (!config.clientId || !config.guildId) {
@@ -200,7 +201,7 @@ client.on(Events.MessageCreate, async message => {
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
             "**Tickets, mensajes y sorteos**",
-            "`!ticket-panel` `!setup-plantilla` `!setup-sorteos` `!crear-roles-tienda` `!say texto`",
+            "`!ticket-panel` `m!ticket setup` `!setup-plantilla` `!setup-sorteos` `!crear-roles-tienda` `!say texto`",
             "`!update` — novedades del bot",
             "`!giveaway start [#canal] 1h 1 Premio | descripción`",
             "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
