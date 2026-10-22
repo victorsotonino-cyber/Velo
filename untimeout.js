@@ -9,6 +9,7 @@ module.exports = {
     .addUserOption(o=>o.setName("usuario").setDescription("Usuario").setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) return i.reply({content:emoji(i.guild,"error","❌")+" Necesitas **Moderar miembros** para usar este comando.",ephemeral:true});
     const user=i.options.getUser("usuario");
     const member=await i.guild.members.fetch(user.id).catch(()=>null);
     if(!member) return i.reply({content:emoji(i.guild,"error","❌")+" Usuario no encontrado.",ephemeral:true});
