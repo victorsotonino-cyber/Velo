@@ -2,6 +2,7 @@ const { randomUUID } = require("crypto");
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const config = require("./config");
 const store = require("./store-service");
+const commerce = require("./commerce-service");
 const { readJSON, writeJSON } = require("./storage");
 const FILE = "flux-store-orders.json";
 const LABELS = { pendiente: "🟡 Pendiente", pago_verificado: "🔵 Pago verificado", procesando: "🟣 En preparación", completado: "🟢 Completado", cancelado: "🔴 Cancelado" };
@@ -25,12 +26,57 @@ module.exports = {
   async execute(i) {
     const action = i.options.getSubcommand(); const orders = readOrders();
     if (action === "crear") {
-      const product = i.options.getString("producto").trim(); const price = i.options.getString("precio").trim(); const method = i.options.getString("metodo").trim(); const details = i.options.getString("detalles")?.trim() || "";
-      if (!product || !price || !method) return i.reply({ content: "❌ Completa producto, precio y método.", ephemeral: true });
-      const order = { id: randomUUID().split("-")[0].toUpperCase(), guildId: i.guildId, userId: i.user.id, userTag: i.user.tag, product, price, paymentMethod: method, details, status: "pendiente", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), statusHistory: [{ status: "pendiente", by: i.user.id, at: new Date().toISOString() }] };
-      orders.push(order); writeJSON(FILE, orders.slice(-10000));
-      const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🧾 Solicitud de pedido registrada").setDescription("**Pedido:** #" + order.id + "\n**Producto:** " + product + "\n**Precio indicado:** " + price + "\n**Método elegido:** " + method + "\n**Estado:** " + LABELS.pendiente + (details ? "\n**Detalles:** " + details : "")).setFooter({ text: "FLUX STORE • El pedido no se considera pagado hasta que el equipo verifique el pago." }).setTimestamp();
-      return i.reply({ embeds: [embed], ephemeral: true });
+      const productName = i.options.getString("producto").trim();
+      const submittedPrice = i.options.getString("precio").trim();
+      const method = i.options.getString("metodo").trim();
+      const details = i.options.getString("detalles")?.trim() || "";
+      const catalogProduct = store.getProducts().find(function (product) {
+        return String(product.name || "").trim().toLowerCase() === productName.toLowerCase();
+      });
+      if (!catalogProduct) {
+        return i.reply({ content: "❌ Ese producto no está en el catálogo. Consulta /tienda catalogo o usa /carrito.", ephemeral: true });
+      }
+
+      try {
+        const officialPrice = commerce.parsePrice(catalogProduct.price);
+        const requestedPrice = commerce.parsePrice(submittedPrice);
+        if (officialPrice !== requestedPrice) {
+          return i.reply({
+            content: "❌ El precio indicado no coincide con el catálogo. El precio actual de **" +
+              catalogProduct.name + "** es **" + String(catalogProduct.price) +
+              "**. Revisa el catálogo y vuelve a intentarlo.",
+            ephemeral: true
+          });
+        }
+
+        const order = commerce.createOrderFromItems({
+          guildId: i.guildId,
+          userId: i.user.id,
+          userTag: i.user.tag,
+          items: [{ productName: catalogProduct.name, quantity: 1 }],
+          paymentMethod: method,
+          details: details
+        });
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary)
+          .setTitle("🧾 Solicitud de pedido registrada")
+          .setDescription(
+            "**Pedido:** #" + order.id +
+            "\n**Producto:** " + order.product +
+            "\n**Precio del catálogo:** " + order.price +
+            "\n**Método elegido:** " + order.paymentMethod +
+            "\n**Estado:** " + LABELS.pendiente +
+            (details ? "\n**Detalles:** " + details : "")
+          )
+          .setFooter({ text: "FLUX STORE • El pago no se considera recibido hasta que el equipo lo verifique." })
+          .setTimestamp();
+        return i.reply({ embeds: [embed], ephemeral: true });
+      } catch (error) {
+        return i.reply({
+          content: "❌ " + String(error && error.message ? error.message : "No pude crear el pedido.").slice(0, 1800),
+          ephemeral: true
+        });
+      }
     }
     if (action === "mis-compras") { const mine = orders.filter(o => o.guildId === i.guildId && o.userId === i.user.id).slice(-10).reverse(); if (!mine.length) return i.reply({ content: "Todavía no tienes pedidos. Usa /pedido crear.", ephemeral: true }); return i.reply({ embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle("🧾 Tus pedidos de FLUX STORE").setDescription(mine.map(orderLine).join("\n\n")).setFooter({ text: "Mostrando tus últimos 10 pedidos." })], ephemeral: true }); }
     if (!store.isStoreStaff(i.member)) return i.reply({ content: "❌ Solo el personal autorizado puede consultar historiales ajenos o cambiar estados.", ephemeral: true });
@@ -39,6 +85,8 @@ module.exports = {
     const next = i.options.getString("estado"); if (!STATUSES.includes(next)) return i.reply({ content: "❌ Estado no válido.", ephemeral: true });
     if (order.status === "cancelado" && next !== "cancelado") return i.reply({ content: "❌ Un pedido cancelado no se puede reactivar desde este comando.", ephemeral: true });
     if (next === "completado" && !["pago_verificado", "procesando"].includes(order.status)) return i.reply({ content: "❌ Verifica el pago y prepara el pedido antes de completarlo.", ephemeral: true });
+    if (order.status === next) return i.reply({ content: "ℹ️ Ese pedido ya tiene el estado seleccionado.", ephemeral: true });
+    if (next === "cancelado") commerce.releaseReservedStock(order);
     const now = new Date().toISOString(); order.status = next; order.updatedAt = now; order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : []; order.statusHistory.push({ status: next, by: i.user.id, at: now }); writeJSON(FILE, orders);
     const embed = new EmbedBuilder().setColor(config.colors.success).setTitle("✅ Estado actualizado").setDescription("**Pedido:** #" + order.id + "\n**Cliente:** <@" + order.userId + ">\n**Producto:** " + order.product + "\n**Estado:** " + LABELS[next] + "\n**Actualizado por:** <@" + i.user.id + ">").setTimestamp();
     return i.reply({ embeds: [embed], ephemeral: true });
