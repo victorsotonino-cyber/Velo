@@ -69,7 +69,7 @@ module.exports = {
       if (order.status !== "completado") {
         return i.reply({ content: "❌ Solo puedes reseñar pedidos que el equipo haya marcado como completados.", ephemeral: true });
       }
-      if (reviews.some(function (review) { return review.orderId === order.id; })) {
+      if (reviews.some(function (review) { return review.guildId === i.guildId && review.orderId === order.id; })) {
         return i.reply({ content: "❌ Ese pedido ya tiene una reseña registrada.", ephemeral: true });
       }
 
