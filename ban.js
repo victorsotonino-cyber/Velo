@@ -9,6 +9,9 @@ module.exports = {
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
     .addStringOption(o => o.setName("motivo").setDescription("Motivo").setRequired(false).setMaxLength(512)),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.BanMembers)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Banear miembros** para usar este comando.", ephemeral: true });
+    }
     const u = i.options.getUser("usuario");
     const target = await i.guild.members.fetch(u.id).catch(() => null);
     const reason = i.options.getString("motivo") || "Sin motivo";
