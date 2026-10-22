@@ -35,7 +35,8 @@ module.exports = {
     const embed = new EmbedBuilder().setColor(color).setTitle(title).setDescription(description);
     if (footer) embed.setFooter({ text: footer });
     embed.setAuthor({ name: "FLUX STORE" }).setTimestamp();
+    await i.deferReply({ ephemeral: true });
     await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
-    return i.reply({ content: "✅ Embed publicado en " + channel.toString() + ".", ephemeral: true, allowedMentions: { parse: [] } });
+    return i.editReply({ content: "✅ Embed publicado en " + channel.toString() + ".", allowedMentions: { parse: [] } });
   }
 };
