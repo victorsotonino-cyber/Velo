@@ -8,7 +8,7 @@
 
 ### 🎭 Autorol al entrar
 - Los nuevos miembros reciben automáticamente el rol <@&1562619913485557901>.
-- El rol se configura mediante `MEMBER_ROLE_ID`; si esa variable no existe, se utiliza el ID anterior.
+- El ID del rol está fijado directamente en `config.js` para que una variable antigua del hosting no lo sustituya.
 - Si Discord rechaza la asignación, el error queda registrado en la consola y la bienvenida sigue su proceso.
 
 ### 👋 Bienvenida
