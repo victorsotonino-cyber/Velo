@@ -14,6 +14,10 @@ module.exports = {
       return i.reply({ content: "❌ Este comando solo funciona dentro de un servidor.", ephemeral: true });
     }
 
+    if (!i.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Gestionar canales** para publicar el panel de tickets.", ephemeral: true });
+    }
+
     const categories = Object.entries(config.ticket?.categories || {});
     if (!categories.length) {
       return i.reply({ content: emoji(i.guild, "error", "❌") + " No hay categorías configuradas en config.js.", ephemeral: true });
