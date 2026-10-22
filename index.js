@@ -4,7 +4,7 @@ const path = require("path");
 const config = require("./config");
 
 if (!config.token) {
-  console.error("Falta DISCORD_TOKEN en Railway.");
+  console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
   process.exit(1);
 }
 
@@ -86,8 +86,6 @@ function loadEvents() {
 loadEvents();
 require("./buttons")(client);
 
-
- — se ejecutan como acciones reales, no como alias vacíos.
 process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
 process.on("uncaughtException", error => console.error("Uncaught exception:", error));
 
