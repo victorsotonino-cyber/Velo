@@ -220,11 +220,49 @@ function advancedDetailComponents(key) {
 module.exports = function registerTicketConfigurator(client) {
   client.on("messageCreate", async message => {
     if (!message.guild || message.author.bot) return;
-    const match = message.content.trim().match(/^m!(?:ticket\s+setup|mticket\s+setup)$/i);
-    if (!match) return;
+    const content = message.content.trim();
+    const setupMatch = content.match(/^m!(?:ticket\\s+setup|mticket\\s+setup)$/i);
+    const blacklistMatch = content.match(/^m!ticket\\s+(blacklist|unblacklist|blacklist-list)(?:\\s+(.+))?$/i);
+    if (!setupMatch && !blacklistMatch) return;
     if (!isAdmin(message.member)) {
       await message.reply("❌ Solo administradores o el rol de administrador configurado pueden usar este panel.").catch(() => {});
       return;
+    }
+    if (blacklistMatch) {
+      const action = blacklistMatch[1].toLowerCase();
+      const argText = (blacklistMatch[2] || "").trim();
+      const store = readStore();
+      const saved = store[message.guild.id] || {};
+      const list = Array.isArray(saved.ticketBlacklist) ? saved.ticketBlacklist : [];
+      if (action === "blacklist-list") {
+        const description = list.slice(0, 25).map(entry =>
+          "• <@" + entry.userId + "> — " + String(entry.reason || "Sin razón indicada").slice(0, 120)
+        ).join("\\n");
+        return message.reply({
+          embeds: [new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
+            .setTitle("🚫 Lista negra de tickets")
+            .setDescription(description || "No hay usuarios bloqueados.")],
+          allowedMentions: { parse: [] }
+        });
+      }
+      const target = message.mentions.users.first() || (argText.match(/\\b\\d{17,20}\\b/) ? await message.client.users.fetch(argText.match(/\\b\\d{17,20}\\b/)[0]).catch(() => null) : null);
+      if (!target) return message.reply("Uso: `m!ticket " + action + " @usuario [razón]`").catch(() => {});
+      if (action === "blacklist") {
+        const reason = argText.replace(/<@!?\\d+>/, "").trim().slice(0, 300) || "Sin razón indicada";
+        const existing = list.find(entry => entry.userId === target.id);
+        if (existing) return message.reply("Ese usuario ya está en la lista negra de tickets.").catch(() => {});
+        list.push({ userId: target.id, reason, by: message.author.id, at: new Date().toISOString() });
+        saved.ticketBlacklist = list.slice(-1000);
+        store[message.guild.id] = saved;
+        writeStore(store);
+        return message.reply("🚫 " + target.tag + " ya no puede abrir tickets en este servidor. Razón: " + reason).catch(() => {});
+      }
+      const next = list.filter(entry => entry.userId !== target.id);
+      if (next.length === list.length) return message.reply("Ese usuario no estaba bloqueado.").catch(() => {});
+      saved.ticketBlacklist = next;
+      store[message.guild.id] = saved;
+      writeStore(store);
+      return message.reply("✅ Se quitó a " + target.tag + " de la lista negra de tickets.").catch(() => {});
     }
     const saved = guildConfig(message.guild.id);
     await message.channel.send({
