@@ -8,6 +8,9 @@ module.exports = {
     .setDescription("Muestra la configuración de tickets.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Gestionar canales** para consultar esta configuración.", ephemeral: true });
+    }
     const c = i.guild.channels.cache.get(config.channels.tickets);
     const r = i.guild.roles.cache.get(config.roles.staff);
     const e = new EmbedBuilder()
