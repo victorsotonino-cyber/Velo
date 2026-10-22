@@ -8,6 +8,7 @@ const config = require("./config");
 const { emoji, commandEmoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveaways = require("./giveaway-service");
+const storeStats = require("./store-service");
 
 const applicationAnswers = new Map();
 
@@ -21,6 +22,7 @@ module.exports = client => {
         const result = await giveaways.toggleParticipation(i, client, giveawayId);
         return i.editReply({ content: result.message, allowedMentions: { parse: [] } });
       }
+      if (i.isButton() && ["flux_legit_yes", "flux_legit_no"].includes(i.customId)) return handleLegitVote(i);
       if (i.isButton() && ["ticket_claim","ticket_close","ticket_lock","ticket_unlock"].includes(i.customId)) return ticketButton(i);
       if (i.isButton() && i.customId === "application_panel_open") {
         await i.deferReply({ ephemeral: true });
@@ -222,4 +224,26 @@ async function helpCategory(i, client) {
   });
   const content = "**" + titles[i.values[0]] + "**\n" + lines.join("\n");
   return i.reply({ content: content.slice(0, 1900), ephemeral: true });
+}
+
+async function handleLegitVote(i) {
+  if (!i.guild) return i.reply({ content: "Este botón solo funciona dentro del servidor.", ephemeral: true });
+  const choice = i.customId === "flux_legit_yes" ? "yes" : "no";
+  const result = storeStats.voteLegit(i.user.id, choice);
+  const embed = i.message.embeds[0] ? EmbedBuilder.from(i.message.embeds[0]) : new EmbedBuilder().setColor(config.colors.primary);
+  embed.setDescription(
+    "Si tu experiencia con la tienda fue positiva, confirma abajo. Cada persona cuenta una sola vez.\n\n" +
+    "✅ **ᴘᴇʀsᴏɴᴀs ǫᴜᴇ ᴠᴇʀɪғɪᴄᴀʀᴏɴ ǫᴜᴇ sᴏᴍᴏs ʟᴇɢɪᴛ:** **" + result.count + "**"
+  );
+  await i.message.edit({ embeds: [embed] }).catch(() => {});
+  await storeStats.refreshCounters(i.guild);
+  if (!result.changed) {
+    return i.reply({ content: "Ya registramos tu respuesta. El contador no se ha duplicado.", ephemeral: true });
+  }
+  return i.reply({
+    content: choice === "yes"
+      ? "✅ Gracias por verificar a Flux STORE como legit. El contador ahora es **" + result.count + "**."
+      : "Gracias por tu respuesta. El contador de verificaciones legit es **" + result.count + "**.",
+    ephemeral: true
+  });
 }
