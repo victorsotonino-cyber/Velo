@@ -1,38 +1,38 @@
-# Flux Store Bot
+# FLUX STORE Bot
 
-Bot de Discord en español, preparado para Railway.
+Bot de Discord para la tienda FLUX STORE, con comandos slash y comandos con prefijo.
 
-## Variables
-- DISCORD_TOKEN
-- CLIENT_ID
-- GUILD_ID
+## Variables de entorno
+- `DISCORD_TOKEN`
+- `CLIENT_ID`
+- `GUILD_ID`
+- Opcionales: `WELCOME_CHANNEL_ID`, `LOGS_CHANNEL_ID`, `TICKETS_CATEGORY_ID`, `ANNOUNCEMENTS_CHANNEL_ID`
 
 ## Inicio
+`npm install`  
 `npm start`
 
+## Bienvenida y autorol
+Cuando entra un miembro, el bot intenta asignarle automáticamente el rol de FLUX STORE configurado en `config.js`:
+`1562619913485557901`
+
+El bot necesita el permiso **Gestionar roles**, y el rol del bot debe estar por encima del rol que va a entregar. Habilita **Server Members Intent** en Discord Developer Portal. La bienvenida se envía al canal configurado como `WELCOME_CHANNEL_ID` (por defecto, el canal de bienvenida de FLUX STORE).
+
+### Comandos relacionados
+- `!test-bienvenida` / `!bienvenida-test`: muestra una vista previa de la bienvenida.
+- `/update` o `!update`: muestra el registro de novedades.
+- `/help` y `!help`: ayuda de comandos.
+- `/tienda`: catálogo y gestión de productos.
+- `/ticket-panel` o `!ticket-panel`: publica el panel de atención.
+- `/giveaway` y `!giveaway`: gestiona sorteos.
+
 ## Tickets
-`/ticket-panel` crea el panel y `/ticket-edit` administra categorías y tickets.
+`/ticket-panel` crea el panel; `/ticket-edit` administra categorías y tickets.
 
-No subas nunca tu archivo `.env` ni el token de Discord.
+## Sorteos
+El sistema de giveaways permite crear sorteos con botones, cerrar o cancelar sorteos y volver a seleccionar ganadores. Las duraciones aceptadas incluyen `30m`, `2h`, `1d` y `1w`, hasta 90 días.
 
-## 🎉 Sistema de giveaways
+## Seguridad
+No subas nunca tu archivo `.env` ni el token de Discord. Usa variables de entorno privadas en tu hosting y no publiques secretos en GitHub.
 
-El comando `/giveaway` permite crear y administrar sorteos gratuitos con botón de participación.
-
-### Comandos slash
-- `/giveaway crear`: premio, duración, número de ganadores y canal opcional. También acepta descripción y rol requerido.
-- `/giveaway terminar id:<ID>`: termina el sorteo y selecciona los ganadores.
-- `/giveaway cancelar id:<ID>`: cancela el sorteo y desactiva el botón.
-- `/giveaway reroll id:<ID>`: elige nuevos ganadores sin repetir a quienes ya ganaron.
-- `/giveaway lista`: muestra los sorteos activos del servidor.
-
-### Comandos con prefijo
-- `!giveaway start [#canal] 2h 1 Nitro | Descripción opcional`
-- `!giveaway end ID`
-- `!giveaway cancel ID`
-- `!giveaway reroll ID [cantidad]`
-- `!giveaway list`
-
-Las duraciones aceptadas son `30m`, `2h`, `1d` y `1w`; el máximo es de 90 días. Usa el ID del mensaje que aparece al crear el sorteo para terminarlo, cancelarlo o volver a sortear.
-
-Para administrar sorteos, el moderador necesita el permiso **Gestionar servidor**. El bot necesita ver el canal, enviar mensajes, insertar enlaces e historial de mensajes. Los sorteos activos y sus participantes se guardan con el almacenamiento JSON del bot y sus temporizadores se restauran al iniciar.
+Consulta [UPDATE.md](UPDATE.md) para ver los cambios recientes.
