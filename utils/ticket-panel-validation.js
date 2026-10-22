@@ -15,7 +15,7 @@ function isOptionalHttpsUrl(value) {
 }
 
 function isValidCategoryKey(value) {
-  return /^[a-z][a-z0-9_-]{0,31}$/.test(String(value || "").trim().toLowerCase());
+  return /^[a-z][a-z0-9_-]{0,31}$/.test(String(value || "").trim());
 }
 
 function isUnicodeEmoji(value) {
