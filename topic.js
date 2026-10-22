@@ -13,7 +13,8 @@ module.exports = {
     }
     const input = i.options.getString("texto").trim();
     const topic = ["borrar", "quitar", "delete"].includes(input.toLowerCase()) ? null : input;
+    await i.deferReply({ ephemeral: true });
     await i.channel.setTopic(topic, "Tema actualizado por " + i.user.tag);
-    return i.reply({ content: topic ? "✅ Tema del canal actualizado." : "✅ Tema del canal eliminado.", ephemeral: true });
+    return i.editReply({ content: topic ? "✅ Tema del canal actualizado." : "✅ Tema del canal eliminado." });
   }
 };
