@@ -2,6 +2,38 @@
 
 Bot de Discord en Node.js y discord.js v14, con comandos slash, prefijo, tickets, sorteos, postulaciones, moderación y tienda.
 
+## Estructura del proyecto
+
+```text
+commands/
+  community/encuesta.js
+  general/userinfo.js
+  store/carrito.js
+  store/estadisticas.js
+  store/pagos.js
+  store/resena.js
+  store/sugerencia.js
+events/
+  ready.js
+  interactionCreate.js
+  messageCreate.js
+  guildMemberAdd.js
+  guildMemberRemove.js
+services/
+  order-service.js
+  cart-service.js
+  community-service.js
+  automod-service.js
+utils/
+  config.js
+  storage.js
+  ui.js
+  permissions.js
+  welcome.js
+```
+
+El cargador detecta comandos y eventos de forma recursiva. Los comandos antiguos de la raíz se mantienen para no romper referencias y prefijos existentes; se pueden migrar por módulos posteriormente.
+
 ## Requisitos e inicio
 
 - Node.js 20 o superior.
