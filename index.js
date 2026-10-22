@@ -6,6 +6,7 @@ const { emoji, emojiData } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
+const automodService = require("./automod-service");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en Railway.");
@@ -96,6 +97,12 @@ client.on(Events.InteractionCreate, async interaction => {
 client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
 
+  try {
+    if (await automodService.processMessage(message)) return;
+  } catch (error) {
+    console.error("Error en AutoMod:", error);
+  }
+
   const guildKey = message.guild.id;
   const userKey = message.author.id;
   const countKey = guildKey + ":" + userKey;
@@ -161,11 +168,17 @@ client.on(Events.MessageCreate, async message => {
           .setColor(0xFFFFFF)
           .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
           .setTitle("Welcome to FLUX STORE")
-          .setDescription(
-            "• • <#1562615455624077383> **TERMINOS**\\n" +
-            "• • <#1562615459256471642> **METODOS**\\n" +
-            "• • <#1562615495704838174> **TICKETS**"
-          )
+          .setDescription([
+        "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "**Canal no configurado**") + " **TERMINOS**",
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+      ].join("\n")) + " **TERMINOS**",
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+      ].join("\n")) + " **TERMINOS**",
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+      ].join("\n"))
           .setThumbnail(message.author.displayAvatarURL({ size: 256 }))
           .setFooter({ text: "#" + message.guild.memberCount });
         return message.channel.send({
@@ -653,11 +666,17 @@ client.on(Events.GuildMemberAdd, async member => {
       .setColor(0xFFFFFF)
       .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
       .setTitle("Welcome to FLUX STORE")
-      .setDescription(
-        "• • <#1562615455624077383> **TERMINOS**\n" +
-        "• • <#1562615459256471642> **METODOS**\n" +
-        "• • <#1562615495704838174> **TICKETS**"
-      )
+      .setDescription([
+        "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "**Canal no configurado**") + " **TERMINOS**",
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+      ].join("\n")) + " **TERMINOS**",
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+      ].join("\n")) + " **TERMINOS**",
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
+      ].join("\n"))
       .setThumbnail(member.displayAvatarURL({ size: 256 }))
       .setFooter({ text: "#" + member.guild.memberCount });
 
