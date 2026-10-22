@@ -175,7 +175,7 @@ function advancedDetailComponents(key) {
 module.exports = function registerTicketConfigurator(client) {
   client.on("messageCreate", async message => {
     if (!message.guild || message.author.bot) return;
-    const match = message.content.trim().match(/^(?:m!|!)(?:ticket\s+setup|mticket\s+setup)$/i);
+    const match = message.content.trim().match(/^m!(?:ticket\\s+setup|mticket\\s+setup)$/i);
     if (!match) return;
     if (!isAdmin(message.member)) {
       await message.reply("❌ Solo administradores o el rol de administrador configurado pueden usar este panel.").catch(() => {});
