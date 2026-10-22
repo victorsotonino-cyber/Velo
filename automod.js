@@ -30,6 +30,7 @@ module.exports = function attachAutomod(client) {
     recentMessages.set(key, history);
 
     if (history.length <= maxMessages) return;
+    message.__fluxAutomodBlocked = true;
     await message.delete().catch(() => {});
 
     const last = lastActions.get(key) || 0;
