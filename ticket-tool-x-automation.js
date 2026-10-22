@@ -135,7 +135,7 @@ module.exports = function registerTicketAutomation(client) {
     const ticket = parseTicket(message.channel);
     if (!ticket) return;
     const pending = warnings.get(message.channel.id);
-    if (pending && message.author.id === ticket.ownerId) {
+    if (pending) {
       clearTimeout(pending.timeout);
       warnings.delete(message.channel.id);
       await pending.message.edit({ content: "✅ La actividad del cliente canceló el autocierre.", components: [] }).catch(() => {});
@@ -171,8 +171,8 @@ module.exports = function registerTicketAutomation(client) {
           if (!ticket) continue;
           try {
             const last = await channel.messages.fetch({ limit: 10 });
-            const lastCustomerMessage = last.find(m => m.author.id === ticket.ownerId);
-            const lastActivity = lastCustomerMessage?.createdTimestamp || channel.createdTimestamp;
+            const latestMessage = last.first();
+            const lastActivity = latestMessage?.createdTimestamp || channel.createdTimestamp;
             if (Date.now() - lastActivity < s.hours * 3600000) continue;
             const message = await channel.send({
               content: "⏳ <@" + ticket.ownerId + ">, este ticket está inactivo. Se cerrará en 10 minutos si no respondes.",
