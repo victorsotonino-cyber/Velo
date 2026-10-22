@@ -11,6 +11,8 @@ const giveaways = require("./giveaway-service");
 const storeStats = require("./store-service");
 
 const applicationAnswers = new Map();
+const ticketCreationLocks = new Set();
+const ticketClosing = new Set();
 
 module.exports = client => {
   client.on("interactionCreate", async i => {
@@ -49,7 +51,7 @@ function safeName(value, fallback) {
 }
 
 function ticketChannels(guild, userId) {
-  return guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.topic?.startsWith("VeloTicket:" + userId));
+  return guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.topic?.startsWith("VeloTicket:" + userId + ":"));
 }
 
 function isStaff(i) {
@@ -58,15 +60,35 @@ function isStaff(i) {
 }
 
 async function createTicket(i) {
+  if (!i.guild) return i.reply({ content: "Este panel solo funciona dentro de un servidor.", ephemeral: true });
+  const lockKey = i.guild.id + ":" + i.user.id;
+  if (ticketCreationLocks.has(lockKey)) {
+    return i.reply({ content: emoji(i.guild, "info", "⏳") + " Ya estoy creando tu ticket. Espera un momento.", ephemeral: true });
+  }
+  ticketCreationLocks.add(lockKey);
+  try {
+    return await createTicketLocked(i);
+  } finally {
+    ticketCreationLocks.delete(lockKey);
+  }
+}
+
+async function createTicketLocked(i) {
   const type = i.values[0], category = config.ticket.categories[type];
   if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
   const open = ticketChannels(i.guild, i.user.id);
+  const sameCategory = open.find(channel => channel.topic?.split(":")[2] === type);
+  if (sameCategory) {
+    return i.reply({ content: emoji(i.guild, "info", "ℹ️") + " Ya tienes un ticket de esta categoría: " + sameCategory + ".", ephemeral: true });
+  }
   if (open.size >= config.ticket.maxOpenPerUser) return i.reply({ content: emoji(i.guild, "warning", "⚠️") + " Ya tienes **" + open.size + "/" + config.ticket.maxOpenPerUser + "** tickets abiertos.", ephemeral: true });
   const me = i.guild.members.me;
   if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.reply({ content: emoji(i.guild, "error", "❌") + " Flux Store necesita **Gestionar canales**.", ephemeral: true });
   await i.deferReply({ ephemeral: true });
   const parent = i.guild.channels.cache.get(config.channels.tickets);
   const staff = i.guild.roles.cache.get(config.roles.staff);
+  const admin = i.guild.roles.cache.get(config.roles.admin);
+  const staffRoles = [...new Map([staff, admin].filter(Boolean).map(role => [role.id, role])).values()];
   const name = type + "-" + safeName(i.user.username, i.user.id.slice(-6));
   const ch = await i.guild.channels.create({
     name, type: ChannelType.GuildText, topic: "VeloTicket:" + i.user.id + ":" + type,
@@ -75,7 +97,7 @@ async function createTicket(i) {
       { id: i.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels] },
       { id: i.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-      ...(staff ? [{ id: staff.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }] : [])
+      ...staffRoles.map(role => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }))
     ]
   });
   const buttons = new ActionRowBuilder().addComponents(
@@ -84,7 +106,11 @@ async function createTicket(i) {
     new ButtonBuilder().setCustomId("ticket_unlock").setLabel("Desbloquear").setEmoji(emoji(i.guild, "success", "🔓")).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("ticket_close").setLabel("Cerrar").setEmoji(emoji(i.guild, "trash", "🗑️")).setStyle(ButtonStyle.Danger)
   );
-  const ticketIcon = emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
+  const configuredEmoji = (category.emojiId && i.guild.emojis.cache.get(String(category.emojiId)))
+    || (category.emojiName && i.guild.emojis.cache.find(e => e.name === category.emojiName));
+  const ticketIcon = configuredEmoji
+    ? configuredEmoji.toString()
+    : emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
   const embed = new EmbedBuilder().setColor(config.colors.primary)
     .setTitle(ticketIcon + " " + category.label + " • Flux STORE")
     .setDescription("Hola <@" + i.user.id + ">, tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** <@" + i.user.id + ">\n\nUn miembro del Staff te atenderá pronto.")
@@ -108,9 +134,23 @@ async function ticketButton(i) {
     return i.reply(emoji(i.guild, i.customId === "ticket_lock" ? "lock" : "success", i.customId === "ticket_lock" ? "🔒" : "🔓") + (i.customId === "ticket_lock" ? " Usuario bloqueado." : " Usuario desbloqueado."));
   }
   if (i.customId === "ticket_close") {
-    await i.deferReply(); await sendTranscript(i);
-    await i.editReply(emoji(i.guild, "trash", "🗑️") + " Ticket cerrado. Se eliminará en 5 segundos.");
-    setTimeout(() => i.channel.delete("Ticket cerrado por " + i.user.tag).catch(() => {}), config.ticket.closeDelayMs);
+    if (ticketClosing.has(i.channel.id)) {
+      return i.reply({ content: emoji(i.guild, "info", "ℹ️") + " Este ticket ya se está cerrando.", ephemeral: true });
+    }
+    ticketClosing.add(i.channel.id);
+    try {
+      await i.deferReply();
+      await sendTranscript(i);
+      await i.editReply(emoji(i.guild, "trash", "🗑️") + " Ticket cerrado. Se eliminará en 5 segundos.");
+      setTimeout(async () => {
+        try { await i.channel.delete("Ticket cerrado por " + i.user.tag); }
+        catch (_) {}
+        finally { ticketClosing.delete(i.channel.id); }
+      }, config.ticket.closeDelayMs);
+    } catch (error) {
+      ticketClosing.delete(i.channel.id);
+      throw error;
+    }
   }
 }
 
@@ -118,9 +158,25 @@ async function sendTranscript(i) {
   const log = i.guild.channels.cache.get(config.channels.logs);
   if (!log?.isTextBased()) return;
   try {
-    const messages = await i.channel.messages.fetch({ limit: 100 });
-    const lines = [...messages.values()].reverse().map(m => "[" + new Date(m.createdTimestamp).toISOString() + "] " + m.author.tag + ": " + (m.content || "[sin texto]") + (m.attachments.size ? " [adjuntos: " + [...m.attachments.values()].map(a => a.url).join(", ") + "]" : ""));
-    await log.send({ content: emoji(i.guild, "ticket", "🎫") + " Transcripción de **" + i.channel.name + "** cerrada por " + i.user + ".", files: [{ attachment: Buffer.from(lines.join("\n"), "utf8"), name: i.channel.name + "-transcript.txt" }] });
+    const messages = [];
+    let before;
+    // Discord devuelve hasta 100 mensajes por petición; paginamos hasta 2.000 para no perder
+    // el historial antiguo en tickets largos ni pedir un volumen ilimitado de datos.
+    for (let page = 0; page < 20; page++) {
+      const batch = await i.channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
+      if (!batch.size) break;
+      messages.push(...batch.values());
+      before = batch.last()?.id;
+      if (batch.size < 100) break;
+    }
+    const lines = messages.reverse().map(m => {
+      const body = (m.content || "[sin texto]").replace(/\r/g, "");
+      const embeds = m.embeds.map(e => "[embed: " + String(e.title || e.description || "sin descripción").replace(/\s+/g, " ").slice(0, 300) + "]").join(" ");
+      const attachments = m.attachments.size ? " [adjuntos: " + [...m.attachments.values()].map(a => a.url).join(", ") + "]" : "";
+      return "[" + new Date(m.createdTimestamp).toISOString() + "] " + (m.author?.tag || "Usuario desconocido") + ": " + body + (embeds ? " " + embeds : "") + attachments;
+    });
+    if (messages.length >= 2000) lines.unshift("[Nota: transcripción limitada a los 2.000 mensajes más recientes.]");
+    await log.send({ content: emoji(i.guild, "ticket", "🎫") + " Transcripción de **" + i.channel.name + "** (" + messages.length + " mensajes) cerrada por " + i.user + ".", files: [{ attachment: Buffer.from(lines.join("\n"), "utf8"), name: i.channel.name + "-transcript.txt" }] });
   } catch (e) { console.error("No se pudo guardar transcript:", e.message); }
 }
 
