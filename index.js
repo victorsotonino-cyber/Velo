@@ -95,7 +95,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 // Comandos con prefijo ! — se ejecutan como acciones reales, no como alias vacíos.
 client.on(Events.MessageCreate, async message => {
-  if (!message.guild || message.author.bot) return;
+  if (message.__fluxAutomodBlocked || !message.guild || message.author.bot) return;
 
   const guildKey = message.guild.id;
   const userKey = message.author.id;
