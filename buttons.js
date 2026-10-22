@@ -84,11 +84,19 @@ async function createTicketLocked(i) {
   const me = i.guild.members.me;
   if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.reply({ content: emoji(i.guild, "error", "❌") + " Flux Store necesita **Gestionar canales**.", ephemeral: true });
   await i.deferReply({ ephemeral: true });
-  const parent = i.guild.channels.cache.get(config.channels.tickets);
+  const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
+  const configuredParentId = ticketSettings.ticketCategoryId || config.channels.tickets;
+  const parent = i.guild.channels.cache.get(configuredParentId);
+  const configuredRoleIds = Array.isArray(ticketSettings.supportRoleIds) ? ticketSettings.supportRoleIds : [];
   const staff = i.guild.roles.cache.get(config.roles.staff);
   const admin = i.guild.roles.cache.get(config.roles.admin);
-  const staffRoles = [...new Map([staff, admin].filter(Boolean).map(role => [role.id, role])).values()];
-  const name = type + "-" + safeName(i.user.username, i.user.id.slice(-6));
+  const staffRoles = [...new Map([staff, admin, ...configuredRoleIds.map(id => i.guild.roles.cache.get(id))].filter(Boolean).map(role => [role.id, role])).values()];
+  const template = String(ticketSettings.channelNameTemplate || "ticket-{type}-{username}");
+  const renderedName = template
+    .replaceAll("{username}", safeName(i.user.username, i.user.id.slice(-6)))
+    .replaceAll("{ticket}", i.user.id.slice(-6))
+    .replaceAll("{type}", safeName(type));
+  const name = safeName(renderedName).slice(0, 90) || type + "-" + i.user.id.slice(-6);
   const ch = await i.guild.channels.create({
     name, type: ChannelType.GuildText, topic: "VeloTicket:" + i.user.id + ":" + type,
     parent: parent?.type === ChannelType.GuildCategory ? parent.id : null,
