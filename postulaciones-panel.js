@@ -9,6 +9,9 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Gestionar servidor** para publicar el panel de postulaciones.", ephemeral: true });
+    }
     await i.deferReply({ ephemeral: true });
 
     try {
