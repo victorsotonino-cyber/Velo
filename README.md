@@ -1,40 +1,76 @@
 # FLUX STORE Bot
 
-Bot de Discord para la tienda FLUX STORE, con comandos slash y comandos con prefijo.
+Bot de Discord desarrollado con Node.js y discord.js v14. Tiene comandos slash y comandos con prefijo, paneles de tickets, sorteos, postulaciones, moderación y herramientas para la tienda.
+
+## Requisitos
+
+- Node.js 20 o superior.
+- Un bot creado en Discord Developer Portal.
+- Los intents que utiliza el bot habilitados en el portal, incluido **Server Members Intent** para bienvenida y autorol, y **Message Content Intent** para comandos con prefijo y AutoMod.
+- Permisos adecuados en el servidor: gestionar canales, roles, mensajes y timeout, según las funciones que vayas a habilitar.
+
+## Instalación
+
+1. Clona o descarga este repositorio.
+2. Ejecuta \`npm install\`.
+3. Copia \`.env.example\` a \`.env\` y revisa todas las variables.
+4. No subas \`.env\` ni pegues el token en chats. Configura las mismas variables como secretos en el hosting.
+5. Ejecuta \`npm run check\` y \`npm test\`.
+6. Registra los comandos con \`npm run deploy\`.
+7. Inicia el bot con \`npm start\`.
 
 ## Variables de entorno
-- `DISCORD_TOKEN`
-- `CLIENT_ID`
-- `GUILD_ID`
-- Opcionales: `WELCOME_CHANNEL_ID`, `LOGS_CHANNEL_ID`, `TICKETS_CATEGORY_ID`, `ANNOUNCEMENTS_CHANNEL_ID`
 
-## Inicio
-`npm install`  
-`npm start`
+Los IDs de servidor, roles, canales y emojis se leen de las variables de entorno. Revisa las variables de \`.env.example\`, incluidas las de bienvenida, términos, métodos de pago, ticket, logs, sugerencias, reseñas y los cinco emojis del panel.
 
-## Bienvenida y autorol
-Cuando entra un miembro, el bot intenta asignarle automáticamente el rol de FLUX STORE configurado en `config.js`:
-`1562619913485557901`
+El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting que borre el disco al reiniciar, los carritos, pedidos, cupones, reseñas, sugerencias, vouches y sorteos pueden perderse. Usa almacenamiento persistente o migra a PostgreSQL/SQLite antes de depender de los datos para operaciones comerciales importantes.
 
-El bot necesita el permiso **Gestionar roles**, y el rol del bot debe estar por encima del rol que va a entregar. Habilita **Server Members Intent** en Discord Developer Portal. La bienvenida se envía al canal configurado como `WELCOME_CHANNEL_ID` (por defecto, el canal de bienvenida de FLUX STORE).
+## Funciones de FLUX STORE
 
-### Comandos relacionados
-- `!test-bienvenida` / `!bienvenida-test`: muestra una vista previa de la bienvenida.
-- `/update` o `!update`: muestra el registro de novedades.
-- `/help` y `!help`: ayuda de comandos.
-- `/tienda`: catálogo y gestión de productos.
-- `/ticket-panel` o `!ticket-panel`: publica el panel de atención.
-- `/giveaway` y `!giveaway`: gestiona sorteos.
+### Catálogo, carrito y stock
+- \`/tienda catalogo\`: consulta el catálogo.
+- \`/tienda agregar\`: añade producto, precio, descripción y stock opcional.
+- \`/tienda editar\`: actualiza precio o descripción.
+- \`/tienda stock\`: configura unidades disponibles; \`0\` marca agotado.
+- \`/tienda disponibilidad\`: pausa o activa un producto.
+- \`/carrito agregar\`, \`/carrito ver\`, \`/carrito quitar\`, \`/carrito vaciar\`.
+- \`/carrito confirmar\`: crea el pedido, aplica un cupón válido, calcula el total desde el catálogo y reserva el stock configurado.
 
-## Tickets
-`/ticket-panel` crea el panel; `/ticket-edit` administra categorías y tickets.
+Los productos antiguos sin propiedad \`stock\` siguen teniendo stock ilimitado por compatibilidad. Configura su stock con \`/tienda stock\` para habilitar el control de inventario. El precio debe contener una única cantidad numérica, por ejemplo \`7.50 USD\`; los importes escritos como rangos no se aceptan para el checkout.
 
-El panel usa cinco emojis personalizados configurados por ID en `config.js`. El sistema evita la apertura simultánea por doble clic y la repetición de una categoría ya abierta, incluye acceso de los roles Staff/Admin y genera transcripciones paginadas de hasta 2.000 mensajes al cerrar.
+### Pedidos, cupones y ventas
+- \`/pedido crear\`: registra una solicitud para un producto del catálogo; el precio escrito debe coincidir con el precio oficial.
+- \`/pedido mis-compras\`: muestra el historial del cliente.
+- \`/pedido historial\`: historial de un cliente para personal autorizado.
+- \`/pedido estado\`: avanza el estado del pedido; solo se puede completar tras verificar el pago o comenzar el procesamiento.
+- \`/cupones crear\`, \`/cupones listar\`, \`/cupones validar\`, \`/cupones eliminar\`.
+- \`/ventas\`: contador histórico de ventas.
+- \`/estadisticas-tienda\`: pedidos registrados, completados, pendientes, cancelados, catálogo e ingresos estimados de pedidos completados.
 
-## Sorteos
-El sistema de giveaways permite crear sorteos con botones, cerrar o cancelar sorteos y volver a seleccionar ganadores. Las duraciones aceptadas incluyen `30m`, `2h`, `1d` y `1w`, hasta 90 días.
+Los pagos no se verifican automáticamente. Elegir un método no significa que el pedido esté pagado; el personal autorizado debe comprobar el pago antes de avanzar al estado correspondiente. Al cancelar un pedido con stock reservado, el bot intenta liberar esas unidades.
 
-## Seguridad
-No subas nunca tu archivo `.env` ni el token de Discord. Usa variables de entorno privadas en tu hosting y no publiques secretos en GitHub.
+### Comunidad y confianza
+- \`/resena publicar\`: permite valorar un pedido completado que pertenezca al autor; una reseña por pedido.
+- \`/resena ver\`: consulta reseñas verificadas.
+- \`/sugerencia enviar\`: publica una propuesta con botones para votar.
+- \`/sugerencia listar\`: muestra propuestas recientes.
+- \`/userinfo\`: muestra información pública de un miembro.
+- \`/help\` y \`!help\`: ayuda disponible.
 
-Consulta [UPDATE.md](UPDATE.md) para ver los cambios recientes.
+### Tickets y postulaciones
+- \`/ticket-panel\` publica el panel.
+- \`/ticket-edit\` administra la configuración.
+- Los tickets incluyen reclamación, bloqueo/desbloqueo, cierre y transcripción, con los emojis personalizados configurados en el entorno.
+- Las postulaciones incluyen preguntas configurables y un canal privado por solicitud.
+
+### AutoMod
+AutoMod puede bloquear invitaciones de Discord, exceso de menciones, mensajes repetidos y ráfagas de mensajes. Las variables \`AUTOMOD_*\` permiten ajustar su comportamiento. Es una capa básica, no sustituye las herramientas de AutoMod nativas de Discord ni la revisión del personal.
+
+## Ayuda y comprobaciones
+
+- \`npm run check\`: comprueba sintaxis de los archivos JavaScript principales.
+- \`npm test\`: ejecuta pruebas unitarias del servicio comercial.
+- \`npm run deploy\`: registra los comandos de la aplicación para \`GUILD_ID\`.
+- \`npm start\`: inicia el bot.
+
+Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: producto con stock 1, segundo intento de compra, cupón usado dos veces, cancelación de pedido y una reseña de pedido no completado.
