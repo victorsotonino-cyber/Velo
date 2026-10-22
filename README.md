@@ -29,6 +29,8 @@ El bot necesita el permiso **Gestionar roles**, y el rol del bot debe estar por 
 ## Tickets
 `/ticket-panel` crea el panel; `/ticket-edit` administra categorías y tickets.
 
+El panel usa cinco emojis personalizados configurados por ID en `config.js`. El sistema evita la apertura simultánea por doble clic y la repetición de una categoría ya abierta, incluye acceso de los roles Staff/Admin y genera transcripciones paginadas de hasta 2.000 mensajes al cerrar.
+
 ## Sorteos
 El sistema de giveaways permite crear sorteos con botones, cerrar o cancelar sorteos y volver a seleccionar ganadores. Las duraciones aceptadas incluyen `30m`, `2h`, `1d` y `1w`, hasta 90 días.
 
