@@ -185,6 +185,7 @@ async function helpCategory(i, client) {
       ["say", "Enviar mensaje como el bot"]
     ],
     administracion: [
+      ["tienda", "Administrar el catálogo de productos y precios"], ["ventas", "Ver y editar el contador de ventas"], ["legit", "Publicar el panel de verificación legit"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
@@ -206,7 +207,7 @@ async function helpCategory(i, client) {
       ["postulaciones-config", "Configurar preguntas"]
     ],
     diversion: [
-      ["giveaway", "Sorteos"], ["help", "Centro de comandos"]
+      ["giveaway", "Sorteos"], ["tienda", "Ver el catálogo"], ["ventas", "Contador de ventas"], ["help", "Centro de comandos"]
     ]
   };
   const titles = {
@@ -222,7 +223,8 @@ async function helpCategory(i, client) {
     const exists = client.commands.has(name);
     return (exists ? "🟢" : "🟠") + " **/" + name + "** — " + desc + (exists ? "" : " *(no está cargado en esta versión)*");
   });
-  const content = "**" + titles[i.values[0]] + "**\n" + lines.join("\n");
+  const content = "**" + titles[i.values[0]] + "**\n" + lines.join("\n")
+    + "\n\n**ᴄᴏᴍᴀɴᴅᴏs ᴅᴇ ᴛɪᴇɴᴅᴀ:** `!tienda catalogo` · `!tienda agregar Nombre | Precio | Descripción` · `!tienda editar Nombre | Precio | Descripción` · `!tienda eliminar Nombre` · `!ventas ver` · `!ventas sumar 1` · `!ventas establecer 8` · `!legit` · `+vouch @cliente Producto | Pago [precio]`;
   return i.reply({ content: content.slice(0, 1900), ephemeral: true });
 }
 
