@@ -111,7 +111,8 @@ client.on(Events.InteractionCreate, async interaction => {
   catch (e) {
     console.error("Error en /" + interaction.commandName + ":", e);
     const msg = { content: emoji(interaction.guild, "error", "❌") + " Error en /" + interaction.commandName + ". Revisa los permisos del bot y vuelve a intentarlo.", ephemeral: true };
-    if (interaction.replied || interaction.deferred) await interaction.followUp(msg).catch(() => {});
+    if (interaction.deferred) await interaction.editReply(msg).catch(() => {});
+    else if (interaction.replied) await interaction.followUp(msg).catch(() => {});
     else await interaction.reply(msg).catch(() => {});
   }
 });
