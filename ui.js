@@ -4,7 +4,7 @@
 const FALLBACKS = {
   brand: "🛍️", success: "✅", error: "❌", info: "ℹ️", ticket: "🎫",
   moderation: "🛡️", staff: "🛡️", fun: "🎮", warning: "⚠️", slow: "🐢",
-  emoji_138: "💬", emoji_139: "🚨", shopeepay: "🛍️", emoji_20: "🤝", flux_discord_staff_5163: "🤝", flux_stockpenguin_4079: "🛒",
+  emoji_138: "💬", emoji_139: "🚨", shopeepay: "🛍️", emoji_20: "🤝", flux_discord_staff_5163: "🤝", flux_stockpenguin_4079: "🛒", flux_pandahiyapolice_2219: "👮", flux_owner_4264: "👑",
   lock: "🔒", announcement: "📢", settings: "⚙️", users: "👥",
   channel: "📁", money: "💰", edit: "✏️", trash: "🗑️", add: "➕",
   remove: "➖", bot: "🤖", arrow: "➡️", minecraft: "⛏️", pvp: "⚔️",
@@ -37,6 +37,8 @@ const NAMES = {
   emoji_20: ["emoji_20", "emoji20"],
   flux_discord_staff_5163: ["flux_discord_staff_5163"],
   flux_stockpenguin_4079: ["flux_stockpenguin_4079"],
+  flux_pandahiyapolice_2219: ["flux_pandahiyapolice_2219"],
+  flux_owner_4264: ["flux_owner_4264"],
   moderation: ["staff", "moderator", "moderation", "admin", "team"],
   staff: ["staff", "staff_team", "team", "helper", "moderator", "admin"],
   fun: ["fun", "gaming", "game"],
@@ -199,7 +201,7 @@ function normalize(value) {
 function isLegacyEmoji(e) {
   const name = String(e?.name || "");
   const n = normalize(name);
-  if (["fluxdiscordstaff5163", "fluxstockpenguin4079", "emoji138", "emoji139"].includes(n)) return false;
+  if (["fluxdiscordstaff5163", "fluxstockpenguin4079", "emoji138", "emoji139", "fluxpandahiyapolice2219", "fluxowner4264"].includes(n)) return false;
   return LEGACY_NAME.test(name) || n.startsWith("velo") || n.startsWith("flux") ||
     ["gatito", "catkiss", "catkissa", "gatollorando", "reaccion", "dwayne", "hypea", "catjama"].includes(n);
 }
