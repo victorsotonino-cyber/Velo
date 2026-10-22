@@ -9,6 +9,7 @@ module.exports = {
     .addStringOption(o => o.setName("motivo").setDescription("Motivo").setRequired(false).setMaxLength(500))
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.BanMembers)) return i.reply({content:emoji(i.guild,"error","❌")+" Necesitas **Banear miembros** para retirar un baneo.",ephemeral:true});
     const id=i.options.getString("usuario").trim();
     if (!/^\d{17,20}$/.test(id)) return i.reply({content:emoji(i.guild,"error","❌")+" ID de usuario no válida.",ephemeral:true});
     const bans=await i.guild.bans.fetch().catch(()=>null);
