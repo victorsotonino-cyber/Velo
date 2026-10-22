@@ -5,6 +5,7 @@ const config = require("./config");
 const { emoji, emojiData } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveawayService = require("./giveaway-service");
+const storeService = require("./store-service");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en Railway.");
@@ -112,6 +113,31 @@ client.on(Events.MessageCreate, async message => {
     if (status) await message.reply(emoji(message.guild, "info", "💤") + " **" + user.tag + "** está AFK: " + status.message).catch(() => {});
   }
 
+  // Vouches de tienda: +vouch @cliente Producto | Pago y precio
+  if (/^\\+vouch(?:\\s|$)/i.test(message.content)) {
+    if (!storeService.isStoreStaff(message.member)) {
+      return message.reply("❌ Solo el equipo autorizado puede registrar ventas.").catch(() => {});
+    }
+    const buyer = message.mentions.members.first();
+    if (!buyer) return message.reply("Uso: +vouch @cliente Producto | Método de pago [precio]").catch(() => {});
+    const details = message.content.replace(/^\\+vouch\\s*/i, "").replace(/<@!?\\d+>/, "").trim();
+    if (!details) return message.reply("Indica el producto y el método de pago. Ejemplo: +vouch @cliente Nitro 1 mes | PayPal [7€]").catch(() => {});
+    const stats = await storeService.addVouch(message.guild, {
+      buyerId: buyer.id,
+      buyerTag: buyer.user.tag,
+      details,
+      registeredById: message.author.id,
+      registeredByTag: message.author.tag
+    });
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.success)
+      .setTitle("⚡ ᴠᴏᴜᴄʜ ʀᴇɢɪsᴛʀᴀᴅᴏ")
+      .setDescription("**Cliente:** " + buyer + "\\n**Compra:** " + details.slice(0, 900) + "\\n**Registrado por:** " + message.author)
+      .setFooter({ text: "Flux STORE • Venta #" + stats.sales })
+      .setTimestamp();
+    await message.channel.send({ embeds: [embed] });
+    return message.channel.send("⚡ Vouch registrado con éxito, **Flux STORE ahora tiene #" + stats.sales + " ventas**.");
+  }
   if (!message.content.startsWith(PREFIX)) return;
   const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
   const command = (args.shift() || "").toLowerCase();
@@ -136,7 +162,7 @@ client.on(Events.MessageCreate, async message => {
           .setDescription([
             "**Utilidad**",
             "`!help` `!comandos` `!ping` `!avatar [@usuario]` `!userinfo [@usuario]` `!roleinfo @rol` `!poll pregunta | opción 1 | opción 2`",
-            "`!serverinfo` `!afk [mensaje]` `!messagecount [@usuario]`",
+            "`!serverinfo` `!afk [mensaje]` `!messagecount [@usuario]` `!tienda catalogo` `!ventas ver`",
             "**Moderación**",
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
@@ -407,6 +433,7 @@ client.on(Events.MessageCreate, async message => {
         };
         const plans = [
           { name: "📌・INICIO", channels: [["👋・bienvenida"], ["📢・anuncios", {readOnly:true}], ["📜・normas", {readOnly:true}], ["🧾・terminos", {readOnly:true}]] },
+          { name: "📊・ESTADÍSTICAS", channels: [["🛒・ventas: 8", {voice:true, counter:"sales"}], ["✅・legit: 12", {voice:true, counter:"legit"}], ["👥・miembros: 0", {voice:true, counter:"members"}], ["🤖・bots: 0", {voice:true, counter:"bots"}]] },
           { name: "🛍️・FLUX STORE", channels: [["🛒・catalogo"], ["💳・metodos-de-pago", {readOnly:true}], ["🆕・novedades", {readOnly:true}], ["❓・preguntas-frecuentes", {readOnly:true}]] },
           { name: "💬・COMUNIDAD", channels: [["💭・chat"], ["🤖・comandos"], ["📸・media"], ["🔊・general-voice", {voice:true}]] },
           { name: "🌟・REPUTACIÓN", channels: [["💬・vouches"], ["⭐・reviews"], ["✅・legit-check"]] },
@@ -419,8 +446,21 @@ client.on(Events.MessageCreate, async message => {
           const cat = await makeCategory(plan.name, Boolean(plan.staffOnly));
           for (const [name, opts = {}] of plan.channels) {
             if (opts.voice) {
-              let ch = message.guild.channels.cache.find(c => c.type === ChannelType.GuildVoice && c.name === name && c.parentId === cat.id);
-              if (!ch) { await message.guild.channels.create({ name, type: ChannelType.GuildVoice, parent: cat.id }); created++; }
+              const counterStats = storeService.getStats();
+              const counterNames = { sales: "🛒・ventas: " + counterStats.sales, legit: "✅・legit: " + counterStats.legit, members: "👥・miembros: " + message.guild.memberCount, bots: "🤖・bots: " + message.guild.members.cache.filter(m => m.user.bot).size };
+              const voiceName = opts.counter ? counterNames[opts.counter] : name;
+              let ch = message.guild.channels.cache.find(c => c.type === ChannelType.GuildVoice && (opts.counter ? c.topic === "flux-counter:" + opts.counter : c.name === name) && c.parentId === cat.id);
+              if (!ch) {
+                ch = await message.guild.channels.create({
+                  name: voiceName, type: ChannelType.GuildVoice, parent: cat.id,
+                  ...(opts.counter ? { topic: "flux-counter:" + opts.counter } : {}),
+                  permissionOverwrites: [{ id: everyone.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.Connect] }]
+                });
+                created++;
+              } else {
+                if (ch.name !== voiceName) await ch.setName(voiceName).catch(() => {});
+                if (opts.counter && ch.topic !== "flux-counter:" + opts.counter) await ch.setTopic("flux-counter:" + opts.counter).catch(() => {});
+              }
             } else {
               const before = message.guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name && c.parentId === cat.id);
               await makeText(cat, name, { ...opts, staffOnly: Boolean(plan.staffOnly || opts.staffOnly) });
@@ -428,7 +468,76 @@ client.on(Events.MessageCreate, async message => {
             }
           }
         }
+        await storeService.refreshCounters(message.guild);
         return ok("Plantilla Flux STORE lista. Canales nuevos: **" + created + "**. La zona staff queda oculta para @everyone. " + (staffRoles.length ? "Permisos aplicados a los roles de staff/admin configurados." : "⚠️ No encontré los roles de staff/admin configurados: revisa STAFF_ROLE_ID y ADMIN_ROLE_ID en config.js."));
+      }
+      case "tienda": {
+        const rawArgs = message.content.slice(PREFIX.length + command.length).trim();
+        const action = (args.shift() || "catalogo").toLowerCase();
+        const parts = rawArgs.slice(action === "catalogo" ? rawArgs.length : action.length).trim().split("|").map(s => s.trim());
+        const products = storeService.getProducts();
+        if (action === "catalogo" || action === "lista") {
+          const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🛍️ ᴄᴀᴛáʟᴏɢᴏ ᴅᴇ ғʟᴜx sᴛᴏʀᴇ")
+            .setDescription(products.length ? products.slice(0, 25).map(p => "✦ **" + p.name + "** — **" + p.price + "**\\n" + (p.description || "Consulta por ticket para más información.")).join("\\n\\n") : "El catálogo está vacío.")
+            .setFooter({ text: "Flux STORE • Catálogo editable" });
+          return message.reply({ embeds: [embed] });
+        }
+        if (!storeService.isStoreStaff(message.member)) return fail("Solo el equipo autorizado puede modificar el catálogo.");
+        if (action === "agregar") {
+          if (parts.length < 2 || !parts[0] || !parts[1]) return fail("Uso: !tienda agregar Nombre | Precio | Descripción");
+          if (products.some(p => p.name.toLowerCase() === parts[0].toLowerCase())) return fail("Ese producto ya existe; usa !tienda editar.");
+          products.push({ name: parts[0].slice(0,80), price: parts[1].slice(0,40), description: (parts[2] || "").slice(0,500), updatedAt: new Date().toISOString() });
+          storeService.saveProducts(products);
+          return ok("Producto añadido al catálogo: " + parts[0] + ".");
+        }
+        if (action === "editar") {
+          if (!parts[0] || (!parts[1] && parts.length < 3)) return fail("Uso: !tienda editar Nombre actual | Nuevo precio | Nueva descripción");
+          const p = products.find(x => x.name.toLowerCase() === parts[0].toLowerCase());
+          if (!p) return fail("No encontré ese producto.");
+          if (parts[1]) p.price = parts[1].slice(0,40);
+          if (parts.length >= 3) p.description = (parts[2] || "").slice(0,500);
+          p.updatedAt = new Date().toISOString(); storeService.saveProducts(products);
+          return ok("Producto actualizado: " + p.name + ".");
+        }
+        if (action === "eliminar") {
+          const name = rawArgs.slice(action.length).trim();
+          const index = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+          if (index < 0) return fail("No encontré ese producto. Uso: !tienda eliminar Nombre");
+          const [removed] = products.splice(index, 1); storeService.saveProducts(products);
+          return ok("Producto eliminado: " + removed.name + ".");
+        }
+        return fail("Usa !tienda catalogo, !tienda agregar Nombre | Precio | Descripción, !tienda editar Nombre | Precio | Descripción o !tienda eliminar Nombre.");
+      }
+      case "ventas": {
+        const action = (args[0] || "ver").toLowerCase();
+        if (action === "ver") {
+          const stats = storeService.getStats();
+          return ok("Flux STORE tiene **" + stats.sales + " ventas** y **" + stats.legit + " verificaciones legit**.");
+        }
+        if (!storeService.isStoreStaff(message.member)) return fail("Solo el equipo autorizado puede cambiar el contador.");
+        let stats;
+        if (action === "sumar") {
+          const amount = args[1] == null ? 1 : Number(args[1]);
+          if (!Number.isInteger(amount) || amount < 1 || amount > 10000) return fail("Uso: !ventas sumar [cantidad positiva]");
+          stats = storeService.addSales(amount);
+        } else if (action === "establecer") {
+          const amount = Number(args[1]);
+          if (!Number.isInteger(amount) || amount < 0 || amount > 100000000) return fail("Uso: !ventas establecer [total]");
+          stats = storeService.setSales(amount);
+        } else return fail("Usa !ventas ver, !ventas sumar [cantidad] o !ventas establecer [total].");
+        await storeService.refreshCounters(message.guild);
+        return ok("Contador actualizado: " + stats.sales + " ventas.");
+      }
+      case "legit": {
+        const stats = storeService.getStats();
+        const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("✦ ᴇs ғʟᴜx sᴛᴏʀᴇ ʟᴇɢɪᴛ? ✦")
+          .setDescription("Si tu experiencia con la tienda fue positiva, confirma abajo. Cada persona cuenta una sola vez.\\n\\n✅ **ᴘᴇʀsᴏɴᴀs ǫᴜᴇ ᴠᴇʀɪғɪᴄᴀʀᴏɴ ǫᴜᴇ sᴏᴍᴏs ʟᴇɢɪᴛ:** **" + stats.legit + "**")
+          .setFooter({ text: "Flux STORE • Puedes actualizar tu respuesta" }).setTimestamp();
+        const row = new ActionRowBuilder().addComponents(
+          new (require("discord.js").ButtonBuilder)().setCustomId("flux_legit_yes").setLabel("Sí").setEmoji("✅").setStyle(require("discord.js").ButtonStyle.Success),
+          new (require("discord.js").ButtonBuilder)().setCustomId("flux_legit_no").setLabel("No").setEmoji("❌").setStyle(require("discord.js").ButtonStyle.Danger)
+        );
+        return message.channel.send({ embeds: [embed], components: [row] });
       }
       case "setup-sorteos": {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
@@ -497,7 +606,14 @@ client.on(Events.MessageCreate, async message => {
 
 client.on(Events.GuildMemberAdd, async member => {
   const ch = member.guild.channels.cache.get(config.channels.welcome);
-  if (ch?.isTextBased()) await ch.send(emoji(member.guild, "success", "👋") + " ¡Bienvenido/a " + member + " a **Flux Store**!").catch(() => {});
+  if (ch?.isTextBased()) {
+    const embed = new EmbedBuilder().setColor(config.colors.primary)
+      .setTitle("✦ ʙɪᴇɴᴠᴇɴɪᴅᴏ ᴀ ғʟᴜx sᴛᴏʀᴇ ✦")
+      .setDescription("¡Qué bueno tenerte por aquí, " + member + "!\\n\\nExplora los canales, revisa las normas y abre un ticket si necesitas ayuda.\\n\\n✧ **ᴍɪᴇᴍʙʀᴏ ɴᴜᴍᴇʀᴏ:** " + member.guild.memberCount)
+      .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+      .setFooter({ text: "Flux STORE • Gracias por unirte a la comunidad" }).setTimestamp();
+    await ch.send({ embeds: [embed] }).catch(() => {});
+  }
 });
 
 client.on(Events.GuildMemberRemove, async member => {
