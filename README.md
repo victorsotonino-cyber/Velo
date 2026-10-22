@@ -42,6 +42,7 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 ### Panel editable y moderación de tickets
 - `m!ticket setup`: abre el panel de configuración actual.
 - En **Avanzado → Editor visual del panel** puedes guardar título, descripción, color hexadecimal y pie del panel para las próximas publicaciones.
+- En **Avanzado → Editor de categorías** puedes editar la etiqueta, descripción y emoji de cada tipo de ticket, por servidor.
 - En **Avanzado → Moderación de tickets** puedes configurar el máximo de tickets abiertos por usuario, autocierre y horas de inactividad, y recordatorios al staff.
 - `m!ticket blacklist @usuario razón`: impide que un usuario abra tickets en ese servidor.
 - `m!ticket unblacklist @usuario`: elimina el bloqueo.
