@@ -33,6 +33,10 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - \`/tienda editar\`: actualiza precio o descripción.
 - \`/tienda stock\`: configura unidades disponibles; \`0\` marca agotado.
 - \`/tienda disponibilidad\`: pausa o activa un producto.
+- `/tienda cupon-crear`: crea un descuento porcentual limitado al servidor actual y, opcionalmente, al número de usos.
+- `/tienda cupones`: lista los cupones y sus usos (solo personal autorizado).
+- `/tienda cupon-eliminar`: elimina un cupón.
+- `/carrito confirmar` acepta la opción opcional `cupon`; el bot recalcula el total desde el catálogo y comprueba el límite de usos antes de aplicar el descuento.
 - \`/carrito agregar\`, \`/carrito ver\`, \`/carrito quitar\`, \`/carrito vaciar\`.
 - \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
 
@@ -79,3 +83,9 @@ Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: 
 - El módulo `ticket-tool-x-automation.js` añade aviso de inactividad con botón para cancelar, cierre por inactividad configurable y transcript HTML con entrega a logs/DM según `ticket-config.json`.
 - Para activar el autocierre, configura en `ticket-config.json` el objeto de tu servidor (`guildId`) con `autoCloseEnabled: true`, `autoCloseHours: 24`, `transcriptMode: "channel"` (o `"dm"` / `"both"`) y `logChannelId` o `transcriptChannelId`. Los datos del ticket deben conservar el formato de tema `VeloTicket:<userId>:<tipo>:<staffId opcional>`.
 - Este módulo es una implementación propia basada en patrones habituales de bots de tickets. El repositorio [MinusTech/Ticket-Tool-X-](https://github.com/MinusTech/Ticket-Tool-X-) se usa como referencia de funcionalidades (transcripts, aviso/cancelación y autocierre); no se copia su archivo fuente íntegro.
+
+
+### Cupones de descuento
+- Ejemplo: `/tienda cupon-crear codigo:FLUX10 porcentaje:10 usos-maximos:50` crea un descuento del 10 % con hasta 50 usos.
+- Ejemplo: `/carrito confirmar metodo:PayPal cupon:FLUX10` aplica el descuento válido al pedido.
+- Los códigos se guardan en `flux-store-coupons.json`, separados por servidor, con uso contabilizado al crear el pedido. No se procesa ni verifica el pago automáticamente; el equipo debe comprobarlo.
