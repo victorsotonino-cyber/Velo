@@ -1,6 +1,4 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const config = require("./config");
-
 const updates = [
   "**👋 Bienvenida renovada** — mensaje visual de FLUX STORE con enlaces directos a términos, métodos y tickets.",
   "**🎭 Autorol automático** — los nuevos miembros reciben el rol configurado al entrar.",
