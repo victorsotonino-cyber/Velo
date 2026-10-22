@@ -245,23 +245,31 @@ function effectiveCategories(guildId) {
     const override = overrides[key] || {};
     const merged = { ...item, ...override };
     if (override.emojiInput) {
-      const match = override.emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
+      const input = String(override.emojiInput).trim();
+      const match = input.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
+      merged.emojiUnicode = null;
       if (match) {
         merged.emojiName = match[1];
         merged.emojiId = match[2];
-      } else if (/^\d{17,20}$/.test(override.emojiInput)) {
-        merged.emojiId = override.emojiInput;
+      } else if (/^\d{17,20}$/.test(input)) {
+        merged.emojiId = input;
+      } else if (/\p{Extended_Pictographic}/u.test(input)) {
+        merged.emojiId = null;
+        merged.emojiUnicode = input;
+        merged.emojiName = null;
       } else {
-        merged.emojiName = override.emojiInput.replace(/^:/, "").replace(/:$/, "");
+        // A name alone is not enough for a Discord custom emoji unless its ID is also supplied.
+        merged.emojiId = null;
+        merged.emojiName = input.replace(/^:/, "").replace(/:$/, "");
       }
     }
     return [key, merged];
   });
 }
 
-function advancedDetailComponents(key) {
+function advancedDetailComponents(key, guildId) {
   if (key === "category_editor") {
-    const categories = Object.entries(config.ticket.categories || {}).slice(0, 25);
+    const categories = effectiveCategories(guildId).slice(0, 25);
     const select = new StringSelectMenuBuilder().setCustomId("flux_ticket_config:category_edit_select")
       .setPlaceholder("Selecciona la categoría que quieres editar")
       .addOptions(categories.map(([value, item]) => ({
@@ -455,7 +463,7 @@ module.exports = function registerTicketConfigurator(client) {
         const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("⚙️ " + (ADVANCED_OPTIONS.find(x => x.value === key)?.label || "Configuración"))
           .setDescription(advancedDescription(key, saved, guild));
-        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key), ...advancedComponents()] });
+        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key, guild.id), ...advancedComponents()] });
         return;
       }
       if (action === "transcript_mode") {
@@ -504,21 +512,48 @@ module.exports = function registerTicketConfigurator(client) {
           return;
         }
         const categories = effectiveCategories(guild.id);
-        const menu = new StringSelectMenuBuilder().setCustomId("ticket_create")
-          .setPlaceholder("Selecciona una categoría de atención")
-          .setMinValues(1).setMaxValues(1)
-          .addOptions(categories.slice(0, 25).map(([value, item]) => ({
+        const categoryOptions = categories.slice(0, 25).map(([value, item]) => {
+          const option = {
             label: String(item.label || value).slice(0, 100),
             value,
-            description: String(item.description || "Abre un ticket privado").slice(0, 100)
-          })));
-        const panel = new EmbedBuilder().setColor(/^#[0-9A-Fa-f]{6}$/.test(saved.panelColor || "") ? parseInt(saved.panelColor.slice(1), 16) : (config.colors.primary || 0x8B5CF6))
-          .setTitle(String(saved.panelTitle || "✦ FLUX STORE • Centro de atención").slice(0, 256))
-          .setDescription(String(saved.panelDescription || "Selecciona el tipo de solicitud para abrir un ticket privado.").slice(0, 2500) + "\n\n" +
-            categories.map(([key, item]) => "🎫 **" + item.label + "**\n" + item.description).join("\n\n") +
-            "\n\nNo compartas contraseñas ni datos sensibles.")
+            description: String(item.description || "Abre una solicitud privada").slice(0, 100)
+          };
+          if (item.emojiId && /^\d{17,20}$/.test(String(item.emojiId))) {
+            option.emoji = {
+              id: String(item.emojiId),
+              name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32)
+            };
+          } else if (item.emojiUnicode) {
+            option.emoji = { name: String(item.emojiUnicode).slice(0, 32) };
+          }
+          return option;
+        });
+        const menu = new StringSelectMenuBuilder().setCustomId("ticket_create")
+          .setPlaceholder("Selecciona el motivo de tu solicitud")
+          .setMinValues(1).setMaxValues(1)
+          .addOptions(categoryOptions);
+
+        const panelDescription = [
+          String(saved.panelDescription || "Te damos la bienvenida al centro oficial de atención de FLUX STORE. Selecciona una categoría para iniciar una solicitud privada.").trim().slice(0, 1400),
+          "",
+          "**CÓMO FUNCIONA**",
+          "01 · Selecciona el tipo de solicitud en el menú inferior.",
+          "02 · Se creará un canal privado para atender tu caso.",
+          "03 · El equipo de FLUX STORE continuará la atención dentro del ticket.",
+          "",
+          "**PRIVACIDAD Y SEGURIDAD**",
+          "No compartas contraseñas, tokens ni información sensible."
+        ].join("\n");
+        const panel = new EmbedBuilder()
+          .setColor(/^#[0-9A-Fa-f]{6}$/.test(saved.panelColor || "") ? parseInt(saved.panelColor.slice(1), 16) : (config.colors.primary || 0x8B5CF6))
+          .setTitle(String(saved.panelTitle || "FLUX STORE • Centro de atención").slice(0, 256))
+          .setDescription(panelDescription.slice(0, 4096))
           .setFooter({ text: String(saved.panelFooter || "FLUX STORE • Soporte privado").slice(0, 2048) })
           .setTimestamp();
+        const panelIcon = guild.iconURL({ size: 128 });
+        panel.setAuthor(panelIcon
+          ? { name: "FLUX STORE  /  CENTRO DE SOPORTE", iconURL: panelIcon }
+          : { name: "FLUX STORE  /  CENTRO DE SOPORTE" });
         const sent = await channel.send({ embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] });
         await interaction.reply({ content: "✅ Panel enviado a " + channel.toString() + ". Mensaje: " + sent.url, ephemeral: true });
         return;
