@@ -230,8 +230,9 @@ function categoryEditorModal(saved, categoryKey) {
   const override = (saved.categoryOverrides || {})[categoryKey] || {};
   const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle("Editar categoría: " + categoryKey.slice(0, 35));
   modal.addComponents(
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre visible").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(override.label || defaults.label || categoryKey).slice(0, 100))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(override.description || defaults.description || "Abre un ticket privado").slice(0, 1000))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre de la categoría en el panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(override.label || defaults.label || categoryKey).slice(0, 100))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_title").setLabel("Título del embed dentro del ticket").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(override.ticketTitle || defaults.ticketTitle || "{emoji} {name} • FLUX STORE").slice(0, 256))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción de esta categoría").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(override.description || defaults.description || "Abre un ticket privado").slice(0, 1000))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji Unicode, nombre del servidor, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100)))
   );
   return modal;
@@ -292,7 +293,7 @@ function advancedDetailComponents(key, guildId, guild = null) {
     if (categories.length) {
       const categorySelect = new StringSelectMenuBuilder()
         .setCustomId("flux_ticket_config:category_edit_select")
-        .setPlaceholder("Editar nombre, descripción o emoji de un ticket")
+        .setPlaceholder("Editar nombre, título, descripción o emoji de un ticket")
         .addOptions(categories.map(([value, item]) => ({
           label: String(item.label || value).slice(0, 100),
           value,
@@ -432,6 +433,7 @@ module.exports = function registerTicketConfigurator(client) {
         const categoryKey = interaction.customId.split(":")[2];
         if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
         const label = interaction.fields.getTextInputValue("category_label").trim();
+        const ticketTitle = interaction.fields.getTextInputValue("category_title").trim();
         const description = interaction.fields.getTextInputValue("category_description").trim();
         const emojiInput = interaction.fields.getTextInputValue("category_emoji").trim();
         if (emojiInput) {
@@ -449,15 +451,15 @@ module.exports = function registerTicketConfigurator(client) {
             return;
           }
         }
-        if (!label || !description) {
+        if (!label || !ticketTitle || !description) {
           await interaction.reply({ content: "El nombre y la descripción son obligatorios.", ephemeral: true });
           return;
         }
         updateGuild(guild.id, saved => {
           saved.categoryOverrides = saved.categoryOverrides || {};
-          saved.categoryOverrides[categoryKey] = { label, description, emojiInput };
+          saved.categoryOverrides[categoryKey] = { label, ticketTitle, description, emojiInput };
         });
-        await interaction.reply({ content: "✅ Categoría **" + label + "** guardada. Publica de nuevo el panel para actualizar sus opciones.", ephemeral: true });
+        await interaction.reply({ content: "✅ Categoría **" + label + "** guardada. El título se aplicará al embed del ticket y el nombre, descripción y emoji al panel. Publica de nuevo el panel para ver los cambios visuales.", ephemeral: true });
         return;
       }
       if (action === "edit_panel") {
