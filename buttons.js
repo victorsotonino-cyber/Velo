@@ -87,7 +87,7 @@ async function createTicket(i) {
   const ticketIcon = emoji(i.guild, category.emojiKey || (type === "comprar" ? "velo_buy" : type === "soporte" ? "velo_support" : "velo_ticket"), type === "comprar" ? "🛍️" : "🎫");
   const embed = new EmbedBuilder().setColor(config.colors.primary)
     .setTitle(ticketIcon + " " + category.label + " • Flux STORE")
-    .setDescription("Hola " + i.user + ", tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** " + i.user + "\n\nUn miembro del Staff te atenderá pronto.")
+    .setDescription("Hola <@" + i.user.id + ">, tu ticket está abierto.\n\n**Categoría:** " + category.label + "\n**Creador:** <@" + i.user.id + ">\n\nUn miembro del Staff te atenderá pronto.")
     .setFooter({ text: "Flux STORE • Ticket " + type }).setTimestamp();
   await ch.send({ content: i.user + (staff ? " <@&" + staff.id + ">" : ""), embeds: [embed], components: [buttons] });
   return i.editReply(emoji(i.guild, "success", "✅") + " Ticket creado: " + ch);
