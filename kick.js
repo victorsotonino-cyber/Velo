@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require("discord.js");
 const config = require("./config");
 const { emoji } = require("./ui");
+const { canModerateTarget } = require("./utils/permissions");
 
 module.exports = {
   data: new SlashCommandBuilder().setName("kick").setDescription("Expulsa a un usuario.")
@@ -11,7 +12,11 @@ module.exports = {
     const target = await i.guild.members.fetch(i.options.getUser("usuario").id).catch(() => null);
     const reason = i.options.getString("motivo") || "Sin motivo";
     if (!target) return i.reply({ content: emoji(i.guild, "error", "❌") + " Ese usuario no está en el servidor.", ephemeral: true });
-    if (!target.kickable) return i.reply({ content: emoji(i.guild, "error", "❌") + " No puedo expulsar a ese usuario. Revisa la jerarquía de roles/permisos.", ephemeral: true });
+    const actor = await i.guild.members.fetch(i.user.id).catch(() => i.member);
+    if (!canModerateTarget(actor, target, i.guild.ownerId)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " No puedes expulsar al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.", ephemeral: true });
+    }
+    if (!target.kickable) return i.reply({ content: emoji(i.guild, "error", "❌") + " El bot no puede expulsar a ese usuario. Comprueba la jerarquía de roles del bot.", ephemeral: true });
     await target.kick(reason);
     const embed = new EmbedBuilder()
       .setColor(config.colors.warning)
