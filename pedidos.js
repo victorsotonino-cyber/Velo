@@ -1,4 +1,3 @@
-const { randomUUID } = require("crypto");
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const config = require("./config");
 const store = require("./store-service");
