@@ -6,6 +6,7 @@ const { emoji, emojiData } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
+const automodService = require("./services/automod-service");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en Railway.");
@@ -13,6 +14,18 @@ if (!config.token) {
 }
 
 const PREFIX = process.env.BOT_PREFIX || "!";
+
+function welcomeLinksDescription() {
+  const links = [
+    ["TERMINOS", config.channels.terms],
+    ["METODOS", config.channels.paymentMethods],
+    ["TICKETS", config.channels.ticketInfo]
+  ];
+  const lines = links
+    .filter(([, id]) => /^\d{17,20}$/.test(String(id || "")))
+    .map(([label, id]) => "• • <#" + id + "> **" + label + "**");
+  return lines.length ? lines.join("\n") : "Configura TERMS_CHANNEL_ID, PAYMENT_METHODS_CHANNEL_ID y TICKETS_INFO_CHANNEL_ID en el entorno del bot.";
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -30,21 +43,39 @@ const messageCounts = new Map();
 client.afkUsers = afkUsers;
 client.messageCounts = messageCounts;
 
-for (const file of fs.readdirSync(__dirname).filter(f =>
-  f.endsWith(".js") && !["index.js","config.js","deploy-commands.js","buttons.js"].includes(f)
-)) {
+function discoverCommandFiles() {
+  const ignored = new Set(["index.js", "config.js", "deploy-commands.js", "buttons.js"]);
+  const rootFiles = fs.readdirSync(__dirname)
+    .filter(file => file.endsWith(".js") && !ignored.has(file))
+    .map(file => path.join(__dirname, file));
+  const nestedFiles = [];
+  const commandsRoot = path.join(__dirname, "commands");
+
+  function walk(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) walk(fullPath);
+      else if (entry.isFile() && entry.name.endsWith(".js")) nestedFiles.push(fullPath);
+    }
+  }
+
+  if (fs.existsSync(commandsRoot)) walk(commandsRoot);
+  return [...rootFiles, ...nestedFiles];
+}
+
+for (const filePath of discoverCommandFiles()) {
   try {
-    const command = require(path.join(__dirname, file));
+    const command = require(filePath);
     if (command.data && command.execute) {
       const name = command.data.name;
       if (client.commands.has(name)) {
-        console.error("Comando duplicado ignorado:", name, "en", file, "(ya existe uno registrado)");
+        console.error("Comando duplicado ignorado:", name, "en", path.relative(__dirname, filePath), "(ya existe uno registrado)");
         continue;
       }
       client.commands.set(name, command);
     }
   } catch (e) {
-    console.error("Error cargando " + file + ":", e);
+    console.error("Error cargando " + path.relative(__dirname, filePath) + ":", e);
   }
 }
 
@@ -75,6 +106,16 @@ client.once(Events.ClientReady, async c => {
 
 // Comandos slash.
 client.on(Events.InteractionCreate, async interaction => {
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    try {
+      if (typeof command?.autocomplete === "function") return await command.autocomplete(interaction, client);
+      return await interaction.respond([]);
+    } catch (error) {
+      console.error("Error en autocompletado de /" + interaction.commandName + ":", error);
+      return interaction.respond([]).catch(() => {});
+    }
+  }
   if (!interaction.isChatInputCommand()) return;
   const command = client.commands.get(interaction.commandName);
   if (!command) {
@@ -95,6 +136,7 @@ client.on(Events.InteractionCreate, async interaction => {
 // Comandos con prefijo ! — se ejecutan como acciones reales, no como alias vacíos.
 client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
+  if (await automodService.handle(message, PREFIX)) return;
 
   const guildKey = message.guild.id;
   const userKey = message.author.id;
@@ -161,11 +203,7 @@ client.on(Events.MessageCreate, async message => {
           .setColor(0xFFFFFF)
           .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
           .setTitle("Welcome to FLUX STORE")
-          .setDescription(
-            "• • <#1562615455624077383> **TERMINOS**\\n" +
-            "• • <#1562615459256471642> **METODOS**\\n" +
-            "• • <#1562615495704838174> **TICKETS**"
-          )
+          .setDescription(welcomeLinksDescription())
           .setThumbnail(message.author.displayAvatarURL({ size: 256 }))
           .setFooter({ text: "#" + message.guild.memberCount });
         return message.channel.send({
@@ -638,7 +676,7 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  // Autorol de FLUX STORE: el ID se configura en config.js / MEMBER_ROLE_ID.
+  // Autorol de FLUX STORE: configura MEMBER_ROLE_ID en el entorno del bot.
   if (config.roles.member) {
     try {
       await member.roles.add(config.roles.member, "Autorol automático de FLUX STORE");
@@ -647,17 +685,13 @@ client.on(Events.GuildMemberAdd, async member => {
       console.error("No se pudo asignar el autorol a " + member.user.tag + ":", error?.message || error);
     }
   }
-  const ch = member.guild.channels.cache.get(config.channels.welcome || "1562615450834178179");
+  const ch = member.guild.channels.cache.get(config.channels.welcome);
   if (ch?.isTextBased()) {
     const embed = new EmbedBuilder()
       .setColor(0xFFFFFF)
       .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
       .setTitle("Welcome to FLUX STORE")
-      .setDescription(
-        "• • <#1562615455624077383> **TERMINOS**\n" +
-        "• • <#1562615459256471642> **METODOS**\n" +
-        "• • <#1562615495704838174> **TICKETS**"
-      )
+      .setDescription(welcomeLinksDescription())
       .setThumbnail(member.displayAvatarURL({ size: 256 }))
       .setFooter({ text: "#" + member.guild.memberCount });
 
