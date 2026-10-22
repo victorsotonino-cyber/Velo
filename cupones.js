@@ -1,6 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const config = require("./config");
 const { readJSON, writeJSON } = require("./storage");
+const { canManageStore } = require("./utils/permissions");
 
 const FILE = "flux-store-coupons.json";
 
@@ -10,15 +11,7 @@ function readCoupons() {
 }
 
 function isStaff(interaction) {
-  const member = interaction.member;
-  if (!member) return false;
-  if (member.permissions?.has(PermissionFlagsBits.Administrator) ||
-      member.permissions?.has(PermissionFlagsBits.ManageGuild)) return true;
-  const roles = member.roles?.cache;
-  return Boolean(roles && (
-    (config.roles?.admin && roles.has(config.roles.admin)) ||
-    (config.roles?.staff && roles.has(config.roles.staff))
-  ));
+  return canManageStore(interaction.member, config);
 }
 
 function normalizeCode(value) {
