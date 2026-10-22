@@ -62,10 +62,6 @@ module.exports = {
             );
         })
         .addStringOption(function (o) {
-          return o.setName("cupon").setDescription("Código de descuento, si tienes uno")
-            .setMinLength(3).setMaxLength(24).setRequired(false);
-        })
-        .addStringOption(function (o) {
           return o.setName("detalles").setDescription("Información adicional del pedido")
             .setMaxLength(500).setRequired(false);
         });
@@ -116,7 +112,6 @@ module.exports = {
         userId: i.user.id,
         userTag: i.user.tag,
         paymentMethod: i.options.getString("metodo"),
-        couponCode: i.options.getString("cupon"),
         details: i.options.getString("detalles")
       });
 
@@ -127,11 +122,9 @@ module.exports = {
           "**Pedido:** #" + order.id +
           "\n**Productos:** " + order.product +
           "\n**Subtotal:** " + commerce.money(order.subtotalCents, order.currency) +
-          "\n**Descuento:** " + commerce.money(order.discountCents, order.currency) +
           "\n**Total:** **" + order.price + "**" +
           "\n**Método elegido:** " + order.paymentMethod +
-          "\n**Estado:** 🟡 Pendiente" +
-          (order.couponCode ? "\n**Cupón aplicado:** " + order.couponCode : "")
+          "\n**Estado:** 🟡 Pendiente"
         )
         .setFooter({ text: "FLUX STORE • El pago debe ser verificado por el equipo." })
         .setTimestamp();
