@@ -680,7 +680,7 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  // Autorol de FLUX STORE: el ID se configura en config.js / MEMBER_ROLE_ID.
+  // Autorol de FLUX STORE: el ID se configura de forma privada mediante MEMBER_ROLE_ID en .env.
   if (config.roles.member) {
     try {
       await member.roles.add(config.roles.member, "Autorol automático de FLUX STORE");
@@ -689,7 +689,7 @@ client.on(Events.GuildMemberAdd, async member => {
       console.error("No se pudo asignar el autorol a " + member.user.tag + ":", error?.message || error);
     }
   }
-  const ch = member.guild.channels.cache.get(config.channels.welcome || "1562615450834178179");
+  const ch = config.channels.welcome ? member.guild.channels.cache.get(config.channels.welcome) : null;
   if (ch?.isTextBased()) {
     const embed = new EmbedBuilder()
       .setColor(0xFFFFFF)
