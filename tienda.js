@@ -55,7 +55,7 @@ module.exports = {
         const category = safeText(product.category, 40) || "General";
         return "✦ **" + name + "** — **" + displayPrice + "**\n" +
           "Categoría: " + category + " · " + stockLabel(product) + "\n" +
-          safeText(product.description, 180 || 180).replace(/@everyone|@here/g, "@\u200b$&");
+          safeText(product.description, 180).replace(/@everyone|@here/g, value => "@" + "\u200b" + value.slice(1));
       });
       const description = lines.join("\n\n").slice(0, 4000);
       const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("🛍️ Catálogo de FLUX STORE")
