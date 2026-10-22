@@ -35,7 +35,7 @@ module.exports = {
           || i.guild.emojis.cache.find(e => e.name === c.emojiName)
           || i.guild.emojis.cache.find(e => e.name.toLowerCase() === ("Velo_" + value).toLowerCase());
         if (custom) option.emoji = { id: custom.id, name: custom.name, animated: custom.animated };
-        else option.emoji = emojiData(i.guild, value === "soporte" ? "velo_support" : value === "comprar" ? "velo_buy" : value === "reclamos" ? "velo_reclaim" : "velo_other", "🎫");
+        else option.emoji = emojiData(i.guild, c.emojiKey || (value === "soporte" ? "velo_support" : value === "comprar" ? "velo_buy" : value === "reclamos" ? "velo_reclaim" : "velo_other"), "🎫");
         return option;
       }));
 
@@ -43,7 +43,7 @@ module.exports = {
       const custom = (c.emojiId && i.guild.emojis.cache.get(c.emojiId))
         || i.guild.emojis.cache.find(e => e.name === c.emojiName)
         || i.guild.emojis.cache.find(e => e.name.toLowerCase() === ("Velo_" + value).toLowerCase());
-      const fallbackKey = value === "soporte" ? "velo_support" : value === "comprar" ? "velo_buy" : value === "reclamos" ? "velo_reclaim" : "velo_other";
+      const fallbackKey = c.emojiKey || (value === "soporte" ? "velo_support" : value === "comprar" ? "velo_buy" : value === "reclamos" ? "velo_reclaim" : "velo_other");
       const icon = custom ? custom.toString() : emoji(i.guild, fallbackKey, "🎫");
       return icon + " **" + String(c.label || value) + "** — " + String(c.description || "Abre un ticket con el equipo.");
     }).join("\n");
