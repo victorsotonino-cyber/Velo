@@ -158,6 +158,26 @@ function advancedDetailComponents(key) {
       );
     return [new ActionRowBuilder().addComponents(select)];
   }
+  if (key === "clients") {
+    return [new ActionRowBuilder().addComponents(
+      new RoleSelectMenuBuilder().setCustomId("flux_ticket_config:client_role").setPlaceholder("Selecciona el rol de cliente").setMinValues(1).setMaxValues(1)
+    )];
+  }
+  if (key === "reviews") {
+    return [new ActionRowBuilder().addComponents(
+      new ChannelSelectMenuBuilder().setCustomId("flux_ticket_config:reviews_channel").setPlaceholder("Selecciona el canal de opiniones").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)
+    )];
+  }
+  if (key === "names") {
+    const select = new StringSelectMenuBuilder().setCustomId("flux_ticket_config:name_template")
+      .setPlaceholder("Elige una plantilla de nombre")
+      .addOptions(
+        { label: "ticket-{type}-{username}", value: "ticket-{type}-{username}", description: "Ejemplo: ticket-compras-usuario" },
+        { label: "{type}-{username}", value: "{type}-{username}", description: "Ejemplo: compras-usuario" },
+        { label: "ticket-{ticket}", value: "ticket-{ticket}", description: "Ejemplo: ticket-123456" }
+      );
+    return [new ActionRowBuilder().addComponents(select)];
+  }
   return [];
 }
 
@@ -230,6 +250,26 @@ module.exports = function registerTicketConfigurator(client) {
           embeds: [new EmbedBuilder().setColor(config.colors.success || 0x22C55E).setTitle("✅ Transcripciones actualizadas").setDescription("Modo guardado: **" + mode + "**.")],
           components: advancedComponents()
         });
+        return;
+      }
+      if (action === "client_role") {
+        const roleId = interaction.values?.[0];
+        updateGuild(guild.id, saved => { saved.clientRoleId = roleId; });
+        await interaction.update({ embeds: [new EmbedBuilder().setColor(config.colors.success || 0x22C55E).setTitle("✅ Rol de cliente guardado").setDescription("Rol configurado: <@&" + roleId + ">.")], components: advancedComponents() });
+        return;
+      }
+      if (action === "reviews_channel") {
+        const channelId = interaction.values?.[0];
+        updateGuild(guild.id, saved => { saved.reviewsChannelId = channelId; });
+        await interaction.update({ embeds: [new EmbedBuilder().setColor(config.colors.success || 0x22C55E).setTitle("✅ Canal de opiniones guardado").setDescription("Canal configurado: <#" + channelId + ">.")], components: advancedComponents() });
+        return;
+      }
+      if (action === "name_template") {
+        const template = interaction.values?.[0];
+        const allowed = ["ticket-{type}-{username}", "{type}-{username}", "ticket-{ticket}"];
+        if (!allowed.includes(template)) throw new Error("Plantilla no válida.");
+        updateGuild(guild.id, saved => { saved.channelNameTemplate = template; });
+        await interaction.update({ embeds: [new EmbedBuilder().setColor(config.colors.success || 0x22C55E).setTitle("✅ Plantilla de nombres guardada").setDescription("Plantilla: `" + template + "`")], components: advancedComponents() });
         return;
       }
       if (action === "create_panel") {
