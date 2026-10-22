@@ -190,8 +190,7 @@ client.on(Events.MessageCreate, async message => {
         return message.reply({ embeds: [updateCommand.buildUpdateEmbed()] });
       }
       case "giveaway": return giveawayService.executePrefix(message, args, client);
-      case "help":
-      case "ayuda": {
+      case "help": {
         const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle("Flux Store • Comandos")
           .setDescription([
             "**Utilidad**",
@@ -230,8 +229,7 @@ client.on(Events.MessageCreate, async message => {
         await message.guild.bans.remove(targetId, reason);
         return ok("Baneo retirado para el usuario ID `" + targetId + "`.");
       }
-      case "userinfo":
-      case "whois": {
+      case "userinfo": {
         const target = message.mentions.users.first() || message.author;
         const targetMember = await message.guild.members.fetch(target.id).catch(() => null);
         const roles = targetMember
@@ -293,8 +291,7 @@ client.on(Events.MessageCreate, async message => {
         afkUsers.set(userKey, { message: reason, since: Date.now() });
         return ok("Ahora estás AFK: " + reason);
       }
-      case "messagecount":
-      case "messages": {
+      case "messagecount": {
         const target = message.mentions.users.first() || message.author;
         const count = messageCounts.get(guildKey + ":" + target.id) || 0;
         return ok(target.tag + " ha enviado " + count + " mensajes desde el último reinicio del bot.");
@@ -324,8 +321,7 @@ client.on(Events.MessageCreate, async message => {
         await message.delete().catch(() => {});
         return message.channel.send({ content: text, allowedMentions: { parse: [] } });
       }
-      case "clear":
-      case "purge": {
+      case "clear": {
         if (!need(PermissionFlagsBits.ManageMessages)) return;
         const amount = Number(args[0]);
         if (!Number.isInteger(amount) || amount < 1 || amount > 100) return fail("Uso: `!clear 1-100`");
