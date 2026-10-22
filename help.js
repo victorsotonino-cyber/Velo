@@ -20,7 +20,7 @@ module.exports = {
     const commands = client?.commands ? [...client.commands.keys()] : [];
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle(emoji(i.guild, "brand", "✨") + " Velo Studio — Centro de comandos")
+      .setTitle(emoji(i.guild, "brand", "✨") + " Flux STORE — Centro de comandos")
       .setDescription("Selecciona **Comunidad** o **Administración** para ver sus comandos. Los comandos disponibles también aparecen en la lista de abajo.")
       .addFields({ name: "Comandos slash cargados", value: commands.length ? commands.map(n => "`/" + n + "`").join(" • ").slice(0, 1024) : "No se pudo obtener la lista de comandos." })
       .setFooter({ text: "Flux STORE • Usa !comandos para ver la lista completa" });
