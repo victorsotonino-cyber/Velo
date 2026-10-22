@@ -23,7 +23,10 @@ function isStoreStaff(member) {
   const p = member.permissions;
   if (p?.has(PermissionFlagsBits.Administrator) || p?.has(PermissionFlagsBits.ManageGuild)) return true;
   const roles = member.roles?.cache;
-  return Boolean(roles && ((config.roles?.admin && roles.has(config.roles.admin)) || (config.roles?.staff && roles.has(config.roles.staff))));
+  if (!roles) return false;
+  if ((config.roles?.admin && roles.has(config.roles.admin)) || (config.roles?.staff && roles.has(config.roles.staff))) return true;
+  const allowedNames = new Set(["✦ ᴏᴡɴᴇʀ", "✦ ᴍᴀɴᴀɢᴇʀ", "✦ ᴀᴅᴍɪɴ", "✦ ʜᴇᴀᴅ sᴛᴀғғ", "✦ sᴜᴘᴘᴏʀᴛ"]);
+  return roles.some(role => allowedNames.has(role.name));
 }
 function voteLegit(userId, choice) {
   const stats = getStats(), before = stats.legitVotes[String(userId)];
