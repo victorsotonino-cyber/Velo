@@ -75,16 +75,19 @@ async function createTicket(i) {
 async function createTicketLocked(i) {
   const type = i.values[0], category = config.ticket.categories[type];
   if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
+  const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
+  const maxOpenPerUser = Number.isInteger(ticketSettings.maxOpenPerUser) && ticketSettings.maxOpenPerUser > 0
+    ? Math.min(ticketSettings.maxOpenPerUser, 10)
+    : config.ticket.maxOpenPerUser;
   const open = ticketChannels(i.guild, i.user.id);
   const sameCategory = open.find(channel => channel.topic?.split(":")[2] === type);
   if (sameCategory) {
     return i.reply({ content: emoji(i.guild, "info", "ℹ️") + " Ya tienes un ticket de esta categoría: " + sameCategory + ".", ephemeral: true });
   }
-  if (open.size >= config.ticket.maxOpenPerUser) return i.reply({ content: emoji(i.guild, "warning", "⚠️") + " Ya tienes **" + open.size + "/" + config.ticket.maxOpenPerUser + "** tickets abiertos.", ephemeral: true });
+  if (open.size >= maxOpenPerUser) return i.reply({ content: emoji(i.guild, "warning", "⚠️") + " Ya tienes **" + open.size + "/" + maxOpenPerUser + "** tickets abiertos.", ephemeral: true });
   const me = i.guild.members.me;
   if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) return i.reply({ content: emoji(i.guild, "error", "❌") + " Flux Store necesita **Gestionar canales**.", ephemeral: true });
   await i.deferReply({ ephemeral: true });
-  const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
   const configuredParentId = ticketSettings.ticketCategoryId || config.channels.tickets;
   const parent = i.guild.channels.cache.get(configuredParentId);
   const configuredRoleIds = Array.isArray(ticketSettings.supportRoleIds) ? ticketSettings.supportRoleIds : [];
