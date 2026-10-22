@@ -28,7 +28,9 @@ test("blank numeric environment variables preserve documented defaults", () => {
   });
 
   assert.equal(result.status, 0, result.stderr || "Config subprocess failed.");
-  const parsed = JSON.parse(result.stdout.trim());
+  const jsonLine = result.stdout.split(/\r?\n/).find(line => line.trim().startsWith("{") && line.trim().endsWith("}"));
+  assert.ok(jsonLine, "Config subprocess did not return its JSON payload: " + result.stdout);
+  const parsed = JSON.parse(jsonLine);
   assert.equal(parsed.tickets, 2);
   assert.equal(parsed.delay, 5000);
   assert.equal(parsed.automod.maxMessages, 6);
