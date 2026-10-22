@@ -46,6 +46,8 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - En **Ajustes avanzados → Apariencia del panel y tickets** puedes editar título, descripción, color hexadecimal, pie, texto del selector, miniatura y banner HTTPS.
 - El diseño público se puede publicar como **menú desplegable** (hasta 25 categorías) o **botones por categoría** (hasta 5 categorías).
 - Cada categoría tiene nombre visible, descripción del selector, título del embed, emoji personalizado/Unicode y color propio; otro formulario permite personalizar el mensaje inicial que aparece dentro del ticket usando `{user}`, `{name}`, `{emoji}` y `{type}`.
+- El botón **Gestionar categorías** permite crear categorías nuevas (ID interno, nombre, descripción, emoji y color), editar su apariencia y mensaje inicial, activar/desactivar categorías predeterminadas y eliminar categorías personalizadas con confirmación. Los tickets ya abiertos no se borran al eliminar la opción del panel.
+- **Vista previa** muestra el embed real de forma efímera sin controles activos, para no abrir tickets por accidente. El panel no se publica si todas las categorías están desactivadas.
 - También puedes elegir el formato de los nombres de canales nuevos. Al volver a publicar en el mismo canal, el bot intenta editar el panel guardado en vez de crear uno duplicado; si el mensaje fue borrado o cambiaste de canal, publica uno nuevo.
 - Las imágenes admiten únicamente URL HTTPS. Los cambios del panel público se aplican al pulsar **Publicar panel**; la apariencia y el mensaje de cada ticket se aplican a los tickets nuevos.
 - En **Ajustes avanzados → Moderación de tickets** puedes configurar el límite de tickets por miembro, el autocierre y las horas de recordatorio al equipo.
