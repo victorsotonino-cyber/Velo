@@ -73,9 +73,12 @@ async function createTicket(i) {
 }
 
 async function createTicketLocked(i) {
-  const type = i.values[0], category = config.ticket.categories[type];
-  if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
+  const type = i.values[0];
   const ticketSettings = readJSON("ticket-config.json", {})[i.guild.id] || {};
+  const baseCategory = config.ticket.categories[type];
+  const categoryOverride = (ticketSettings.categoryOverrides || {})[type] || {};
+  const category = baseCategory ? { ...baseCategory, ...categoryOverride } : null;
+  if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
   const ticketBlacklist = Array.isArray(ticketSettings.ticketBlacklist) ? ticketSettings.ticketBlacklist : [];
   const blockedEntry = ticketBlacklist.find(entry => entry && entry.userId === i.user.id);
   if (blockedEntry) {
