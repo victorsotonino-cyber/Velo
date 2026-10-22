@@ -30,11 +30,11 @@ module.exports = {
       : 2,
     closeDelayMs: 5000,
     categories: {
-      compras: { label: "Compras", emojiId: "1550146329915949077", emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos y entregas de Flux STORE." },
-      dudas: { label: "Dudas", emojiId: "1561921833203142757", emojiName: "emoji_138", emojiKey: "emoji_138", description: "Resuelve preguntas sobre nuestros servicios antes de comprar." },
-      reportes: { label: "Reportes", emojiId: "1561921915658969099", emojiName: "emoji_139", emojiKey: "emoji_139", description: "Informa de un problema, incidencia o situación que debamos revisar." },
-      partner: { label: "Partner", emojiId: "1561698594136920214", emojiName: "flux_pandahiyapolice_2219", emojiKey: "flux_pandahiyapolice_2219", description: "Propuestas de colaboración y acuerdos con Flux STORE." },
-      ally: { label: "Alianzas", emojiId: "1561551235285385227", emojiName: "flux_owner_4264", emojiKey: "flux_owner_4264", description: "Solicita una alianza o promoción entre comunidades." }
+      compras: { label: "Compras y pedidos", emojiId: "1550146329915949077", emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos, entregas y seguimiento de compras." },
+      dudas: { label: "Dudas y soporte", emojiId: "1561921833203142757", emojiName: "emoji_138", emojiKey: "emoji_138", description: "Resuelve preguntas sobre productos, servicios o cómo comprar." },
+      reportes: { label: "Reportes e incidencias", emojiId: "1561921915658969099", emojiName: "emoji_139", emojiKey: "emoji_139", description: "Comunica problemas, incidencias o situaciones que requieran revisión." },
+      partner: { label: "Partner / Colaboraciones", emojiId: "1561698594136920214", emojiName: "flux_pandahiyapolice_2219", emojiKey: "flux_pandahiyapolice_2219", description: "Presenta propuestas de colaboración y acuerdos con FLUX STORE." },
+      ally: { label: "Alianzas", emojiId: "1561551235285385227", emojiName: "flux_owner_4264", emojiKey: "flux_owner_4264", description: "Solicita una alianza, promoción o colaboración entre comunidades." }
     }
   }
 };
