@@ -21,6 +21,7 @@ module.exports = client => {
       if (i.isStringSelectMenu() && i.customId === "ticket_create") return createTicket(i);
 
       if (i.isButton() && i.customId.startsWith("flux_poll_vote:")) {
+        await i.deferReply({ ephemeral: true });
         const [, id, optionIndex] = i.customId.split(":");
         const result = communityService.castPollVote({
           id,
@@ -30,11 +31,12 @@ module.exports = client => {
           userId: i.user.id,
           optionIndex
         });
-        if (!result.ok) return i.reply({ content: result.message, ephemeral: true });
+        if (!result.ok) return i.editReply({ content: result.message });
         await i.message.edit({ embeds: [communityService.buildPollEmbed(result.poll)] });
-        return i.reply({ content: result.message, ephemeral: true });
+        return i.editReply({ content: result.message });
       }
       if (i.isButton() && i.customId.startsWith("flux_suggestion_vote:")) {
+        await i.deferReply({ ephemeral: true });
         const [, id, choice] = i.customId.split(":");
         const result = communityService.castSuggestionVote({
           id,
@@ -44,9 +46,9 @@ module.exports = client => {
           userId: i.user.id,
           choice
         });
-        if (!result.ok) return i.reply({ content: result.message, ephemeral: true });
+        if (!result.ok) return i.editReply({ content: result.message });
         await i.message.edit({ embeds: [communityService.buildSuggestionEmbed(result.suggestion)] });
-        return i.reply({ content: result.message, ephemeral: true });
+        return i.editReply({ content: result.message });
       }
       if (i.isButton() && i.customId.startsWith("giveaway:join:")) {
         await i.deferReply({ ephemeral: true });
