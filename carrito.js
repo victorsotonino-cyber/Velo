@@ -93,7 +93,7 @@ module.exports = {
       .addStringOption(o => o.setName("producto").setDescription("Nombre exacto del producto que quieres quitar").setMinLength(2).setMaxLength(80).setRequired(true)))
     .addSubcommand(s => s.setName("vaciar").setDescription("Vacía por completo tu carrito."))
     .addSubcommand(s => s.setName("comprar").setDescription("Crea un pedido pendiente con el contenido del carrito.")
-      .addStringOption(o => o.setName("metodo").setDescription("Método de pago que vas a utilizar").setMinLength(2).setMaxLength(60).setRequired(true))
+      .addStringOption(o => { o.setName("metodo").setDescription("Método de pago que vas a utilizar").setRequired(true); (config.store.paymentMethods || []).slice(0, 25).forEach(method => o.addChoices({ name: method.slice(0, 100), value: method.slice(0, 100) })); return o; })
       .addStringOption(o => o.setName("cupon").setDescription("Cupón de descuento opcional").setMinLength(3).setMaxLength(24).setRequired(false))
       .addStringOption(o => o.setName("detalles").setDescription("Información útil para preparar el pedido").setMaxLength(400).setRequired(false))),
   async execute(i) {
