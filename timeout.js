@@ -10,6 +10,9 @@ module.exports = {
     .addIntegerOption(o => o.setName("minutos").setDescription("Minutos").setMinValue(1).setMaxValue(40320).setRequired(true))
     .addStringOption(o => o.setName("motivo").setDescription("Motivo").setRequired(false).setMaxLength(512)),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Moderar miembros** para usar este comando.", ephemeral: true });
+    }
     const target = await i.guild.members.fetch(i.options.getUser("usuario").id).catch(() => null);
     const min = i.options.getInteger("minutos");
     const reason = i.options.getString("motivo") || "Sin motivo";
