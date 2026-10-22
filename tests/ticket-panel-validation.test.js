@@ -6,6 +6,7 @@ const {
   isHexColor,
   isOptionalHttpsUrl,
   isValidCategoryKey,
+  modalTitle,
   isUnicodeEmoji,
   ticketConfigErrorMessage
 } = require("../utils/ticket-panel-validation");
@@ -36,6 +37,16 @@ test("category IDs follow the internal key constraints", () => {
   assert.equal(isValidCategoryKey("Mayusculas"), false);
   assert.equal(isValidCategoryKey("nombre con espacios"), false);
   assert.equal(isValidCategoryKey("a".repeat(33)), false);
+});
+
+test("ticket modal titles never exceed Discord's 45-character limit", () => {
+  const longKey = "a".repeat(32);
+  const contentTitle = modalTitle("Mensaje interno: ", longKey);
+  const appearanceTitle = modalTitle("Editar categoría: ", longKey);
+  assert.ok(contentTitle.length <= 45);
+  assert.ok(appearanceTitle.length <= 45);
+  assert.equal(contentTitle.length, 45);
+  assert.equal(appearanceTitle.length, 45);
 });
 
 test("emoji validation supports pictographs and regional-indicator flags", () => {
