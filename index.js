@@ -613,11 +613,13 @@ client.on(Events.GuildMemberAdd, async member => {
       .setFooter({ text: "Flux STORE • Gracias por unirte a la comunidad" }).setTimestamp();
     await ch.send({ embeds: [embed] }).catch(() => {});
   }
+  await storeService.refreshCounters(member.guild);
 });
 
 client.on(Events.GuildMemberRemove, async member => {
   const ch = member.guild.channels.cache.get(config.channels.welcome);
   if (ch?.isTextBased()) await ch.send(emoji(member.guild, "info", "👋") + " **" + (member.user?.tag || "Un miembro") + "** ha salido de Flux Store.").catch(() => {});
+  await storeService.refreshCounters(member.guild);
 });
 
 process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
