@@ -588,12 +588,16 @@ client.on(Events.MessageCreate, async message => {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
         const categories = Object.entries(config.ticket.categories || {});
         if (!categories.length) return fail("No hay categorías de tickets configuradas.");
-        const options = categories.map(([value, c]) => ({
-          label: String(c.label || value).slice(0, 100),
-          value,
-          description: String(c.description || "Abre un ticket.").slice(0, 100),
-          emoji: emojiData(message.guild, c.emojiKey || value, "🎫")
-        }));
+        const options = categories.map(([value, c]) => {
+          const custom = (c.emojiId && message.guild.emojis.cache.get(String(c.emojiId)))
+            || (c.emojiName && message.guild.emojis.cache.find(e => e.name === c.emojiName));
+          return {
+            label: String(c.label || value).slice(0, 100),
+            value,
+            description: String(c.description || "Abre un ticket.").slice(0, 100),
+            emoji: custom ? { id: custom.id, name: custom.name, animated: custom.animated } : emojiData(message.guild, c.emojiKey || value, "🎫")
+          };
+        });
         const menu = new StringSelectMenuBuilder().setCustomId("ticket_create").setPlaceholder("Selecciona una categoría").setMinValues(1).setMaxValues(1).addOptions(options);
         const embed = new EmbedBuilder()
           .setColor(config.colors.primary)
@@ -611,7 +615,12 @@ client.on(Events.MessageCreate, async message => {
             "┊ Máximo de tickets abiertos por persona: **" + config.ticket.maxOpenPerUser + "**.",
             "",
             "✧ **𝐄𝐋𝐈𝐆𝐄 𝐓𝐔 𝐒𝐎𝐋𝐈𝐂𝐈𝐓𝐔𝐃**",
-            categories.map(([type, c]) => emoji(message.guild, c.emojiKey || type, "🎫") + " **" + c.label + "**\n_" + c.description + "_").join("\n\n"),
+            categories.map(([type, c]) => {
+              const custom = (c.emojiId && message.guild.emojis.cache.get(String(c.emojiId)))
+                || (c.emojiName && message.guild.emojis.cache.find(e => e.name === c.emojiName));
+              const icon = custom ? custom.toString() : emoji(message.guild, c.emojiKey || type, "🎫");
+              return icon + " **" + c.label + "**\n_" + c.description + "_";
+            }).join("\n\n"),
             "",
             "୨୧ Gracias por formar parte de **Flux STORE**. Nuestro equipo te atenderá en cuanto pueda."
           ].join("\n"))
