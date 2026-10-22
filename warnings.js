@@ -28,12 +28,14 @@ module.exports = {
         .setFooter({ text: "Total guardado: " + entries.length + " • Se muestran como máximo las 10 más recientes." });
       return i.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
     }
+    const existing = warningService.listWarnings(i.guild.id, user.id);
+    if (!existing.length) return i.reply({ content: "No hay advertencias guardadas para " + user.tag + ".", ephemeral: true });
+    await i.deferReply({ ephemeral: true });
     const removed = warningService.clearWarnings(i.guild.id, user.id);
-    if (!removed) return i.reply({ content: "No hay advertencias guardadas para " + user.tag + ".", ephemeral: true });
     const log = config.channels.logs ? i.guild.channels.cache.get(config.channels.logs) : null;
     if (log?.isTextBased()) {
       await log.send({ content: "🧾 " + i.user.tag + " eliminó " + removed + " advertencia(s) guardada(s) de " + user.tag + " en " + i.guild.name + ".", allowedMentions: { parse: [] } }).catch(() => {});
     }
-    return i.reply({ content: "✅ Se eliminaron " + removed + " advertencia(s) de " + user.tag + ".", ephemeral: true });
+    return i.editReply({ content: "✅ Se eliminaron " + removed + " advertencia(s) de " + user.tag + "." });
   }
 };
