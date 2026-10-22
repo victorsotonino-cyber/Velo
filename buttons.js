@@ -34,6 +34,7 @@ module.exports = client => {
       if (i.isButton() && i.customId === "application_next") return nextApplication(i);
       if (i.isModalSubmit() && i.customId.startsWith("application_answer_")) return answerApplication(i);
       if (i.isButton() && i.customId === "application_close") return closeApplication(i);
+      if (i.isButton() && i.customId.startsWith("suggestion_vote:")) return handleSuggestionVote(i);
       if (i.isStringSelectMenu() && i.customId === "help_category") return helpCategory(i, client);
     } catch (e) {
       console.error("Error en interacción:", e);
@@ -180,6 +181,61 @@ async function sendTranscript(i) {
   } catch (e) { console.error("No se pudo guardar transcript:", e.message); }
 }
 
+async function handleSuggestionVote(i) {
+  if (!i.guildId) return i.reply({ content: "Este botón solo funciona dentro del servidor.", ephemeral: true });
+
+  const parts = i.customId.split(":");
+  const choice = parts[1];
+  const id = parts[2];
+  if (!["up", "down"].includes(choice) || !id) {
+    return i.reply({ content: "Este voto no es válido.", ephemeral: true });
+  }
+
+  const rows = readJSON("flux-store-suggestions.json", []);
+  if (!Array.isArray(rows)) return i.reply({ content: "No hay datos de sugerencias disponibles.", ephemeral: true });
+  const suggestion = rows.find(function (row) {
+    return row.guildId === i.guildId && row.id === id;
+  });
+  if (!suggestion) return i.reply({ content: "No encontré esa sugerencia; puede que se haya eliminado.", ephemeral: true });
+  if (suggestion.status !== "pending") {
+    return i.reply({ content: "Esta sugerencia ya no está pendiente de votación.", ephemeral: true });
+  }
+  if (suggestion.userId === i.user.id) {
+    return i.reply({ content: "No puedes votar tu propia sugerencia.", ephemeral: true });
+  }
+
+  suggestion.upvotes = Array.isArray(suggestion.upvotes) ? suggestion.upvotes : [];
+  suggestion.downvotes = Array.isArray(suggestion.downvotes) ? suggestion.downvotes : [];
+  const prior = suggestion.upvotes.includes(i.user.id) ? "up" :
+    suggestion.downvotes.includes(i.user.id) ? "down" : null;
+  if (prior === choice) {
+    return i.reply({ content: "Tu voto ya está registrado. Puedes pulsar la otra opción para cambiarlo.", ephemeral: true });
+  }
+
+  suggestion.upvotes = suggestion.upvotes.filter(function (userId) { return userId !== i.user.id; });
+  suggestion.downvotes = suggestion.downvotes.filter(function (userId) { return userId !== i.user.id; });
+  if (choice === "up") suggestion.upvotes.push(i.user.id);
+  else suggestion.downvotes.push(i.user.id);
+  suggestion.updatedAt = new Date().toISOString();
+  writeJSON("flux-store-suggestions.json", rows);
+
+  const state = suggestion.status === "approved" ? "✅ Aprobada" :
+    suggestion.status === "rejected" ? "❌ Rechazada" : "🟡 Pendiente";
+  const embed = i.message.embeds[0]
+    ? EmbedBuilder.from(i.message.embeds[0])
+    : new EmbedBuilder().setColor(config.colors.primary).setTitle("Sugerencia de FLUX STORE");
+  embed.setFields(
+    { name: "Estado", value: state, inline: true },
+    { name: "A favor", value: String(suggestion.upvotes.length), inline: true },
+    { name: "En contra", value: String(suggestion.downvotes.length), inline: true }
+  );
+  await i.message.edit({ embeds: [embed], components: i.message.components });
+  return i.reply({
+    content: "✅ Voto actualizado: " + (choice === "up" ? "a favor" : "en contra") + ".",
+    ephemeral: true
+  });
+}
+
 function applicationQuestions() {
   const fallback = ["¿Cuál es tu nombre y usuario de Discord?","¿Qué edad tienes?","¿En qué país estás y cuál es tu zona horaria?","¿Cuántas horas al día puedes dedicar de forma realista a Flux Store?","¿En qué horarios sueles estar disponible?","¿A qué puesto te postulas: Helper, Moderador, Staff, Developer, Configurador o Diseñador?","¿Tienes experiencia como Helper, Moderador o Staff? Explica dónde y qué hacías.","¿Por qué quieres entrar al equipo de Flux Store?","¿Qué habilidades aportarías al equipo y qué te diferencia?","Un miembro hace spam repetidamente después de recibir una advertencia. ¿Qué harías y por qué?","Ves a alguien intentando estafar a otro miembro. ¿Cómo actuarías y qué pruebas guardarías?","Un amigo tuyo incumple las reglas. ¿Cómo resolverías la situación?","Dos usuarios discuten y ambos dicen tener razón. ¿Cómo investigarías el caso de forma imparcial?","Si no sabes cómo resolver un problema, ¿qué harías antes de tomar una decisión?","¿Cómo protegerías la información privada de los miembros y del equipo?","¿Qué harías si otro miembro del Staff abusa de sus permisos?","¿Cómo reaccionas ante críticas o cuando otro Staff te corrige?","¿Has trabajado en otros servidores o comunidades? Indica cuáles y tus responsabilidades.","¿Puedes comprometerte a respetar las reglas, mantener la actividad acordada y tratar a todos con respeto?","¿Por qué deberíamos seleccionarte para el equipo de Flux Store?","¿Hay algo más que quieras añadir a tu postulación?"];
   const data = readJSON("postulaciones.json", { questions: fallback });
@@ -238,17 +294,18 @@ async function helpCategory(i, client) {
     comunidad: [
       ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
       ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
+      ["resena", "Reseñas verificadas"], ["sugerencia", "Proponer mejoras"], ["userinfo", "Información de usuario"],
       ["say", "Enviar mensaje como el bot"]
     ],
     administracion: [
-      ["tienda", "Administrar el catálogo de productos y precios"], ["ventas", "Ver y editar el contador de ventas"], ["legit", "Publicar el panel de verificación legit"],
+      ["tienda", "Administrar catálogo y stock"], ["ventas", "Ver y editar el contador de ventas"], ["estadisticas-tienda", "Ver métricas de pedidos e ingresos"], ["cupones", "Crear y validar cupones"], ["legit", "Publicar el panel de verificación legit"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
       ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"], ["slowmode", "Configurar modo lento"]
     ],
     utilidad: [
-      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"],
+      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"], ["carrito", "Carrito y pedidos"], ["estadisticas-tienda", "Estadísticas de ventas"], ["resena", "Reseñas de clientes"], ["sugerencia", "Sugerencias de la comunidad"], ["userinfo", "Información de usuario"],
       ["help", "Centro de comandos"]
     ],
     moderacion: [

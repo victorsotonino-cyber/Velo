@@ -1,11 +1,21 @@
 require("dotenv").config();
 
-const env = (name, fallback) => process.env[name] || fallback;
+function readId(name) {
+  const value = String(process.env[name] || "").trim();
+  return /^\d{17,20}$/.test(value) ? value : null;
+}
+
+function readNumber(name, fallback, min, max) {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
 
 module.exports = {
   token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID,
+  prefix: process.env.BOT_PREFIX || "!",
   colors: {
     primary: 0x8B5CF6,
     dark: 0x111111,
@@ -14,27 +24,72 @@ module.exports = {
     error: 0xEF4444
   },
   channels: {
-    welcome: env("WELCOME_CHANNEL_ID", "1562615450834178179"),
-    logs: env("LOGS_CHANNEL_ID", "1550131492578132010"),
-    tickets: env("TICKETS_CATEGORY_ID", "1554962090295562240"),
-    announcements: env("ANNOUNCEMENTS_CHANNEL_ID", "1550131491588014181")
+    welcome: readId("WELCOME_CHANNEL_ID"),
+    logs: readId("LOGS_CHANNEL_ID"),
+    tickets: readId("TICKETS_CATEGORY_ID"),
+    announcements: readId("ANNOUNCEMENTS_CHANNEL_ID"),
+    terms: readId("TERMS_CHANNEL_ID"),
+    paymentMethods: readId("PAYMENT_METHODS_CHANNEL_ID"),
+    ticketInfo: readId("TICKET_INFO_CHANNEL_ID"),
+    suggestions: readId("SUGGESTIONS_CHANNEL_ID"),
+    reviews: readId("REVIEWS_CHANNEL_ID")
   },
   roles: {
-    admin: env("ADMIN_ROLE_ID", "1550131491151945778"),
-    staff: env("STAFF_ROLE_ID", "1552119717597028515"),
-    member: env("MEMBER_ROLE_ID", "1562619913485557901")
+    admin: readId("ADMIN_ROLE_ID"),
+    staff: readId("STAFF_ROLE_ID"),
+    member: readId("MEMBER_ROLE_ID")
+  },
+  store: {
+    currency: String(process.env.STORE_CURRENCY || "USD").toUpperCase()
+  },
+  automod: {
+    enabled: String(process.env.AUTOMOD_ENABLED || "true").toLowerCase() === "true",
+    maxMessages: readNumber("AUTOMOD_MAX_MESSAGES", 6, 3, 15),
+    windowSeconds: readNumber("AUTOMOD_WINDOW_SECONDS", 7, 3, 30),
+    duplicateLimit: readNumber("AUTOMOD_DUPLICATE_LIMIT", 3, 2, 8),
+    maxMentions: readNumber("AUTOMOD_MAX_MENTIONS", 5, 2, 15),
+    timeoutMinutes: readNumber("AUTOMOD_TIMEOUT_MINUTES", 5, 1, 1440),
+    blockInvites: String(process.env.AUTOMOD_BLOCK_INVITES || "true").toLowerCase() === "true"
   },
   ticket: {
-    maxOpenPerUser: Number.isFinite(Number(process.env.MAX_TICKETS_PER_USER)) && process.env.MAX_TICKETS_PER_USER
-      ? Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER)))
-      : 2,
-    closeDelayMs: 5000,
+    maxOpenPerUser: readNumber("MAX_TICKETS_PER_USER", 2, 1, 10),
+    closeDelayMs: readNumber("TICKET_CLOSE_DELAY_MS", 5000, 1000, 30000),
     categories: {
-      compras: { label: "Compras y pedidos", emojiId: "1550146329915949077", emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos, entregas y seguimiento de compras." },
-      dudas: { label: "Dudas y soporte", emojiId: "1561921833203142757", emojiName: "emoji_138", emojiKey: "emoji_138", description: "Resuelve preguntas sobre productos, servicios o cómo comprar." },
-      reportes: { label: "Reportes e incidencias", emojiId: "1561921915658969099", emojiName: "emoji_139", emojiKey: "emoji_139", description: "Comunica problemas, incidencias o situaciones que requieran revisión." },
-      partner: { label: "Partner / Colaboraciones", emojiId: "1561698594136920214", emojiName: "flux_pandahiyapolice_2219", emojiKey: "flux_pandahiyapolice_2219", description: "Presenta propuestas de colaboración y acuerdos con FLUX STORE." },
-      ally: { label: "Alianzas", emojiId: "1561551235285385227", emojiName: "flux_owner_4264", emojiKey: "flux_owner_4264", description: "Solicita una alianza, promoción o colaboración entre comunidades." }
+      compras: {
+        label: "Compras y pedidos",
+        emojiId: readId("TICKET_EMOJI_COMPRAS_ID"),
+        emojiName: process.env.TICKET_EMOJI_COMPRAS_NAME || "emoji_20",
+        emojiKey: "emoji_20",
+        description: "Pedidos, productos, pagos, entregas y seguimiento de compras."
+      },
+      dudas: {
+        label: "Dudas y soporte",
+        emojiId: readId("TICKET_EMOJI_DUDAS_ID"),
+        emojiName: process.env.TICKET_EMOJI_DUDAS_NAME || "emoji_138",
+        emojiKey: "emoji_138",
+        description: "Resuelve preguntas sobre productos, servicios o cómo comprar."
+      },
+      reportes: {
+        label: "Reportes e incidencias",
+        emojiId: readId("TICKET_EMOJI_REPORTES_ID"),
+        emojiName: process.env.TICKET_EMOJI_REPORTES_NAME || "emoji_139",
+        emojiKey: "emoji_139",
+        description: "Comunica problemas, incidencias o situaciones que requieran revisión."
+      },
+      partner: {
+        label: "Partner / Colaboraciones",
+        emojiId: readId("TICKET_EMOJI_PARTNER_ID"),
+        emojiName: process.env.TICKET_EMOJI_PARTNER_NAME || "flux_pandahiyapolice_2219",
+        emojiKey: "flux_pandahiyapolice_2219",
+        description: "Presenta propuestas de colaboración y acuerdos con FLUX STORE."
+      },
+      ally: {
+        label: "Alianzas",
+        emojiId: readId("TICKET_EMOJI_ALLY_ID"),
+        emojiName: process.env.TICKET_EMOJI_ALLY_NAME || "flux_owner_4264",
+        emojiKey: "flux_owner_4264",
+        description: "Solicita una alianza, promoción o colaboración entre comunidades."
+      }
     }
   }
 };
