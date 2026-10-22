@@ -49,6 +49,7 @@ for (const file of fs.readdirSync(__dirname).filter(f =>
 }
 
 require("./buttons")(client);
+require("./automod")(client);
 
 async function registerCommands() {
   if (!config.clientId || !config.guildId) {
