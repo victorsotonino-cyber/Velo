@@ -141,7 +141,7 @@ client.on(Events.MessageCreate, async message => {
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
             "**Tickets, mensajes y sorteos**",
-            "`!ticket-panel` `!setup-plantilla` `!setup-sorteos` `!say texto`",
+            "`!ticket-panel` `!setup-plantilla` `!setup-sorteos` `!crear-roles-tienda` `!say texto`",
             "`!giveaway start [#canal] 1h 1 Premio | descripción`",
             "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
             "**También disponible con /**",
@@ -325,6 +325,46 @@ client.on(Events.MessageCreate, async message => {
         if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) return fail("Uso: `!slowmode 0-21600` segundos.");
         await message.channel.setRateLimitPerUser(seconds);
         return ok("Modo lento configurado a " + seconds + " segundos.");
+      }
+      case "crear-roles-tienda": {
+        if (!need(PermissionFlagsBits.ManageRoles)) return;
+        if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return fail("Necesito el permiso Gestionar roles para crear los rangos.");
+        const definitions = [
+          { name: "✦ ᴏᴡɴᴇʀ", color: 0xE74C3C, permissions: [PermissionFlagsBits.ManageGuild, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ViewAuditLog] },
+          { name: "✦ ᴍᴀɴᴀɢᴇʀ", color: 0xE67E22, permissions: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ManageThreads, PermissionFlagsBits.ViewAuditLog] },
+          { name: "✦ ᴀᴅᴍɪɴ", color: 0xC0392B, permissions: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.KickMembers, PermissionFlagsBits.BanMembers, PermissionFlagsBits.ModerateMembers, PermissionFlagsBits.ViewAuditLog] },
+          { name: "✦ ʜᴇᴀᴅ sᴛᴀғғ", color: 0x9B59B6, permissions: [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ModerateMembers, PermissionFlagsBits.KickMembers, PermissionFlagsBits.ViewAuditLog] },
+          { name: "✦ sᴜᴘᴘᴏʀᴛ", color: 0x3498DB, permissions: [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ModerateMembers] },
+          { name: "✦ ᴍᴏᴅᴇʀᴀᴛᴏʀ", color: 0x2ECC71, permissions: [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ModerateMembers, PermissionFlagsBits.KickMembers] },
+          { name: "✦ ᴍᴇᴅɪᴀ", color: 0x1ABC9C, permissions: [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles] },
+          { name: "✦ ᴘᴀʀᴛɴᴇʀ", color: 0xF1C40F, permissions: [] },
+          { name: "✦ ʙᴏᴏsᴛᴇʀ", color: 0xE84393, permissions: [] },
+          { name: "✦ ᴄʟɪᴇɴᴛᴇ", color: 0x16A085, permissions: [] },
+          { name: "✦ ᴍɪᴇᴍʙʀᴏ", color: 0x95A5A6, permissions: [] }
+        ];
+        const created = [];
+        const existing = [];
+        for (const def of definitions) {
+          let role = message.guild.roles.cache.find(r => r.name === def.name);
+          if (role) { existing.push(role.name); continue; }
+          role = await message.guild.roles.create({
+            name: def.name,
+            color: def.color,
+            permissions: def.permissions,
+            hoist: ["✦ ᴏᴡɴᴇʀ", "✦ ᴍᴀɴᴀɢᴇʀ", "✦ ᴀᴅᴍɪɴ", "✦ ʜᴇᴀᴅ sᴛᴀғғ", "✦ sᴜᴘᴘᴏʀᴛ", "✦ ᴍᴏᴅᴇʀᴀᴛᴏʀ"].includes(def.name),
+            mentionable: false,
+            reason: "Crear rangos originales de Flux STORE"
+          });
+          created.push(role.name);
+        }
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary)
+          .setTitle("✦ ʀᴀɴɢᴏs ᴅᴇ ғʟᴜx sᴛᴏʀᴇ ✦")
+          .setDescription(created.length ? created.map(n => "・" + n).join("\n") : "Todos los rangos ya existían.")
+          .addFields({ name: "Permisos", value: "Los rangos de gestión tienen permisos específicos; el rango Owner no recibe Administrador total. Revisa y asigna los roles manualmente a las personas correctas." })
+          .setFooter({ text: "Flux STORE • Sistema de rangos" });
+        if (existing.length) embed.addFields({ name: "Ya existían", value: existing.join(", ").slice(0, 1024) });
+        return message.reply({ embeds: [embed] });
       }
       case "setup-plantilla": {
         if (!need(PermissionFlagsBits.ManageChannels)) return;
