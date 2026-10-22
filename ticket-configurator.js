@@ -14,6 +14,8 @@ const {
 } = require("discord.js");
 const config = require("./config");
 const { readJSON, writeJSON } = require("./storage");
+const { hasPermission, hasConfiguredRole } = require("./utils/permissions");
+const { isHexColor, isOptionalHttpsUrl, isValidCategoryKey, isUnicodeEmoji, ticketConfigErrorMessage } = require("./utils/ticket-panel-validation");
 const ADVANCED_OPTIONS = [
   { label: "⭐ Panel", value: "panel", description: "Canal y aspecto del panel" },
   { label: "🛡️ Roles y categorías", value: "roles", description: "Roles de soporte y categoría de tickets" },
@@ -72,17 +74,8 @@ function updateGuild(guildId, updater) {
 }
 
 function isAdmin(member) {
-  return Boolean(member && (member.permissions.has(PermissionFlagsBits.Administrator) ||
-    (config.roles.admin && member.roles.cache.has(config.roles.admin))));
-}
-
-function isOptionalHttpsUrl(value) {
-  if (!String(value || "").trim()) return true;
-  try {
-    return new URL(String(value).trim()).protocol === "https:";
-  } catch {
-    return false;
-  }
+  return hasPermission(member, PermissionFlagsBits.Administrator) ||
+    hasConfiguredRole(member, [config.roles.admin]);
 }
 
 function isKnownCategory(guildId, categoryKey) {
@@ -119,7 +112,7 @@ function allCategories(guildId, guild = null) {
         const serverEmoji = guild?.emojis?.cache?.get(input);
         merged.emojiId = input;
         if (serverEmoji) merged.emojiName = serverEmoji.name;
-      } else if (/\p{Extended_Pictographic}/u.test(input)) {
+      } else if (isUnicodeEmoji(input)) {
         merged.emojiId = null;
         merged.emojiUnicode = input;
         merged.emojiName = null;
@@ -237,7 +230,7 @@ function categoryManagerComponents(guildId, guild, selectedKey = null) {
           label: ((item.enabled ? "" : "⏸ ") + String(item.label || key)).slice(0, 100),
           value: key,
           description: ((item.enabled ? "Activa" : "Desactivada") + (item.isCustom ? " · Personalizada" : " · Predeterminada")).slice(0, 100),
-          ...(item.emojiId ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
+          ...(item.emojiId && guild?.emojis?.cache?.has(String(item.emojiId)) ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
             : item.emojiUnicode ? { emoji: { name: String(item.emojiUnicode).slice(0, 32) } } : {})
         })))
     ));
@@ -466,7 +459,7 @@ function categoryContentModal(saved, categoryKey) {
   const current = { ...defaults, ...override };
   const modal = new ModalBuilder()
     .setCustomId("flux_ticket_config:save_category_content:" + categoryKey)
-    .setTitle("Mensaje interno: " + categoryKey.slice(0, 30));
+    .setTitle("Mensaje interno: " + categoryKey.slice(0, 28));
   modal.addComponents(
     new ActionRowBuilder().addComponents(new TextInputBuilder()
       .setCustomId("ticket_message")
@@ -497,7 +490,7 @@ function categoryEditorModal(saved, categoryKey) {
   const defaults = config.ticket.categories?.[categoryKey] || saved.customCategories?.[categoryKey] || {};
   const override = (saved.categoryOverrides || {})[categoryKey] || {};
   const current = { ...defaults, ...override };
-  const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle("Editar categoría: " + categoryKey.slice(0, 35));
+  const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle("Editar categoría: " + categoryKey.slice(0, 26));
   modal.addComponents(
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre de la categoría en el panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(current.label || categoryKey).slice(0, 100))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_title").setLabel("Título del embed dentro del ticket").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(current.ticketTitle || "{emoji} {name} • FLUX STORE").slice(0, 256))),
@@ -534,7 +527,7 @@ function advancedDetailComponents(key, guildId, guild = null) {
           label: String(item.label || value).slice(0, 100),
           value,
           description: String(item.description || "Editar este tipo de ticket").slice(0, 100),
-          ...(item.emojiId ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
+          ...(item.emojiId && guild?.emojis?.cache?.has(String(item.emojiId)) ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
             : item.emojiUnicode ? { emoji: { name: String(item.emojiUnicode).slice(0, 32) } } : {})
         })));
       rows.push(new ActionRowBuilder().addComponents(categorySelect));
@@ -643,8 +636,8 @@ module.exports = function registerTicketConfigurator(client) {
       return;
     }
 
+    const action = interaction.customId.split(":")[1] || "unknown";
     try {
-      const action = interaction.customId.split(":")[1];
       const guild = interaction.guild;
       if (action === "panel_channel" || action === "ticket_category") {
         const id = interaction.values?.[0];
@@ -800,7 +793,7 @@ module.exports = function registerTicketConfigurator(client) {
         const description = interaction.fields.getTextInputValue("new_category_description").trim();
         const emojiInput = interaction.fields.getTextInputValue("new_category_emoji").trim();
         const ticketColor = interaction.fields.getTextInputValue("new_category_color").trim();
-        if (!/^[a-z][a-z0-9_-]{0,31}$/.test(categoryKey)) {
+        if (!isValidCategoryKey(categoryKey)) {
           await interaction.reply({ content: "El ID interno debe empezar con una letra y usar solo letras minúsculas, números, guiones o guiones bajos (máximo 32 caracteres).", ephemeral: true });
           return;
         }
@@ -813,7 +806,7 @@ module.exports = function registerTicketConfigurator(client) {
           await interaction.reply({ content: "El panel admite hasta 25 categorías configuradas. Elimina una categoría personalizada antes de crear otra.", ephemeral: true });
           return;
         }
-        if (!label || !description || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
+        if (!label || !description || !isHexColor(ticketColor)) {
           await interaction.reply({ content: "Completa el nombre y la descripción, y usa un color válido con formato #RRGGBB.", ephemeral: true });
           return;
         }
@@ -822,7 +815,7 @@ module.exports = function registerTicketConfigurator(client) {
           const customId = customMatch?.[2] || (/^\d{17,20}$/.test(emojiInput) ? emojiInput : null);
           const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
           const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
-          const isUnicode = /\p{Extended_Pictographic}/u.test(emojiInput);
+          const isUnicode = isUnicodeEmoji(emojiInput);
           if (customId && !guild.emojis.cache.has(customId)) {
             await interaction.reply({ content: "Ese emoji personalizado no está disponible en este servidor. Añádelo al servidor o usa un emoji Unicode.", ephemeral: true });
             return;
@@ -854,7 +847,7 @@ module.exports = function registerTicketConfigurator(client) {
         if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
         const ticketMessage = interaction.fields.getTextInputValue("ticket_message").trim();
         const ticketColor = interaction.fields.getTextInputValue("ticket_color").trim();
-        if (!ticketMessage || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
+        if (!ticketMessage || !isHexColor(ticketColor)) {
           await interaction.reply({ content: "El mensaje inicial es obligatorio y el color debe usar el formato #RRGGBB.", ephemeral: true });
           return;
         }
@@ -885,7 +878,7 @@ module.exports = function registerTicketConfigurator(client) {
           const customId = customMatch?.[2] || (/^\d{17,20}$/.test(emojiInput) ? emojiInput : null);
           const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
           const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
-          const isUnicode = /\p{Extended_Pictographic}/u.test(emojiInput);
+          const isUnicode = isUnicodeEmoji(emojiInput);
           if (customId && !guild.emojis.cache.has(customId)) {
             await interaction.reply({ content: "Ese emoji personalizado no está disponible en este servidor. Añádelo al servidor o usa un emoji Unicode.", ephemeral: true });
             return;
@@ -895,7 +888,7 @@ module.exports = function registerTicketConfigurator(client) {
             return;
           }
         }
-        if (!label || !ticketTitle || !description || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
+        if (!label || !ticketTitle || !description || !isHexColor(ticketColor)) {
           await interaction.reply({ content: "Completa el nombre, título, descripción y un color válido con formato #RRGGBB.", ephemeral: true });
           return;
         }
@@ -950,7 +943,7 @@ module.exports = function registerTicketConfigurator(client) {
         const color = interaction.fields.getTextInputValue("panel_color").trim();
         const footer = interaction.fields.getTextInputValue("panel_footer").trim();
         const placeholder = interaction.fields.getTextInputValue("panel_placeholder").trim();
-        if (!title || !description || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        if (!title || !description || !isHexColor(color)) {
           await interaction.reply({ content: "Título y descripción son obligatorios; el color debe tener formato #RRGGBB.", ephemeral: true });
           return;
         }
@@ -1150,7 +1143,7 @@ module.exports = function registerTicketConfigurator(client) {
       }
     } catch (error) {
       console.error("Error en el configurador de tickets:", error);
-      const response = { content: "❌ No se pudo actualizar la configuración. Revisa los permisos y vuelve a intentarlo.", ephemeral: true };
+      const response = { content: ticketConfigErrorMessage(error, action), ephemeral: true };
       if (interaction.deferred || interaction.replied) await interaction.followUp(response).catch(() => {});
       else await interaction.reply(response).catch(() => {});
     }
