@@ -85,6 +85,211 @@ function isOptionalHttpsUrl(value) {
   }
 }
 
+function isKnownCategory(guildId, categoryKey) {
+  if (!categoryKey) return false;
+  const saved = guildConfig(guildId);
+  return Boolean(config.ticket.categories?.[categoryKey] || saved.customCategories?.[categoryKey]);
+}
+
+function allCategories(guildId, guild = null) {
+  const base = config.ticket.categories || {};
+  const saved = guildConfig(guildId);
+  const overrides = saved.categoryOverrides || {};
+  const disabled = new Set(saved.disabledTicketCategories || []);
+  const custom = saved.customCategories || {};
+  const entries = [
+    ...Object.entries(base),
+    ...Object.entries(custom).filter(([key]) => !base[key])
+  ];
+
+  return entries.map(([key, item]) => {
+    const override = overrides[key] || {};
+    const merged = { ...item, ...override };
+    merged.isCustom = !Object.prototype.hasOwnProperty.call(base, key);
+    merged.enabled = !disabled.has(key);
+
+    const input = String(merged.emojiInput || "").trim();
+    if (input) {
+      merged.emojiUnicode = null;
+      const match = input.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
+      if (match) {
+        merged.emojiName = match[1];
+        merged.emojiId = match[2];
+      } else if (/^\d{17,20}$/.test(input)) {
+        const serverEmoji = guild?.emojis?.cache?.get(input);
+        merged.emojiId = input;
+        if (serverEmoji) merged.emojiName = serverEmoji.name;
+      } else if (/\p{Extended_Pictographic}/u.test(input)) {
+        merged.emojiId = null;
+        merged.emojiUnicode = input;
+        merged.emojiName = null;
+      } else {
+        const emojiName = input.replace(/^:/, "").replace(/:$/, "");
+        const serverEmoji = guild?.emojis?.cache?.find(e => e.name === emojiName);
+        merged.emojiId = serverEmoji?.id || null;
+        merged.emojiName = serverEmoji?.name || emojiName;
+        if (!serverEmoji) merged.emojiUnicode = null;
+      }
+    } else if (!merged.emojiId && guild?.emojis?.cache) {
+      const defaultEmoji = guild.emojis.cache.find(e => e.name === merged.emojiName || e.name === merged.emojiKey);
+      if (defaultEmoji) {
+        merged.emojiId = defaultEmoji.id;
+        merged.emojiName = defaultEmoji.name;
+      }
+    }
+    return [key, merged];
+  });
+}
+
+function effectiveCategories(guildId, guild = null) {
+  return allCategories(guildId, guild).filter(([, item]) => item.enabled).slice(0, 25);
+}
+
+function newCategoryModal(saved) {
+  const modal = new ModalBuilder()
+    .setCustomId("flux_ticket_config:save_new_category")
+    .setTitle("Crear categoría de ticket");
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("new_category_key")
+      .setLabel("ID interno (ej. compras-extra)")
+      .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(32)
+      .setValue("nueva-categoria")),
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("new_category_label")
+      .setLabel("Nombre visible en el panel")
+      .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80)),
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("new_category_description")
+      .setLabel("Descripción de la opción")
+      .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(100)
+      .setValue("Abre un ticket privado con el equipo de FLUX STORE.")),
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("new_category_emoji")
+      .setLabel("Emoji o ID (opcional)")
+      .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100)),
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("new_category_color")
+      .setLabel("Color del ticket (#RRGGBB)")
+      .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7)
+      .setValue(String(saved.panelColor || "#8B5CF6")))
+  );
+  return modal;
+}
+
+function categoryManagerEmbed(guild, guildId, selectedKey = null) {
+  const all = allCategories(guildId, guild);
+  const active = all.filter(([, item]) => item.enabled).length;
+  const embed = new EmbedBuilder()
+    .setColor(config.colors.primary || 0x8B5CF6)
+    .setTitle("🗂️ Gestor de categorías")
+    .setDescription([
+      "Administra las opciones que aparecen en el panel público de FLUX STORE.",
+      "",
+      "**Estado:** " + active + " activa(s) de " + all.length + " configurada(s).",
+      "**Límite de Discord:** hasta 25 opciones visibles en el menú desplegable.",
+      "Selecciona una categoría para editarla, activarla/desactivarla o eliminar una personalizada."
+    ].join("\n"))
+    .setFooter({ text: "FLUX STORE • Gestor de categorías" });
+
+  const listing = all.slice(0, 12).map(([key, item]) =>
+    (item.enabled ? "🟢" : "⚪") + " **" + String(item.label || key).slice(0, 70) + "** · " + key +
+    (item.isCustom ? " · personalizada" : "")
+  ).join("\n");
+  if (listing) embed.addFields({ name: "Categorías configuradas", value: listing.slice(0, 1024) });
+
+  if (selectedKey) {
+    const selected = all.find(([key]) => key === selectedKey);
+    if (selected) {
+      const [key, item] = selected;
+      embed.addFields({
+        name: "Categoría seleccionada",
+        value: [
+          "**Nombre:** " + String(item.label || key),
+          "**ID:** " + key,
+          "**Estado:** " + (item.enabled ? "Activa en el panel" : "Desactivada"),
+          "**Tipo:** " + (item.isCustom ? "Personalizada" : "Predeterminada"),
+          "**Descripción:** " + String(item.description || "Sin descripción").slice(0, 300)
+        ].join("\n")
+      });
+    }
+  }
+  return embed;
+}
+
+function categoryManagerComponents(guildId, guild, selectedKey = null) {
+  const all = allCategories(guildId, guild).slice(0, 25);
+  const rows = [new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_new")
+      .setLabel("Nueva categoría").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("flux_ticket_config:panel_preview")
+      .setLabel("Vista previa").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_back")
+      .setLabel("Volver a apariencia").setStyle(ButtonStyle.Secondary)
+  )];
+
+  if (all.length) {
+    rows.push(new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("flux_ticket_config:category_manager_select")
+        .setPlaceholder("Selecciona la categoría que quieres gestionar")
+        .addOptions(all.map(([key, item]) => ({
+          label: ((item.enabled ? "" : "⏸ ") + String(item.label || key)).slice(0, 100),
+          value: key,
+          description: ((item.enabled ? "Activa" : "Desactivada") + (item.isCustom ? " · Personalizada" : " · Predeterminada")).slice(0, 100),
+          ...(item.emojiId ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
+            : item.emojiUnicode ? { emoji: { name: String(item.emojiUnicode).slice(0, 32) } } : {})
+        })))
+    );
+  }
+
+  const selected = all.find(([key]) => key === selectedKey);
+  if (selected) {
+    const [key, item] = selected;
+    const actions = [
+      new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_edit:" + key)
+        .setLabel("Editar apariencia").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_content:" + key)
+        .setLabel("Mensaje inicial").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_toggle:" + key)
+        .setLabel(item.enabled ? "Desactivar" : "Activar")
+        .setStyle(item.enabled ? ButtonStyle.Secondary : ButtonStyle.Success)
+    ];
+    if (item.isCustom) {
+      actions.push(new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_delete:" + key)
+        .setLabel("Eliminar").setStyle(ButtonStyle.Danger));
+    }
+    rows.push(new ActionRowBuilder().addComponents(actions));
+  }
+  return rows.slice(0, 5);
+}
+
+function publicPanelEmbed(guild, saved) {
+  const panelDescription = [
+    String(saved.panelDescription || "Te damos la bienvenida al centro oficial de atención de FLUX STORE. Selecciona una categoría para iniciar una solicitud privada.").trim().slice(0, 1400),
+    "",
+    "**CÓMO FUNCIONA**",
+    "01 · Selecciona el tipo de solicitud en el menú o los botones.",
+    "02 · Se creará un canal privado para atender tu caso.",
+    "03 · El equipo de FLUX STORE continuará la atención dentro del ticket.",
+    "",
+    "**PRIVACIDAD Y SEGURIDAD**",
+    "No compartas contraseñas, tokens ni información sensible."
+  ].join("\n");
+  const panel = new EmbedBuilder()
+    .setColor(/^#[0-9A-Fa-f]{6}$/.test(saved.panelColor || "") ? parseInt(saved.panelColor.slice(1), 16) : (config.colors.primary || 0x8B5CF6))
+    .setTitle(String(saved.panelTitle || "FLUX STORE • Centro de atención").slice(0, 256))
+    .setDescription(panelDescription.slice(0, 4096))
+    .setFooter({ text: String(saved.panelFooter || "FLUX STORE • Soporte privado").slice(0, 2048) })
+    .setTimestamp();
+  const panelIcon = guild.iconURL({ size: 128 });
+  panel.setAuthor(panelIcon
+    ? { name: "FLUX STORE  /  CENTRO DE SOPORTE", iconURL: panelIcon }
+    : { name: "FLUX STORE  /  CENTRO DE SOPORTE" });
+  if (isOptionalHttpsUrl(saved.panelThumbnailUrl) && saved.panelThumbnailUrl) panel.setThumbnail(saved.panelThumbnailUrl);
+  if (isOptionalHttpsUrl(saved.panelBannerUrl) && saved.panelBannerUrl) panel.setImage(saved.panelBannerUrl);
+  return panel;
+}
 
 function mainEmbed(guild, saved) {
   const channel = saved.panelChannelId ? guild.channels.cache.get(saved.panelChannelId) : null;
@@ -256,7 +461,9 @@ function panelImagesModal(saved) {
 }
 
 function categoryContentModal(saved, categoryKey) {
+  const defaults = config.ticket.categories?.[categoryKey] || saved.customCategories?.[categoryKey] || {};
   const override = (saved.categoryOverrides || {})[categoryKey] || {};
+  const current = { ...defaults, ...override };
   const modal = new ModalBuilder()
     .setCustomId("flux_ticket_config:save_category_content:" + categoryKey)
     .setTitle("Mensaje interno: " + categoryKey.slice(0, 30));
@@ -265,12 +472,12 @@ function categoryContentModal(saved, categoryKey) {
       .setCustomId("ticket_message")
       .setLabel("Mensaje inicial; usa {user}, {name}, {emoji}")
       .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500)
-      .setValue(String(override.ticketMessage || "Hola {user}, tu solicitud está abierta.\n\nCategoría: {name}\nCreador: {user}\n\nEl equipo de FLUX STORE te atenderá aquí.").slice(0, 1500))),
+      .setValue(String(current.ticketMessage || "Hola {user}, tu solicitud está abierta.\n\nCategoría: {name}\nCreador: {user}\n\nEl equipo de FLUX STORE te atenderá aquí.").slice(0, 1500))),
     new ActionRowBuilder().addComponents(new TextInputBuilder()
       .setCustomId("ticket_color")
       .setLabel("Color del embed (#RRGGBB)")
       .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7)
-      .setValue(String(override.ticketColor || saved.panelColor || "#8B5CF6")))
+      .setValue(String(current.ticketColor || saved.panelColor || "#8B5CF6")))
   );
   return modal;
 }
@@ -287,58 +494,18 @@ function moderationModal(saved) {
 }
 
 function categoryEditorModal(saved, categoryKey) {
-  const defaults = config.ticket.categories[categoryKey] || {};
+  const defaults = config.ticket.categories?.[categoryKey] || saved.customCategories?.[categoryKey] || {};
   const override = (saved.categoryOverrides || {})[categoryKey] || {};
+  const current = { ...defaults, ...override };
   const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle("Editar categoría: " + categoryKey.slice(0, 35));
   modal.addComponents(
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre de la categoría en el panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(override.label || defaults.label || categoryKey).slice(0, 100))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_title").setLabel("Título del embed dentro del ticket").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(override.ticketTitle || defaults.ticketTitle || "{emoji} {name} • FLUX STORE").slice(0, 256))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción de esta categoría").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(override.description || defaults.description || "Abre un ticket privado").slice(0, 1000))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji Unicode, nombre del servidor, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_color").setLabel("Color del ticket (#RRGGBB)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7).setValue(String(override.ticketColor || saved.panelColor || "#8B5CF6")))
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre de la categoría en el panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(current.label || categoryKey).slice(0, 100))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_title").setLabel("Título del embed dentro del ticket").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(current.ticketTitle || "{emoji} {name} • FLUX STORE").slice(0, 256))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción de esta categoría").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(current.description || "Abre un ticket privado").slice(0, 1000))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji Unicode, nombre del servidor, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(current.emojiInput || "").slice(0, 100))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_color").setLabel("Color del ticket (#RRGGBB)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7).setValue(String(current.ticketColor || saved.panelColor || "#8B5CF6")))
   );
   return modal;
-}
-
-function effectiveCategories(guildId, guild = null) {
-  const base = config.ticket.categories || {};
-  const saved = guildConfig(guildId);
-  const overrides = saved.categoryOverrides || {};
-  return Object.entries(base).map(([key, item]) => {
-    const override = overrides[key] || {};
-    const merged = { ...item, ...override };
-    if (!merged.emojiId && guild?.emojis?.cache) {
-      const defaultEmoji = guild.emojis.cache.find(e => e.name === merged.emojiName || e.name === merged.emojiKey);
-      if (defaultEmoji) {
-        merged.emojiId = defaultEmoji.id;
-        merged.emojiName = defaultEmoji.name;
-      }
-    }
-    if (override.emojiInput) {
-      const input = String(override.emojiInput).trim();
-      const match = input.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
-      merged.emojiUnicode = null;
-      if (match) {
-        merged.emojiName = match[1];
-        merged.emojiId = match[2];
-      } else if (/^\d{17,20}$/.test(input)) {
-        const serverEmoji = guild?.emojis?.cache?.get(input);
-        merged.emojiId = input;
-        if (serverEmoji) merged.emojiName = serverEmoji.name;
-      } else if (/\p{Extended_Pictographic}/u.test(input)) {
-        merged.emojiId = null;
-        merged.emojiUnicode = input;
-        merged.emojiName = null;
-      } else {
-        const emojiName = input.replace(/^:/, "").replace(/:$/, "");
-        const serverEmoji = guild?.emojis?.cache?.find(e => e.name === emojiName);
-        merged.emojiId = serverEmoji?.id || null;
-        merged.emojiName = serverEmoji?.name || emojiName;
-        if (!serverEmoji) merged.emojiUnicode = null;
-      }
-    }
-    return [key, merged];
-  });
 }
 
 function advancedDetailComponents(key, guildId, guild = null) {
@@ -349,6 +516,10 @@ function advancedDetailComponents(key, guildId, guild = null) {
           .setLabel("Editar título y texto").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("flux_ticket_config:edit_panel_images")
           .setLabel("Imágenes").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("flux_ticket_config:category_manager")
+          .setLabel("Gestionar categorías").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("flux_ticket_config:panel_preview")
+          .setLabel("Vista previa").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("flux_ticket_config:back")
           .setLabel("Volver al panel").setStyle(ButtonStyle.Secondary)
       )
@@ -448,6 +619,13 @@ module.exports = function registerTicketConfigurator(client) {
     const content = message.content.trim();
     const setupMatch = content.match(/^f!ticket\s+setup$/i);
     if (!setupMatch) return;
+    if (!isAdmin(message.member)) {
+      await message.reply({
+        content: "❌ Solo administradores pueden abrir el configurador de tickets.",
+        allowedMentions: { parse: [] }
+      }).catch(() => {});
+      return;
+    }
     const saved = guildConfig(message.guild.id);
     await message.channel.send({
       embeds: [mainEmbed(message.guild, saved)],
@@ -511,19 +689,169 @@ module.exports = function registerTicketConfigurator(client) {
       }
       if (action === "category_edit_select") {
         const categoryKey = interaction.values?.[0];
-        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
         await interaction.showModal(categoryEditorModal(guildConfig(guild.id), categoryKey));
         return;
       }
       if (action === "category_content_select") {
         const categoryKey = interaction.values?.[0];
-        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
         await interaction.showModal(categoryContentModal(guildConfig(guild.id), categoryKey));
+        return;
+      }
+      if (action === "category_manager") {
+        await interaction.update({
+          embeds: [categoryManagerEmbed(guild, guild.id)],
+          components: categoryManagerComponents(guild.id, guild)
+        });
+        return;
+      }
+      if (action === "category_manager_back") {
+        const saved = guildConfig(guild.id);
+        await interaction.update({
+          embeds: [new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
+            .setTitle("⚙️ 🎨 Apariencia del panel y tickets")
+            .setDescription(advancedDescription("panel_editor", saved, guild))],
+          components: advancedDetailComponents("panel_editor", guild.id, guild)
+        });
+        return;
+      }
+      if (action === "category_manager_select") {
+        const categoryKey = interaction.values?.[0];
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
+        await interaction.update({
+          embeds: [categoryManagerEmbed(guild, guild.id, categoryKey)],
+          components: categoryManagerComponents(guild.id, guild, categoryKey)
+        });
+        return;
+      }
+      if (action === "category_manager_new") {
+        await interaction.showModal(newCategoryModal(guildConfig(guild.id)));
+        return;
+      }
+      if (action === "category_manager_edit" || action === "category_manager_content") {
+        const categoryKey = interaction.customId.split(":")[2];
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
+        await interaction.showModal(action === "category_manager_edit"
+          ? categoryEditorModal(guildConfig(guild.id), categoryKey)
+          : categoryContentModal(guildConfig(guild.id), categoryKey));
+        return;
+      }
+      if (action === "category_manager_toggle") {
+        const categoryKey = interaction.customId.split(":")[2];
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
+        updateGuild(guild.id, saved => {
+          const disabled = new Set(saved.disabledTicketCategories || []);
+          if (disabled.has(categoryKey)) disabled.delete(categoryKey);
+          else disabled.add(categoryKey);
+          saved.disabledTicketCategories = [...disabled];
+        });
+        await interaction.update({
+          embeds: [categoryManagerEmbed(guild, guild.id, categoryKey)],
+          components: categoryManagerComponents(guild.id, guild, categoryKey)
+        });
+        return;
+      }
+      if (action === "category_manager_delete") {
+        const categoryKey = interaction.customId.split(":")[2];
+        const saved = guildConfig(guild.id);
+        if (!saved.customCategories?.[categoryKey]) {
+          await interaction.reply({ content: "Solo se pueden eliminar categorías personalizadas. Las predeterminadas se pueden desactivar.", ephemeral: true });
+          return;
+        }
+        await interaction.update({
+          embeds: [new EmbedBuilder().setColor(config.colors.danger || 0xEF4444)
+            .setTitle("⚠️ Confirmar eliminación")
+            .setDescription("¿Eliminar la categoría " + String(saved.customCategories[categoryKey].label || categoryKey).slice(0, 80) + "? No aparecerá en nuevos paneles; los tickets ya abiertos no se borrarán.")],
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_delete_confirm:" + categoryKey)
+              .setLabel("Sí, eliminar").setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId("flux_ticket_config:category_manager_delete_cancel")
+              .setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
+          )]
+        });
+        return;
+      }
+      if (action === "category_manager_delete_confirm") {
+        const categoryKey = interaction.customId.split(":")[2];
+        const saved = guildConfig(guild.id);
+        if (!saved.customCategories?.[categoryKey]) throw new Error("Categoría personalizada no válida.");
+        updateGuild(guild.id, current => {
+          delete current.customCategories[categoryKey];
+          if (current.categoryOverrides) delete current.categoryOverrides[categoryKey];
+          current.disabledTicketCategories = (current.disabledTicketCategories || []).filter(key => key !== categoryKey);
+        });
+        await interaction.update({
+          embeds: [categoryManagerEmbed(guild, guild.id)],
+          components: categoryManagerComponents(guild.id, guild)
+        });
+        return;
+      }
+      if (action === "category_manager_delete_cancel") {
+        await interaction.update({
+          embeds: [categoryManagerEmbed(guild, guild.id)],
+          components: categoryManagerComponents(guild.id, guild)
+        });
+        return;
+      }
+      if (action === "save_new_category") {
+        const categoryKey = interaction.fields.getTextInputValue("new_category_key").trim().toLowerCase();
+        const label = interaction.fields.getTextInputValue("new_category_label").trim();
+        const description = interaction.fields.getTextInputValue("new_category_description").trim();
+        const emojiInput = interaction.fields.getTextInputValue("new_category_emoji").trim();
+        const ticketColor = interaction.fields.getTextInputValue("new_category_color").trim();
+        if (!/^[a-z][a-z0-9_-]{0,31}$/.test(categoryKey)) {
+          await interaction.reply({ content: "El ID interno debe empezar con una letra y usar solo letras minúsculas, números, guiones o guiones bajos (máximo 32 caracteres).", ephemeral: true });
+          return;
+        }
+        const saved = guildConfig(guild.id);
+        if (config.ticket.categories?.[categoryKey] || saved.customCategories?.[categoryKey]) {
+          await interaction.reply({ content: "Ya existe una categoría con ese ID. Elige otro ID interno.", ephemeral: true });
+          return;
+        }
+        if (allCategories(guild.id, guild).length >= 25) {
+          await interaction.reply({ content: "El panel admite hasta 25 categorías configuradas. Desactiva o elimina alguna antes de crear otra.", ephemeral: true });
+          return;
+        }
+        if (!label || !description || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
+          await interaction.reply({ content: "Completa el nombre y la descripción, y usa un color válido con formato #RRGGBB.", ephemeral: true });
+          return;
+        }
+        if (emojiInput) {
+          const customMatch = emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(d{17,20})>$/);
+          const customId = customMatch?.[2] || (/^d{17,20}$/.test(emojiInput) ? emojiInput : null);
+          const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
+          const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
+          const isUnicode = /p{Extended_Pictographic}/u.test(emojiInput);
+          if (customId && !guild.emojis.cache.has(customId)) {
+            await interaction.reply({ content: "Ese emoji personalizado no está disponible en este servidor. Añádelo al servidor o usa un emoji Unicode.", ephemeral: true });
+            return;
+          }
+          if (!customId && !isUnicode && !emojiByName) {
+            await interaction.reply({ content: "No encontré ese emoji. Usa un emoji Unicode, un emoji instalado en el servidor o <:nombre:ID>.", ephemeral: true });
+            return;
+          }
+        }
+        updateGuild(guild.id, current => {
+          current.customCategories = current.customCategories || {};
+          current.customCategories[categoryKey] = {
+            label,
+            description,
+            emojiInput,
+            ticketTitle: "{emoji} {name} • FLUX STORE",
+            ticketMessage: "Hola {user}, tu solicitud está abierta.\n\n**Categoría:** {name}\n**Creador:** {user}\n\nEl equipo de FLUX STORE te atenderá aquí.",
+            ticketColor: ticketColor.toUpperCase()
+          };
+        });
+        await interaction.reply({
+          content: "✅ Categoría " + label + " creada. Puedes cambiar su título, emoji, color y mensaje desde el gestor; publica el panel para hacer visibles los cambios.",
+          ephemeral: true
+        });
         return;
       }
       if (action === "save_category_content") {
         const categoryKey = interaction.customId.split(":")[2];
-        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        if (!isKnownCategory(guild.id, categoryKey)) throw new Error("Categoría no válida.");
         const ticketMessage = interaction.fields.getTextInputValue("ticket_message").trim();
         const ticketColor = interaction.fields.getTextInputValue("ticket_color").trim();
         if (!ticketMessage || !/^#[0-9A-Fa-f]{6}$/.test(ticketColor)) {
@@ -576,6 +904,15 @@ module.exports = function registerTicketConfigurator(client) {
           saved.categoryOverrides[categoryKey] = { ...(saved.categoryOverrides[categoryKey] || {}), label, ticketTitle, description, emojiInput, ticketColor: ticketColor.toUpperCase() };
         });
         await interaction.reply({ content: "✅ Categoría **" + label + "** guardada. El título se aplicará al embed del ticket y el nombre, descripción y emoji al panel. Publica de nuevo el panel para ver los cambios visuales.", ephemeral: true });
+        return;
+      }
+      if (action === "panel_preview") {
+        await interaction.reply({
+          content: "Vista previa del diseño actual. Los controles se ocultan aquí para evitar abrir un ticket por accidente.",
+          embeds: [publicPanelEmbed(guild, guildConfig(guild.id))],
+          ephemeral: true,
+          allowedMentions: { parse: [] }
+        });
         return;
       }
       if (action === "edit_panel") {
@@ -732,6 +1069,10 @@ module.exports = function registerTicketConfigurator(client) {
           return;
         }
         const categories = effectiveCategories(guild.id, guild).slice(0, 25);
+        if (!categories.length) {
+          await interaction.reply({ content: "No hay categorías activas. Activa o crea una categoría antes de publicar el panel.", ephemeral: true });
+          return;
+        }
         const categoryOptions = categories.map(([value, item]) => {
           const option = {
             label: String(item.label || value).slice(0, 100),
@@ -780,29 +1121,7 @@ module.exports = function registerTicketConfigurator(client) {
           }
         }
 
-        const panelDescription = [
-          String(saved.panelDescription || "Te damos la bienvenida al centro oficial de atención de FLUX STORE. Selecciona una categoría para iniciar una solicitud privada.").trim().slice(0, 1400),
-          "",
-          "**CÓMO FUNCIONA**",
-          "01 · Selecciona el tipo de solicitud en el menú o los botones.",
-          "02 · Se creará un canal privado para atender tu caso.",
-          "03 · El equipo de FLUX STORE continuará la atención dentro del ticket.",
-          "",
-          "**PRIVACIDAD Y SEGURIDAD**",
-          "No compartas contraseñas, tokens ni información sensible."
-        ].join("\n");
-        const panel = new EmbedBuilder()
-          .setColor(/^#[0-9A-Fa-f]{6}$/.test(saved.panelColor || "") ? parseInt(saved.panelColor.slice(1), 16) : (config.colors.primary || 0x8B5CF6))
-          .setTitle(String(saved.panelTitle || "FLUX STORE • Centro de atención").slice(0, 256))
-          .setDescription(panelDescription.slice(0, 4096))
-          .setFooter({ text: String(saved.panelFooter || "FLUX STORE • Soporte privado").slice(0, 2048) })
-          .setTimestamp();
-        const panelIcon = guild.iconURL({ size: 128 });
-        panel.setAuthor(panelIcon
-          ? { name: "FLUX STORE  /  CENTRO DE SOPORTE", iconURL: panelIcon }
-          : { name: "FLUX STORE  /  CENTRO DE SOPORTE" });
-        if (isOptionalHttpsUrl(saved.panelThumbnailUrl) && saved.panelThumbnailUrl) panel.setThumbnail(saved.panelThumbnailUrl);
-        if (isOptionalHttpsUrl(saved.panelBannerUrl) && saved.panelBannerUrl) panel.setImage(saved.panelBannerUrl);
+        const panel = publicPanelEmbed(guild, saved);
 
         let sent = null;
         let publishAction = "publicado";
