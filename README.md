@@ -44,9 +44,6 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - En **Avanzado → Editor visual del panel** puedes guardar título, descripción, color hexadecimal y pie del panel para las próximas publicaciones.
 - En **Avanzado → Editor de categorías** puedes editar la etiqueta, descripción y emoji de cada tipo de ticket, por servidor.
 - En **Avanzado → Moderación de tickets** puedes configurar el máximo de tickets abiertos por usuario, autocierre y horas de inactividad, y recordatorios al staff.
-- `m!ticket blacklist @usuario razón`: impide que un usuario abra tickets en ese servidor.
-- `m!ticket unblacklist @usuario`: elimina el bloqueo.
-- `m!ticket blacklist-list`: muestra la lista negra.
 - Los recordatorios se activan si se configura una hora válida y se envían cuando el último mensaje humano del ticket es del cliente y no hay respuesta posterior del staff. El autocierre sigue desactivado por defecto.
 - \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
 
