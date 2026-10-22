@@ -1,6 +1,7 @@
-const { PermissionFlagsBits, ChannelType } = require("discord.js");
+const { ChannelType } = require("discord.js");
 const { readJSON, writeJSON } = require("./storage");
 const config = require("./config");
+const { canManageStore } = require("./utils/permissions");
 
 const STATS_FILE = "flux-store-stats.json";
 const PRODUCTS_FILE = "flux-store-products.json";
@@ -19,14 +20,7 @@ function saveStats(stats) { writeJSON(STATS_FILE, stats); return stats; }
 function getProducts() { const p = readJSON(PRODUCTS_FILE, []); return Array.isArray(p) ? p : []; }
 function saveProducts(products) { writeJSON(PRODUCTS_FILE, products); return products; }
 function isStoreStaff(member) {
-  if (!member) return false;
-  const p = member.permissions;
-  if (p?.has(PermissionFlagsBits.Administrator) || p?.has(PermissionFlagsBits.ManageGuild)) return true;
-  const roles = member.roles?.cache;
-  if (!roles) return false;
-  if ((config.roles?.admin && roles.has(config.roles.admin)) || (config.roles?.staff && roles.has(config.roles.staff))) return true;
-  const allowedNames = new Set(["✦ ᴏᴡɴᴇʀ", "✦ ᴍᴀɴᴀɢᴇʀ", "✦ ᴀᴅᴍɪɴ", "✦ ʜᴇᴀᴅ sᴛᴀғғ", "✦ sᴜᴘᴘᴏʀᴛ"]);
-  return roles.some(role => allowedNames.has(role.name));
+  return canManageStore(member, config);
 }
 function voteLegit(userId, choice) {
   const stats = getStats(), before = stats.legitVotes[String(userId)];
