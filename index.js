@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, Partials, Collection, Events, ActivityType, REST, Routes, PermissionFlagsBits, EmbedBuilder, ChannelType, ActionRowBuilder, StringSelectMenuBuilder } = require("discord.js");
 const fs = require("fs");
+const http = require("http");
 const path = require("path");
 const config = require("./config");
 const { emoji, emojiData } = require("./ui");
@@ -24,6 +25,25 @@ const client = new Client({
     GatewayIntentBits.GuildModeration
   ],
   partials: [Partials.Channel, Partials.Message, Partials.User]
+});
+
+const port = Number(process.env.PORT) || 3000;
+const healthServer = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({
+      service: "FLUX STORE",
+      status: client.isReady() ? "online" : "starting"
+    }));
+    return;
+  }
+
+  res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("FLUX STORE Discord bot service is running.");
+});
+
+healthServer.listen(port, "0.0.0.0", () => {
+  console.log("HTTP health server listening on port " + port);
 });
 
 client.commands = new Collection();
