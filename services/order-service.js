@@ -1,6 +1,7 @@
 const { randomUUID } = require("crypto");
 const { readJSON, writeJSON } = require("../storage");
 const storeStats = require("../store-service");
+const config = require("../config");
 
 const ORDERS_FILE = "flux-store-orders.json";
 const PRODUCTS_FILE = "flux-store-products.json";
@@ -29,6 +30,21 @@ function readArray(file) {
 
 function readOrders() {
   return readArray(ORDERS_FILE);
+}
+
+function readCouponRecords() {
+  const coupons = readCouponRecords();
+  let changed = false;
+  if (config.guildId) {
+    for (const coupon of coupons) {
+      if (!coupon.guildId) {
+        coupon.guildId = config.guildId;
+        changed = true;
+      }
+    }
+  }
+  if (changed) writeJSON(COUPONS_FILE, coupons);
+  return coupons;
 }
 
 function getOrders(guildId) {
@@ -168,7 +184,7 @@ function createOrder({ guildId, userId, userTag, productName, quantity = 1, paym
     coupons = readArray(COUPONS_FILE);
     coupon = coupons.find(item =>
       normalizeCode(item.code) === normalizedCoupon &&
-      (!item.guildId || item.guildId === guildId)
+      item.guildId === guildId
     );
     if (!coupon) throw new Error("El cupón no existe en este servidor.");
     if (!isCouponActive(coupon)) throw new Error("El cupón ha caducado o alcanzó su límite de usos.");
