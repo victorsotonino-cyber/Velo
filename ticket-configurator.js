@@ -76,6 +76,16 @@ function isAdmin(member) {
     (config.roles.admin && member.roles.cache.has(config.roles.admin))));
 }
 
+function isOptionalHttpsUrl(value) {
+  if (!String(value || "").trim()) return true;
+  try {
+    return new URL(String(value).trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+
 function mainEmbed(guild, saved) {
   const channel = saved.panelChannelId ? guild.channels.cache.get(saved.panelChannelId) : null;
   const category = saved.ticketCategoryId ? guild.channels.cache.get(saved.ticketCategoryId) : null;
@@ -214,6 +224,45 @@ function panelEditorModal(saved) {
   return modal;
 }
 
+function panelImagesModal(saved) {
+  const modal = new ModalBuilder()
+    .setCustomId("flux_ticket_config:save_panel_images")
+    .setTitle("Imágenes del panel");
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("panel_thumbnail_url")
+      .setLabel("Miniatura: URL HTTPS (opcional)")
+      .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500)
+      .setValue(String(saved.panelThumbnailUrl || "").slice(0, 500))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("panel_banner_url")
+      .setLabel("Banner grande: URL HTTPS (opcional)")
+      .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500)
+      .setValue(String(saved.panelBannerUrl || "").slice(0, 500)))
+  );
+  return modal;
+}
+
+function categoryContentModal(saved, categoryKey) {
+  const override = (saved.categoryOverrides || {})[categoryKey] || {};
+  const modal = new ModalBuilder()
+    .setCustomId("flux_ticket_config:save_category_content:" + categoryKey)
+    .setTitle("Mensaje interno: " + categoryKey.slice(0, 30));
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("ticket_message")
+      .setLabel("Mensaje inicial; usa {user}, {name}, {emoji}")
+      .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500)
+      .setValue(String(override.ticketMessage || "Hola {user}, tu solicitud está abierta.\n\nCategoría: {name}\nCreador: {user}\n\nEl equipo de FLUX STORE te atenderá aquí.").slice(0, 1500))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder()
+      .setCustomId("ticket_color")
+      .setLabel("Color del embed (#RRGGBB)")
+      .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7)
+      .setValue(String(override.ticketColor || saved.panelColor || "#8B5CF6")))
+  );
+  return modal;
+}
+
 function moderationModal(saved) {
   const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_moderation").setTitle("Moderación de tickets");
   modal.addComponents(
@@ -233,7 +282,8 @@ function categoryEditorModal(saved, categoryKey) {
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre de la categoría en el panel").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(override.label || defaults.label || categoryKey).slice(0, 100))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_title").setLabel("Título del embed dentro del ticket").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(override.ticketTitle || defaults.ticketTitle || "{emoji} {name} • FLUX STORE").slice(0, 256))),
     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción de esta categoría").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(override.description || defaults.description || "Abre un ticket privado").slice(0, 1000))),
-    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji Unicode, nombre del servidor, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100)))
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji Unicode, nombre del servidor, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_color").setLabel("Color del ticket (#RRGGBB)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7).setValue(String(override.ticketColor || saved.panelColor || "#8B5CF6")))
   );
   return modal;
 }
@@ -283,17 +333,20 @@ function advancedDetailComponents(key, guildId, guild = null) {
   if (key === "panel_editor") {
     const rows = [
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("flux_ticket_config:edit_panel")
-          .setLabel("Editar título y apariencia")
-          .setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId("flux_ticket_config:edit_panel")
+          .setLabel("Editar título y texto").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("flux_ticket_config:edit_panel_images")
+          .setLabel("Imágenes").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("flux_ticket_config:back")
+          .setLabel("Volver al panel").setStyle(ButtonStyle.Secondary)
       )
     ];
+
     const categories = effectiveCategories(guildId, guild).slice(0, 25);
     if (categories.length) {
       const categorySelect = new StringSelectMenuBuilder()
         .setCustomId("flux_ticket_config:category_edit_select")
-        .setPlaceholder("Editar nombre, título, descripción o emoji de un ticket")
+        .setPlaceholder("Editar nombre, título, descripción, color o emoji")
         .addOptions(categories.map(([value, item]) => ({
           label: String(item.label || value).slice(0, 100),
           value,
@@ -302,10 +355,21 @@ function advancedDetailComponents(key, guildId, guild = null) {
             : item.emojiUnicode ? { emoji: { name: String(item.emojiUnicode).slice(0, 32) } } : {})
         })));
       rows.push(new ActionRowBuilder().addComponents(categorySelect));
+
+      const contentSelect = new StringSelectMenuBuilder()
+        .setCustomId("flux_ticket_config:category_content_select")
+        .setPlaceholder("Editar mensaje y color dentro del ticket")
+        .addOptions(categories.map(([value, item]) => ({
+          label: String(item.label || value).slice(0, 100),
+          value,
+          description: "Editar mensaje inicial y color"
+        })));
+      rows.push(new ActionRowBuilder().addComponents(contentSelect));
     }
+
     const currentTemplate = String(guildConfig(guildId).channelNameTemplate || "ticket-{type}-{username}");
     const nameSelect = new StringSelectMenuBuilder()
-      .setCustomId("flux_ticket_config:name_template")
+      .setCustomId("flux_ticket_config:appearance_name_template")
       .setPlaceholder("Cambiar formato del nombre de los canales")
       .addOptions(
         { label: "ticket-{type}-{username}", value: "ticket-{type}-{username}", description: "Ej.: ticket-compras-usuario", default: currentTemplate === "ticket-{type}-{username}" },
@@ -313,6 +377,16 @@ function advancedDetailComponents(key, guildId, guild = null) {
         { label: "ticket-{ticket}", value: "ticket-{ticket}", description: "Ej.: ticket-123456", default: currentTemplate === "ticket-{ticket}" }
       );
     rows.push(new ActionRowBuilder().addComponents(nameSelect));
+
+    const currentLayout = String(guildConfig(guildId).panelLayout || "select");
+    const layoutSelect = new StringSelectMenuBuilder()
+      .setCustomId("flux_ticket_config:panel_layout")
+      .setPlaceholder("Elegir cómo se muestran las categorías")
+      .addOptions(
+        { label: "Menú desplegable", value: "select", description: "Compacto; admite hasta 25 categorías", default: currentLayout === "select" },
+        { label: "Botones por categoría", value: "buttons", description: "Acceso directo; máximo cinco categorías", default: currentLayout === "buttons" }
+      );
+    rows.push(new ActionRowBuilder().addComponents(layoutSelect));
     return rows;
   }
   if (key === "moderation") {
