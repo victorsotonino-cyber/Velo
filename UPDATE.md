@@ -1,45 +1,45 @@
 # ✦ FLUX STORE — UPDATE
 
-**Fecha:** 22 de octubre de 2026  
-**Repositorio:** `victorsotonino-cyber/Velo`  
-**Rama:** `main`
+Fecha: 22 de octubre de 2026
+Repositorio: `victorsotonino-cyber/Velo`
+Rama de desarrollo: `feat/flux-commerce-tools`
 
-## Novedades de esta actualización
+## Cambios preparados
 
-### 🎭 Autorol al entrar
-- Los nuevos miembros reciben automáticamente el rol <@&1562619913485557901>.
-- El ID del rol está fijado directamente en `config.js` para que una variable antigua del hosting no lo sustituya.
-- Si Discord rechaza la asignación, el error queda registrado en la consola y la bienvenida sigue su proceso.
+### Tienda y pedidos
+- Catálogo con precios numéricos, descripciones y stock finito o ilimitado.
+- Carrito persistente por servidor y usuario; checkout crea pedidos y conserva las líneas que no pudieron procesarse.
+- Los pedidos usan precios del catálogo y conservan un historial de estados: pendiente, pago verificado, en preparación, completado o cancelado.
+- El stock limitado se reserva al crear el pedido y vuelve al inventario si el pedido se cancela.
+- Los cupones tienen fecha de vencimiento, límites de uso y asociación a un servidor.
+- El pago no se marca como verificado automáticamente.
 
-### 👋 Bienvenida
-- Se conserva el diseño blanco de FLUX STORE.
-- La bienvenida incluye avatar del miembro, contador de miembros y accesos directos a términos, métodos y tickets.
-- El canal se lee desde `WELCOME_CHANNEL_ID` o la configuración predeterminada.
+### Confianza y administración
+- Reseñas ligadas a pedidos propios completados.
+- Estadísticas de pedidos e ingresos calculados a partir de pedidos completados.
+- Historial de compras visible para cada cliente y consulta de historiales para el personal autorizado.
+- Métodos de pago mostrados desde `PAYMENT_METHODS_TEXT`.
 
-### 🧪 Vista previa
-- `!test-bienvenida`
-- `!bienvenida-test`
+### Comunidad y seguridad
+- Encuestas interactivas con botones y recuento de votos.
+- Sugerencias con votos a favor/en contra.
+- Comando `/userinfo`.
+- Automod básico configurable para spam repetitivo e invitaciones.
+- Los comandos nuevos se organizan en subcarpetas y el cargador y el despliegue slash las detectan automáticamente.
+- Los eventos de inicio, interacciones, mensajes, entradas y salidas se cargan desde `events/`; utilidades compartidas viven en `utils/`.
+- Se añade una suite de pruebas y validación mediante GitHub Actions.
 
-Estos comandos muestran un ejemplo en el canal donde se ejecutan; no fingen una entrada real ni asignan roles.
+### Referencias de código revisadas
+Los patrones adaptados y los repositorios consultados están documentados en [REFERENCIAS-CODIGO.md](REFERENCIAS-CODIGO.md). No se copiaron módulos Python a Node.js ni se mezclaron bibliotecas slash obsoletas.
 
-### 🆕 Centro de actualizaciones
-- `/update` muestra este resumen dentro de Discord.
-- `!update` muestra el mismo resumen con prefijo.
+## Requisito antes de activar en el hosting
+Todos los IDs de canales, roles y emojis se trasladaron a variables de entorno y dejaron de tener valores por defecto dentro del código. Completa los campos de `.env.example` en el panel de hosting antes de desplegar esta rama; de lo contrario, las funciones dependientes de esos canales/roles no podrán resolverlos.
 
-### 🛍️ Funciones existentes incluidas
-- Catálogo de productos con `/tienda`.
-- Panel de tickets con categorías de Compras, Dudas, Reportes, Partner y Alianzas.
-- Emojis personalizados asignados por ID: `<:emoji_20:1550146329915949077>` para Compras, `<:emoji_138:1561921833203142757>` para Dudas, `<:emoji_139:1561921915658969099>` para Reportes, `<:flux_pandahiyapolice_2219:1561698594136920214>` para Partner y `<:flux_owner_4264:1561551235285385227>` para Alianzas.
-- La selección de tickets usa un bloqueo de creación por usuario para evitar aperturas simultáneas por doble clic, y no permite repetir una categoría que ya tenga abierta.
-- Los permisos del canal privado incluyen los roles configurados de Staff y Admin. Al cerrar, se guarda una transcripción paginada de hasta 2.000 mensajes, con texto, embeds y enlaces de adjuntos.
-- Sistema de sorteos con botones.
-- Herramientas de moderación, ayuda, encuestas y utilidades.
+## Arranque y pruebas
+1. Configura las variables de entorno del bot.
+2. Ejecuta `npm install`.
+3. Ejecuta `npm test` para comprobar los flujos automatizados.
+4. Ejecuta `npm run deploy` y después `npm start`.
+5. Prueba un pedido con producto de bajo stock, la cancelación, un cupón y una encuesta en un canal de prueba.
 
-## Activación
-1. Sincroniza la rama `main` en el hosting o vuelve a desplegar el repositorio.
-2. Reinicia el proceso del bot.
-3. Comprueba que el bot tenga **Gestionar roles** y que su rol esté por encima del rol automático.
-4. En Discord Developer Portal, habilita **Server Members Intent**.
-5. En Discord, prueba `!test-bienvenida` y `!update`; después prueba con una cuenta que se una realmente.
-
-**Importante:** los cambios están guardados en GitHub. No se afirma que el hosting ya esté desplegado; eso depende de la sincronización y reinicio del servicio.
+El código está en una rama de desarrollo; estos cambios no significan que el hosting esté desplegado o reiniciado.

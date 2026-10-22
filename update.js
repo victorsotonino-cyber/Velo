@@ -1,14 +1,16 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const updates = [
-  "**👋 Bienvenida renovada** — mensaje visual de FLUX STORE con enlaces directos a términos, métodos y tickets.",
-  "**🎭 Autorol automático** — los nuevos miembros reciben el rol configurado al entrar.",
-  "**🧪 Vista previa** — usa `!test-bienvenida` o `!bienvenida-test` para revisar el diseño sin simular una entrada.",
-  "**🛍️ Catálogo de tienda** — consulta productos y administra precios/descripciones con `/tienda`.",
-  "**🎟️ Atención al cliente** — panel de tickets con categorías de compras, dudas, reportes, partner y alianzas.",
-  "**🎨 Emojis de FLUX STORE** — los cinco emojis personalizados ya identifican Compras, Dudas, Reportes, Partner y Alianzas en el panel y los tickets abiertos.",
-  "**🔐 Tickets reforzados** — protección contra aperturas duplicadas por doble clic, bloqueo de tickets repetidos de la misma categoría, acceso explícito para Staff/Admin y transcripciones paginadas de hasta 2.000 mensajes.",
-  "**🎉 Sorteos** — creación, participación, finalización y selección de ganadores con el sistema de giveaways.",
-  "**🛡️ Moderación y utilidad** — herramientas de administración, ayuda, actividad, encuestas y estado del bot."
+  "**🛒 Carrito de compras** — agrega varios productos, ajusta cantidades, revisa subtotales y crea pedidos desde el carrito.",
+  "**📦 Pedidos más seguros** — el precio sale del catálogo; los pedidos registran el método de pago y avanzan por estados controlados.",
+  "**📊 Stock e inventario** — configura stock limitado o ilimitado, reserva unidades al crear pedidos y devuelve unidades al cancelar.",
+  "**🎟️ Cupones integrados** — descuentos, caducidad, límite de usos y aislamiento por servidor.",
+  "**⭐ Reseñas verificadas** — solo pueden publicarse reseñas asociadas a pedidos propios completados.",
+  "**📈 Estadísticas** — resumen de pedidos, estados e ingresos calculados de pedidos completados para el equipo autorizado.",
+  "**💡 Comunidad** — sugerencias votables, encuestas interactivas y /userinfo.",
+  "**🛡️ Automod básico** — detección de spam repetitivo y bloqueo de invitaciones opcional mediante variables de entorno.",
+  "**🧭 Comandos organizados** — el cargador y el registro slash aceptan comandos en subcarpetas.",
+  "**🔐 Configuración externa** — tokens, canales, roles y emojis personalizados se leen desde variables de entorno, no desde el código.",
+  "**🧪 Pruebas automatizadas** — validación de pedidos, stock, cupones y esquemas slash mediante npm test y GitHub Actions."
 ];
 
 function buildUpdateEmbed() {
@@ -19,7 +21,7 @@ function buildUpdateEmbed() {
     .setDescription(updates.join("\n\n"))
     .addFields({
       name: "⚙️ Activación",
-      value: "Los cambios del código se publican en GitHub. Para que estén activos en Discord, el hosting debe actualizar el repositorio y reiniciar el bot."
+      value: "Estos cambios están en la rama de mejora de GitHub. Antes de activarlos en el hosting, configura sus variables de entorno y verifica la rama que vas a desplegar."
     })
     .setFooter({ text: "FLUX STORE • Registro de actualizaciones" })
     .setTimestamp();
