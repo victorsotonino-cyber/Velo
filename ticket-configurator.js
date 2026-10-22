@@ -26,7 +26,8 @@ const ADVANCED_OPTIONS = [
   { label: "💳 Métodos de pago", value: "payments", description: "LTC, Binance, bancos y PayPal" },
   { label: "🛠️ Sellers / Limpieza / Emojis", value: "tools", description: "Opciones de staff y vista previa de emojis" },
   { label: "🎨 Editor visual del panel", value: "panel_editor", description: "Editar título, descripción, color y pie" },
-  { label: "🛡️ Moderación de tickets", value: "moderation", description: "Límites, recordatorios y autocierre" }
+  { label: "🛡️ Moderación de tickets", value: "moderation", description: "Límites, recordatorios y autocierre" },
+  { label: "📂 Editor de categorías", value: "category_editor", description: "Editar nombre, descripción y emoji por tipo" }
 ];
 
 function readStore() {
@@ -175,7 +176,52 @@ function moderationModal(saved) {
   return modal;
 }
 
+function categoryEditorModal(saved, categoryKey) {
+  const defaults = config.ticket.categories[categoryKey] || {};
+  const override = (saved.categoryOverrides || {})[categoryKey] || {};
+  const modal = new ModalBuilder().setCustomId("flux_ticket_config:save_category:" + categoryKey).setTitle("Editar categoría: " + categoryKey.slice(0, 35));
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_label").setLabel("Nombre visible").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(String(override.label || defaults.label || categoryKey).slice(0, 100))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_description").setLabel("Descripción").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(override.description || defaults.description || "Abre un ticket privado").slice(0, 1000))),
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("category_emoji").setLabel("Emoji opcional: nombre, ID o <:nombre:ID>").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(100).setValue(String(override.emojiInput || "").slice(0, 100)))
+  );
+  return modal;
+}
+
+function effectiveCategories(guildId) {
+  const base = config.ticket.categories || {};
+  const saved = guildConfig(guildId);
+  const overrides = saved.categoryOverrides || {};
+  return Object.entries(base).map(([key, item]) => {
+    const override = overrides[key] || {};
+    const merged = { ...item, ...override };
+    if (override.emojiInput) {
+      const match = override.emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\\d{17,20})>$/);
+      if (match) {
+        merged.emojiName = match[1];
+        merged.emojiId = match[2];
+      } else if (/^\\d{17,20}$/.test(override.emojiInput)) {
+        merged.emojiId = override.emojiInput;
+      } else {
+        merged.emojiName = override.emojiInput.replace(/^:/, "").replace(/:$/, "");
+      }
+    }
+    return [key, merged];
+  });
+}
+
 function advancedDetailComponents(key) {
+  if (key === "category_editor") {
+    const categories = Object.entries(config.ticket.categories || {}).slice(0, 25);
+    const select = new StringSelectMenuBuilder().setCustomId("flux_ticket_config:category_edit_select")
+      .setPlaceholder("Selecciona la categoría que quieres editar")
+      .addOptions(categories.map(([value, item]) => ({
+        label: String(item.label || value).slice(0, 100),
+        value,
+        description: String(item.description || "Editar esta categoría").slice(0, 100)
+      })));
+    return [new ActionRowBuilder().addComponents(select)];
+  }
   if (key === "panel_editor" || key === "moderation") {
     return [new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(key === "panel_editor" ? "flux_ticket_config:edit_panel" : "flux_ticket_config:edit_moderation")
@@ -307,6 +353,29 @@ module.exports = function registerTicketConfigurator(client) {
         await interaction.update({ embeds: [mainEmbed(guild, guildConfig(guild.id))], components: mainComponents() });
         return;
       }
+      if (action === "category_edit_select") {
+        const categoryKey = interaction.values?.[0];
+        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        await interaction.showModal(categoryEditorModal(guildConfig(guild.id), categoryKey));
+        return;
+      }
+      if (action === "save_category") {
+        const categoryKey = interaction.customId.split(":")[2];
+        if (!categoryKey || !config.ticket.categories?.[categoryKey]) throw new Error("Categoría no válida.");
+        const label = interaction.fields.getTextInputValue("category_label").trim();
+        const description = interaction.fields.getTextInputValue("category_description").trim();
+        const emojiInput = interaction.fields.getTextInputValue("category_emoji").trim();
+        if (!label || !description) {
+          await interaction.reply({ content: "El nombre y la descripción son obligatorios.", ephemeral: true });
+          return;
+        }
+        updateGuild(guild.id, saved => {
+          saved.categoryOverrides = saved.categoryOverrides || {};
+          saved.categoryOverrides[categoryKey] = { label, description, emojiInput };
+        });
+        await interaction.reply({ content: "✅ Categoría **" + label + "** guardada. Publica de nuevo el panel para actualizar sus opciones.", ephemeral: true });
+        return;
+      }
       if (action === "edit_panel") {
         await interaction.showModal(panelEditorModal(guildConfig(guild.id)));
         return;
@@ -408,7 +477,7 @@ module.exports = function registerTicketConfigurator(client) {
           await interaction.reply({ content: "Selecciona al menos un rol de soporte.", ephemeral: true });
           return;
         }
-        const categories = Object.entries(config.ticket.categories || {});
+        const categories = effectiveCategories(guild.id);
         const menu = new StringSelectMenuBuilder().setCustomId("ticket_create")
           .setPlaceholder("Selecciona una categoría de atención")
           .setMinValues(1).setMaxValues(1)
