@@ -79,26 +79,17 @@ async function createTicketLocked(i) {
   const categoryOverride = (ticketSettings.categoryOverrides || {})[type] || {};
   const category = baseCategory ? { ...baseCategory, ...categoryOverride } : null;
   if (category?.emojiInput) {
-    const customEmoji = category.emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\\d{17,20})>$/);
+    const customEmoji = category.emojiInput.match(/^<a?:([a-zA-Z0-9_]+):(\d{17,20})>$/);
     if (customEmoji) {
       category.emojiName = customEmoji[1];
       category.emojiId = customEmoji[2];
-    } else if (/^\\d{17,20}$/.test(category.emojiInput)) {
+    } else if (/^\d{17,20}$/.test(category.emojiInput)) {
       category.emojiId = category.emojiInput;
     } else {
       category.emojiName = category.emojiInput.replace(/^:/, "").replace(/:$/, "");
     }
   }
   if (!category) return i.reply({ content: emoji(i.guild, "error", "❌") + " Tipo de ticket no válido.", ephemeral: true });
-  const ticketBlacklist = Array.isArray(ticketSettings.ticketBlacklist) ? ticketSettings.ticketBlacklist : [];
-  const blockedEntry = ticketBlacklist.find(entry => entry && entry.userId === i.user.id);
-  if (blockedEntry) {
-    return i.reply({
-      content: emoji(i.guild, "error", "🚫") + " No puedes abrir tickets en este servidor. Razón: " +
-        String(blockedEntry.reason || "Sin razón indicada").slice(0, 300),
-      ephemeral: true
-    });
-  }
   const maxOpenPerUser = Number.isInteger(ticketSettings.maxOpenPerUser) && ticketSettings.maxOpenPerUser > 0
     ? Math.min(ticketSettings.maxOpenPerUser, 10)
     : config.ticket.maxOpenPerUser;
