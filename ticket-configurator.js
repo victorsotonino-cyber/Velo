@@ -1,5 +1,3 @@
-const fs = require("node:fs");
-const path = require("node:path");
 const {
   ActionRowBuilder,
   ButtonBuilder,
@@ -12,9 +10,7 @@ const {
   StringSelectMenuBuilder
 } = require("discord.js");
 const config = require("./config");
-
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "ticket-config.json");
+const { readJSON, writeJSON } = require("./storage");
 const ADVANCED_OPTIONS = [
   { label: "⭐ Panel", value: "panel", description: "Canal y aspecto del panel" },
   { label: "🛡️ Roles y categorías", value: "roles", description: "Roles de soporte y categoría de tickets" },
@@ -29,19 +25,12 @@ const ADVANCED_OPTIONS = [
 ];
 
 function readStore() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+  const parsed = readJSON("ticket-config.json", {});
+  return parsed && typeof parsed === "object" ? parsed : {};
 }
 
 function writeStore(store) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = DATA_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
-  fs.renameSync(tmp, DATA_FILE);
+  writeJSON("ticket-config.json", store);
 }
 
 function guildConfig(guildId) {
