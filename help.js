@@ -13,6 +13,7 @@ module.exports = {
         { label: "Administración", value: "administracion", emoji: emojiData(i.guild, "settings", "⚙️"), description: "Gestión del servidor y canales" },
         { label: "Moderación", value: "moderacion", emoji: emojiData(i.guild, "moderation", "🛡️"), description: "Sanciones y control del chat" },
         { label: "Tickets", value: "tickets", emoji: emojiData(i.guild, "ticket", "🎫"), description: "Tickets y postulaciones" },
+        { label: "Tienda", value: "tienda", emoji: emojiData(i.guild, "cart", "🛒"), description: "Carrito, cupones, pagos y pedidos" },
         { label: "Utilidad", value: "utilidad", emoji: emojiData(i.guild, "info", "🧰"), description: "Comandos útiles" },
         { label: "Diversión", value: "diversion", emoji: emojiData(i.guild, "fun", "🎮"), description: "Comandos para la comunidad" }
       );
