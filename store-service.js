@@ -43,9 +43,10 @@ async function refreshCounters(guild) {
     members: "👥・miembros: " + guild.memberCount,
     bots: "🤖・bots: " + guild.members.cache.filter(m => m.user.bot).size
   };
-  const voiceChannels = guild.channels.cache.filter(c => [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(c.type) && c.topic?.startsWith("flux-counter:"));
+  const voiceChannels = guild.channels.cache.filter(c => [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(c.type));
+  const prefixes = { sales: "🛒・ventas:", legit: "✅・legit:", members: "👥・miembros:", bots: "🤖・bots:" };
   for (const [key, name] of Object.entries(names)) {
-    const ch = voiceChannels.find(c => c.topic === "flux-counter:" + key);
+    const ch = voiceChannels.find(c => c.name.startsWith(prefixes[key]));
     if (ch && ch.name !== name) await ch.setName(name).catch(() => {});
   }
 }
