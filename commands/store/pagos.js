@@ -8,9 +8,13 @@ module.exports = {
   async execute(interaction) {
     const text = String(config.paymentMethodsText || "").trim();
     if (!text) {
+      const channelId = config.channels.paymentMethods;
       return interaction.reply({
-        content: "ℹ️ Los métodos de pago todavía no están configurados. Abre un ticket de Compras y pedidos para recibir las instrucciones oficiales.",
-        ephemeral: true
+        content: channelId
+          ? "ℹ️ Consulta los métodos de pago oficiales en <#" + channelId + ">. Antes de pagar, confirma el importe y los datos con el personal de FLUX STORE."
+          : "ℹ️ Los métodos de pago todavía no están configurados. Abre un ticket de Compras y pedidos para recibir las instrucciones oficiales.",
+        ephemeral: true,
+        allowedMentions: { parse: [] }
       });
     }
     const embed = new EmbedBuilder()
