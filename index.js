@@ -7,6 +7,7 @@ const { readJSON, writeJSON } = require("./storage");
 const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
 const automodService = require("./automod-service");
+const { canModerateTarget } = require("./utils/permissions");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
@@ -334,6 +335,7 @@ client.on(Events.MessageCreate, async message => {
       case "ban": {
         if (!need(PermissionFlagsBits.BanMembers)) return;
         if (!member) return fail("Uso: `!ban @usuario [razón]`");
+        if (!canModerateTarget(message.member, member, message.guild.ownerId)) return fail("No puedes banear al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.");
         if (!member.bannable) return fail("No puedo banear a ese usuario. Revisa la jerarquía de roles.");
         await member.ban({ reason: args.slice(1).join(" ") || "Sin razón indicada" });
         return ok("Usuario baneado: " + member.user.tag);
@@ -341,6 +343,7 @@ client.on(Events.MessageCreate, async message => {
       case "kick": {
         if (!need(PermissionFlagsBits.KickMembers)) return;
         if (!member) return fail("Uso: `!kick @usuario [razón]`");
+        if (!canModerateTarget(message.member, member, message.guild.ownerId)) return fail("No puedes expulsar al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.");
         if (!member.kickable) return fail("No puedo expulsar a ese usuario. Revisa la jerarquía de roles.");
         await member.kick(args.slice(1).join(" ") || "Sin razón indicada");
         return ok("Usuario expulsado: " + member.user.tag);
@@ -348,6 +351,7 @@ client.on(Events.MessageCreate, async message => {
       case "timeout": {
         if (!need(PermissionFlagsBits.ModerateMembers)) return;
         if (!member) return fail("Uso: `!timeout @usuario minutos [razón]`");
+        if (!canModerateTarget(message.member, member, message.guild.ownerId)) return fail("No puedes aplicar timeout al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.");
         const minutes = Number(args[1]);
         if (!Number.isInteger(minutes) || minutes < 1 || minutes > 40320) return fail("Indica minutos entre 1 y 40320.");
         if (!member.moderatable) return fail("No puedo aplicar timeout a ese usuario.");
@@ -357,6 +361,7 @@ client.on(Events.MessageCreate, async message => {
       case "untimeout": {
         if (!need(PermissionFlagsBits.ModerateMembers)) return;
         if (!member) return fail("Uso: `!untimeout @usuario`");
+        if (!canModerateTarget(message.member, member, message.guild.ownerId)) return fail("No puedes quitar timeout al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.");
         if (!member.moderatable) return fail("No puedo quitar el timeout a ese usuario.");
         await member.timeout(null);
         return ok("Timeout quitado a " + member.user.tag + ".");
@@ -364,6 +369,7 @@ client.on(Events.MessageCreate, async message => {
       case "warn": {
         if (!need(PermissionFlagsBits.ModerateMembers)) return;
         if (!member) return fail("Uso: `!warn @usuario [razón]`");
+        if (!canModerateTarget(message.member, member, message.guild.ownerId)) return fail("No puedes advertir al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.");
         const reason = args.slice(1).join(" ") || "Sin razón indicada";
         const log = message.guild.channels.cache.get(config.channels.logs);
         if (log?.isTextBased()) await log.send("⚠️ " + member.user + " recibió una advertencia de " + message.author + ". Razón: " + reason).catch(() => {});
