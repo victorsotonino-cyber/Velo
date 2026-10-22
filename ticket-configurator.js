@@ -822,7 +822,7 @@ module.exports = function registerTicketConfigurator(client) {
           const customId = customMatch?.[2] || (/^d{17,20}$/.test(emojiInput) ? emojiInput : null);
           const plainName = emojiInput.replace(/^:/, "").replace(/:$/, "");
           const emojiByName = guild.emojis.cache.find(item => item.name === plainName);
-          const isUnicode = /p{Extended_Pictographic}/u.test(emojiInput);
+          const isUnicode = /\p{Extended_Pictographic}/u.test(emojiInput);
           if (customId && !guild.emojis.cache.has(customId)) {
             await interaction.reply({ content: "Ese emoji personalizado no está disponible en este servidor. Añádelo al servidor o usa un emoji Unicode.", ephemeral: true });
             return;
