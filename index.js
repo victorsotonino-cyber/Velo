@@ -8,7 +8,7 @@ const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
 
 if (!config.token) {
-  console.error("Falta DISCORD_TOKEN en Railway.");
+  console.error("Falta DISCORD_TOKEN en las variables de entorno.");
   process.exit(1);
 }
 
@@ -162,9 +162,9 @@ client.on(Events.MessageCreate, async message => {
           .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
           .setTitle("Welcome to FLUX STORE")
           .setDescription(
-            "• • <#1562615455624077383> **TERMINOS**\\n" +
-            "• • <#1562615459256471642> **METODOS**\\n" +
-            "• • <#1562615495704838174> **TICKETS**"
+            "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "") + " **TERMINOS**\n" +
+            "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "") + " **METODOS**\n" +
+            "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "") + " **TICKETS**"
           )
           .setThumbnail(message.author.displayAvatarURL({ size: 256 }))
           .setFooter({ text: "#" + message.guild.memberCount });
@@ -654,9 +654,9 @@ client.on(Events.GuildMemberAdd, async member => {
       .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
       .setTitle("Welcome to FLUX STORE")
       .setDescription(
-        "• • <#1562615455624077383> **TERMINOS**\n" +
-        "• • <#1562615459256471642> **METODOS**\n" +
-        "• • <#1562615495704838174> **TICKETS**"
+        "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "") + " **TERMINOS**\n" +
+        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "") + " **METODOS**\n" +
+        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "") + " **TICKETS**"
       )
       .setThumbnail(member.displayAvatarURL({ size: 256 }))
       .setFooter({ text: "#" + member.guild.memberCount });
