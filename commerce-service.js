@@ -361,6 +361,29 @@ function releaseReservedStock(order) {
   return true;
 }
 
+function releaseCouponRedemption(order) {
+  if (!order || !order.couponCode || order.couponReleasedAt) return false;
+  const coupons = getCoupons();
+  const normalizedCode = String(order.couponCode).trim().toUpperCase();
+  const coupon = coupons.find(function (item) {
+    return String(item.code || "").trim().toUpperCase() === normalizedCode;
+  });
+  if (!coupon) {
+    order.couponReleasedAt = new Date().toISOString();
+    return false;
+  }
+
+  coupon.redemptions = Array.isArray(coupon.redemptions) ? coupon.redemptions : [];
+  coupon.redemptions = coupon.redemptions.filter(function (entry) {
+    return !(entry && entry.orderId === order.id && entry.guildId === String(order.guildId) &&
+      entry.userId === String(order.userId));
+  });
+  coupon.uses = Math.max(0, (Number(coupon.uses) || 0) - 1);
+  writeJSON(COUPONS_FILE, coupons);
+  order.couponReleasedAt = new Date().toISOString();
+  return true;
+}
+
 function getOrderStats(guildId) {
   const rows = getOrders().filter(function (order) {
     return order.guildId === String(guildId);
@@ -385,5 +408,5 @@ function getOrderStats(guildId) {
 module.exports = {
   CURRENCY, MAX_QUANTITY, normalize, money, parsePrice, getCart, calculateCart,
   addToCart, removeFromCart, clearCart, checkout, createOrderFromItems,
-  releaseReservedStock, getOrderStats, getOrders
+  releaseReservedStock, releaseCouponRedemption, getOrderStats, getOrders
 };
