@@ -42,7 +42,9 @@ Los datos JSON se guardan en `data/` por defecto. Si el hosting borra los archiv
 - `/tienda catalogo`: catálogo y disponibilidad de stock.
 - `/tienda agregar`: añade un producto con precio numérico, descripción y stock (`-1` = ilimitado; `0` = agotado).
 - `/tienda editar`, `/tienda eliminar`, `/tienda stock`: administración de catálogo e inventario con autocompletado.
+- `/carrito agregar`, `/carrito ver`, `/carrito quitar`, `/carrito vaciar`, `/carrito checkout`: carrito persistente con cantidades y checkout de uno o varios pedidos.
 - `/pedido crear`: pedido desde catálogo, cantidad, método de pago y cupón opcional.
+- El carrito reserva stock al finalizar checkout, conserva los productos cuyo pedido no se pudo crear y no duplica cupones entre líneas. Para aplicar un cupón, usa `/pedido crear` para ese producto.
 - `/pedido mis-compras`, `/pedido ver`, `/pedido historial`, `/pedido estado`: historiales y gestión de estados.
 - `/cupones crear`, `/cupones listar`, `/cupones validar`, `/cupones eliminar`: cupones con vencimiento y límite de usos.
 - `/pagos`: instrucciones de pago configuradas por el equipo.
