@@ -9,6 +9,9 @@ module.exports = {
     .addUserOption(o => o.setName("usuario").setDescription("Usuario").setRequired(true))
     .addStringOption(o => o.setName("motivo").setDescription("Motivo").setRequired(false).setMaxLength(512)),
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.KickMembers)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Expulsar miembros** para usar este comando.", ephemeral: true });
+    }
     const target = await i.guild.members.fetch(i.options.getUser("usuario").id).catch(() => null);
     const reason = i.options.getString("motivo") || "Sin motivo";
     if (!target) return i.reply({ content: emoji(i.guild, "error", "❌") + " Ese usuario no está en el servidor.", ephemeral: true });
