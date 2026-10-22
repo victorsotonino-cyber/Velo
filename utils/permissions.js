@@ -1,19 +1,35 @@
 "use strict";
 
-const { PermissionFlagsBits } = require("discord.js");
+const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
 
 function hasPermission(member, permission) {
   try {
-    return Boolean(member && member.permissions && member.permissions.has(permission));
+    const permissions = member && member.permissions;
+    if (permissions && typeof permissions.has === "function") {
+      return permissions.has(permission);
+    }
+    if (permissions === undefined || permissions === null || permissions === "") return false;
+    return new PermissionsBitField(permissions).has(permission);
   } catch (_) {
     return false;
   }
 }
 
 function hasConfiguredRole(member, roleIds) {
-  const roles = member && member.roles && member.roles.cache;
-  if (!roles || typeof roles.has !== "function") return false;
-  return roleIds.filter(Boolean).some(id => roles.has(String(id)));
+  const roles = member && member.roles;
+  if (!roles) return false;
+
+  const roleIdsSet = roleIds.filter(Boolean).map(String);
+  if (roles.cache && typeof roles.cache.has === "function") {
+    return roleIdsSet.some(id => roles.cache.has(id));
+  }
+
+  // Discord interactions may expose the raw API member shape, where roles is string[].
+  if (Array.isArray(roles)) {
+    return roleIdsSet.some(id => roles.includes(id));
+  }
+
+  return false;
 }
 
 /**
