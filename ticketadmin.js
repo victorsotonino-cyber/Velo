@@ -35,6 +35,9 @@ module.exports = {
     .addSubcommand(s => s.setName("ver").setDescription("Ve la configuración del ticket.").addChannelOption(ticketOpt)),
 
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas el permiso **Gestionar canales** para administrar tickets.", ephemeral: true });
+    }
     const sub = i.options.getSubcommand();
     const ticket = i.options.getChannel("ticket") || i.channel;
     const ok = emoji(i.guild, "success", "✅");
