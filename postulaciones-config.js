@@ -57,6 +57,9 @@ module.exports = {
     .addSubcommand(s => s.setName("restablecer").setDescription("Restablece las preguntas oficiales.")),
 
   async execute(i) {
+    if (!i.guild || !i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      return i.reply({ content: emoji(i.guild, "error", "❌") + " Necesitas **Gestionar servidor** para configurar las postulaciones.", ephemeral: true });
+    }
     const data = load();
     const sub = i.options.getSubcommand();
 
