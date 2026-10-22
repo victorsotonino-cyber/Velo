@@ -52,7 +52,6 @@ test("ticket management accepts configured staff or ManageChannels", () => {
   assert.equal(canManageTickets(member({ permissions: [PermissionFlagsBits.ManageChannels] }), config), true);
   assert.equal(canManageTickets(member(), config), false);
 });
-\n
 test("moderation hierarchy allows lower roles and blocks equal or higher roles", () => {
   const actor = moderationMember("moderator", 5);
   assert.equal(canModerateTarget(actor, moderationMember("member", 2), "owner"), true);
