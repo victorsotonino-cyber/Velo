@@ -42,6 +42,14 @@ test("matching a privileged display name does not grant store access", () => {
   assert.equal(canManageStore(user, config), false);
 });
 
+test("raw Discord interaction member supports string permissions and role arrays", () => {
+  const rawMember = {
+    permissions: String(PermissionFlagsBits.ManageGuild),
+    roles: ["role-staff"]
+  };
+  assert.equal(canManageStore(rawMember, config), true);
+});
+
 test("Discord Administrator and ManageGuild permission bits grant store access", () => {
   assert.equal(canManageStore(member({ permissions: [PermissionFlagsBits.Administrator] }), config), true);
   assert.equal(canManageStore(member({ permissions: [PermissionFlagsBits.ManageGuild] }), config), true);
