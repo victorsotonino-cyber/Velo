@@ -32,10 +32,10 @@ function generate(text, title, type) {
   const finalTitle = title?.trim() || titles[kind];
 
   const openers = {
-    general: "Tenemos una novedad para toda la comunidad de Velo Studio.",
+    general: "Tenemos una novedad para toda la comunidad de FLUX STORE.",
     venta: "¡Tenemos novedades para quienes están buscando productos o servicios!",
     evento: "¡Prepárate! Tenemos una actividad especial para la comunidad.",
-    actualizacion: "Velo Studio sigue mejorando y queremos contarte qué hay de nuevo.",
+    actualizacion: "FLUX STORE sigue mejorando y queremos contarte qué hay de nuevo.",
     aviso: "Queremos que toda la comunidad esté al tanto de esta información."
   };
 
@@ -43,8 +43,8 @@ function generate(text, title, type) {
     general: "Mantente atento a los próximos anuncios para no perderte nada.",
     venta: "Si te interesa, abre un ticket y te ayudaremos con cualquier duda.",
     evento: "Guarda la fecha y participa con la comunidad.",
-    actualizacion: "Gracias por seguir formando parte de Velo Studio.",
-    aviso: "Gracias por leer y por ayudarnos a mantener Velo Studio organizado."
+    actualizacion: "Gracias por seguir formando parte de FLUX STORE.",
+    aviso: "Gracias por leer y por ayudarnos a mantener FLUX STORE organizado."
   };
 
   const result = [
@@ -106,7 +106,7 @@ module.exports = {
       .setColor(config.colors.primary)
       .setTitle(ann + " " + generated.finalTitle)
       .setDescription(generated.result)
-      .setFooter({ text: "Generado automáticamente por Velo Studio " + bot });
+      .setFooter({ text: "Generado automáticamente por FLUX STORE " + bot });
 
     return i.reply({ embeds: [embed] });
   }
