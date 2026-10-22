@@ -21,9 +21,9 @@ Bot de Discord desarrollado con Node.js y discord.js v14. Tiene comandos slash y
 
 ## Variables de entorno
 
-Los IDs de servidor, roles, canales y emojis se leen de las variables de entorno. Revisa las variables de \`.env.example\`, incluidas las de bienvenida, términos, métodos de pago, ticket, logs, sugerencias, reseñas y los cinco emojis del panel.
+Los IDs de servidor, roles, canales y emojis se leen de las variables de entorno. Configura `FLUX_STORE_DATA_DIR` para elegir el directorio persistente; `VELO_DATA_DIR` se mantiene como alternativa compatible con despliegues existentes. Revisa las variables de \`.env.example\`, incluidas las de bienvenida, términos, métodos de pago, ticket, logs, sugerencias, reseñas y los cinco emojis del panel.
 
-El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting que borre el disco al reiniciar, los carritos, pedidos, cupones, reseñas, sugerencias, vouches y sorteos pueden perderse. Usa almacenamiento persistente o migra a PostgreSQL/SQLite antes de depender de los datos para operaciones comerciales importantes.
+El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting que borre el disco al reiniciar, los carritos, pedidos, reseñas, sugerencias, vouches y sorteos pueden perderse. Usa almacenamiento persistente o migra a PostgreSQL/SQLite antes de depender de los datos para operaciones comerciales importantes.
 
 ## Funciones de FLUX STORE
 
@@ -34,16 +34,15 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - \`/tienda stock\`: configura unidades disponibles; \`0\` marca agotado.
 - \`/tienda disponibilidad\`: pausa o activa un producto.
 - \`/carrito agregar\`, \`/carrito ver\`, \`/carrito quitar\`, \`/carrito vaciar\`.
-- \`/carrito confirmar\`: crea el pedido, aplica un cupón válido, calcula el total desde el catálogo y reserva el stock configurado.
+- \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
 
 Los productos antiguos sin propiedad \`stock\` siguen teniendo stock ilimitado por compatibilidad. Configura su stock con \`/tienda stock\` para habilitar el control de inventario. El precio debe contener una única cantidad numérica, por ejemplo \`7.50 USD\`; los importes escritos como rangos no se aceptan para el checkout.
 
-### Pedidos, cupones y ventas
+### Pedidos y ventas
 - \`/pedido crear\`: registra una solicitud para un producto del catálogo; el precio escrito debe coincidir con el precio oficial.
 - \`/pedido mis-compras\`: muestra el historial del cliente.
 - \`/pedido historial\`: historial de un cliente para personal autorizado.
 - \`/pedido estado\`: avanza el estado del pedido; solo se puede completar tras verificar el pago o comenzar el procesamiento.
-- \`/cupones crear\`, \`/cupones listar\`, \`/cupones validar\`, \`/cupones eliminar\`.
 - \`/ventas\`: contador histórico de ventas.
 - \`/estadisticas-tienda\`: pedidos registrados, completados, pendientes, cancelados, catálogo e ingresos estimados de pedidos completados.
 
@@ -73,4 +72,4 @@ AutoMod puede bloquear invitaciones de Discord, exceso de menciones, mensajes re
 - \`npm run deploy\`: registra los comandos de la aplicación para \`GUILD_ID\`.
 - \`npm start\`: inicia el bot.
 
-Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: producto con stock 1, segundo intento de compra, cupón usado dos veces, cancelación de pedido y una reseña de pedido no completado.
+Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: producto con stock 1, segundo intento de compra, cancelación de pedido y una reseña de pedido no completado.
