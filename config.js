@@ -8,7 +8,7 @@ module.exports = {
   guildId: process.env.GUILD_ID,
   store: {
     currency: env("STORE_CURRENCY") || "USD",
-    paymentMethods: (env("STORE_PAYMENT_METHODS") || "PayPal,Transferencia bancaria,Pago móvil").split(",").map(value => value.trim()).filter(Boolean).slice(0, 25),
+    paymentMethods: (env("STORE_PAYMENT_METHODS") || "PayPal,Transferencia bancaria,Pago móvil").split(",").map(value => value.trim()).filter(Boolean).filter((value, index, list) => list.findIndex(other => other.toLowerCase() === value.toLowerCase()) === index).slice(0, 25),
     paymentInstructions: env("STORE_PAYMENT_INSTRUCTIONS")
   },
   colors: {
