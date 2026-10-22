@@ -25,7 +25,9 @@ module.exports = {
     member: "1562619913485557901" // Rol automático fijado para FLUX STORE
   },
   ticket: {
-    maxOpenPerUser: Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER || 2))),
+    maxOpenPerUser: Number.isFinite(Number(process.env.MAX_TICKETS_PER_USER)) && process.env.MAX_TICKETS_PER_USER
+      ? Math.max(1, Math.min(10, Number(process.env.MAX_TICKETS_PER_USER)))
+      : 2,
     closeDelayMs: 5000,
     categories: {
       compras: { label: "Compras", emojiId: "1550146329915949077", emojiName: "emoji_20", emojiKey: "emoji_20", description: "Pedidos, productos, pagos y entregas de Flux STORE." },
