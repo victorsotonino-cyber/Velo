@@ -66,6 +66,24 @@ Los productos antiguos sin propiedad \`stock\` siguen teniendo stock ilimitado p
 
 Los pagos no se verifican automáticamente. Elegir un método no significa que el pedido esté pagado; el personal autorizado debe comprobar el pago antes de avanzar al estado correspondiente. Al cancelar un pedido con stock reservado, el bot intenta liberar esas unidades.
 
+### Nuevos comandos de utilidad, comunidad y administración
+- /botinfo y /uptime: estadísticas técnicas, memoria del proceso, latencia y tiempo activo.
+- /membercount: total del servidor, miembros en caché, bots y boosts.
+- /roleinfo y /channelinfo: detalles de roles, permisos, canales, temas y modo lento.
+- /timestamp: convierte segundos Unix a las etiquetas de fecha y hora de Discord.
+- /banner y /emojistats: banner de perfil disponible y resumen de emojis del servidor.
+- /poll: publica una encuesta con entre 2 y 5 opciones y reacciones numeradas; necesita Añadir reacciones en el canal.
+- /purge: elimina mensajes recientes; puede limitarse a un usuario y omite mensajes demasiado antiguos para borrado masivo.
+- /nickname: cambia o elimina el apodo de un miembro con comprobación de jerarquía.
+- /rolemanager add y /rolemanager remove: asigna o retira roles solo si el bot y el moderador están por encima del rol objetivo; no permite roles gestionados ni autoasignación.
+- /permcheck: diagnostica los permisos efectivos del bot en un canal específico.
+- /ticketstats: muestra tickets abiertos por tipo para el equipo autorizado.
+- /embed y /topic: publica embeds personalizados o cambia el tema del canal para personal autorizado.
+- /warnings ver y /warnings limpiar: consulta y administra advertencias persistentes por servidor y miembro.
+- /anuncio ahora restringe la publicación a administración o al staff autorizado, evitando que cualquier miembro inunde el servidor de anuncios.
+
+Las advertencias se guardan en flux-store-warnings.json usando el directorio de datos configurado para el bot. En un hosting con disco efímero, configura almacenamiento persistente para evitar perder el historial tras reinicios. Los contadores de miembros/bots que usan caché se identifican como aproximados; el total de miembros procede del dato del servidor.
+
 ### Comunidad y confianza
 - \`/resena publicar\`: permite valorar un pedido completado que pertenezca al autor; una reseña por pedido.
 - \`/resena ver\`: consulta reseñas verificadas.
