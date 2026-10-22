@@ -16,6 +16,7 @@ const WARNING_AFTER_MS = 24 * 60 * 60 * 1000;
 const CANCEL_WINDOW_MS = 10 * 60 * 1000;
 const MAX_MESSAGES = 1000;
 const warnings = new Map();
+const reminders = new Set();
 const busy = new Set();
 
 function loadSettings() {
@@ -28,7 +29,10 @@ function settingsFor(guildId) {
     enabled: current.autoCloseEnabled === true,
     hours: Math.max(1, Math.min(720, Number(current.autoCloseHours) || 24)),
     logChannelId: current.transcriptChannelId || current.logChannelId || config.channels?.logs || null,
-    mode: ["channel", "dm", "both"].includes(current.transcriptMode) ? current.transcriptMode : "channel"
+    mode: ["channel", "dm", "both"].includes(current.transcriptMode) ? current.transcriptMode : "channel",
+    reminderHours: Number.isInteger(Number(current.staffReminderHours)) && Number(current.staffReminderHours) >= 1
+      ? Math.min(168, Number(current.staffReminderHours)) : 0,
+    supportRoleIds: Array.isArray(current.supportRoleIds) ? current.supportRoleIds : []
   };
 }
 function parseTicket(channel) {
@@ -126,6 +130,7 @@ async function closeForInactivity(channel, ticket) {
   } finally {
     busy.delete(channel.id);
     warnings.delete(channel.id);
+    reminders.delete(channel.id);
   }
 }
 
@@ -134,6 +139,7 @@ module.exports = function registerTicketAutomation(client) {
     if (!message.guild || message.author.bot) return;
     const ticket = parseTicket(message.channel);
     if (!ticket) return;
+    reminders.delete(message.channel.id);
     const pending = warnings.get(message.channel.id);
     if (pending) {
       clearTimeout(pending.timeout);
@@ -164,16 +170,31 @@ module.exports = function registerTicketAutomation(client) {
     const scan = async () => {
       for (const guild of client.guilds.cache.values()) {
         const s = settingsFor(guild.id);
-        if (!s.enabled) continue;
+        if (!s.enabled && !s.reminderHours) continue;
         for (const channel of guild.channels.cache.values()) {
           if (!channel.isTextBased() || !channel.messages || warnings.has(channel.id) || busy.has(channel.id)) continue;
           const ticket = parseTicket(channel);
           if (!ticket) continue;
           try {
             const last = await channel.messages.fetch({ limit: 10 });
-            const latestMessage = last.first();
-            const lastActivity = latestMessage?.createdTimestamp || channel.createdTimestamp;
-            if (Date.now() - lastActivity < s.hours * 3600000) continue;
+            const latestHumanMessage = [...last.values()].find(m => !m.author.bot);
+            const lastActivity = latestHumanMessage?.createdTimestamp || channel.createdTimestamp;
+            const waitingOnStaff = latestHumanMessage && latestHumanMessage.author.id === ticket.ownerId;
+
+            if (s.reminderHours && waitingOnStaff && !reminders.has(channel.id) &&
+                Date.now() - lastActivity >= s.reminderHours * 3600000) {
+              const roles = s.supportRoleIds.filter(id => guild.roles.cache.has(id));
+              const mentions = roles.map(id => "<@&" + id + ">").join(" ");
+              await channel.send({
+                content: "⏰ **Recordatorio de soporte:** el cliente <@" + ticket.ownerId +
+                  "> lleva " + s.reminderHours + " h esperando una respuesta." +
+                  (mentions ? "\\n" + mentions : ""),
+                allowedMentions: { users: [ticket.ownerId], roles }
+              });
+              reminders.add(channel.id);
+            }
+
+            if (!s.enabled || warnings.has(channel.id) || Date.now() - lastActivity < s.hours * 3600000) continue;
             const message = await channel.send({
               content: "⏳ <@" + ticket.ownerId + ">, este ticket está inactivo. Se cerrará en 10 minutos si no respondes.",
               components: [cancelRow(channel.id)],
