@@ -185,10 +185,14 @@ function categoryManagerEmbed(guild, guildId, selectedKey = null) {
     ].join("\n"))
     .setFooter({ text: "FLUX STORE • Gestor de categorías" });
 
-  const listing = all.slice(0, 12).map(([key, item]) =>
+  const listingRows = all.slice(0, 12).map(([key, item]) =>
     (item.enabled ? "🟢" : "⚪") + " **" + String(item.label || key).slice(0, 70) + "** · " + key +
     (item.isCustom ? " · personalizada" : "")
-  ).join("\n");
+  );
+  if (all.length > listingRows.length) {
+    listingRows.push("… y " + (all.length - listingRows.length) + " categoría(s) más; usa el selector para verlas.");
+  }
+  const listing = listingRows.join("\n");
   if (listing) embed.addFields({ name: "Categorías configuradas", value: listing.slice(0, 1024) });
 
   if (selectedKey) {
@@ -287,9 +291,10 @@ function publicPanelEmbed(guild, saved) {
 function mainEmbed(guild, saved) {
   const channel = saved.panelChannelId ? guild.channels.cache.get(saved.panelChannelId) : null;
   const category = saved.ticketCategoryId ? guild.channels.cache.get(saved.ticketCategoryId) : null;
+  const categoryIsValid = Boolean(category && category.type === ChannelType.GuildCategory);
   const roles = (saved.supportRoleIds || []).map(id => guild.roles.cache.get(id)).filter(Boolean);
   const modeLabels = { channel: "Canal de registros", dm: "Mensaje privado", both: "Canal + mensaje privado" };
-  const requiredReady = [Boolean(channel), roles.length > 0, Boolean(category && category.type === ChannelType.GuildCategory)]
+  const requiredReady = [Boolean(channel), roles.length > 0, categoryIsValid]
     .filter(Boolean).length;
   const iconURL = guild.iconURL({ size: 128 });
 
@@ -303,7 +308,7 @@ function mainEmbed(guild, saved) {
       "`" + requiredReady + "/3` requisitos principales completados.",
       (channel ? "✅" : "◻️") + " **01 · Canal del panel** — " + (channel ? "configurado" : "pendiente"),
       (roles.length ? "✅" : "◻️") + " **02 · Equipo de soporte** — " + (roles.length ? roles.length + " rol(es) asignado(s)" : "pendiente"),
-      (category && category.type === ChannelType.GuildCategory ? "✅" : "◻️") + " **03 · Categoría de tickets** — " + (category ? "configurada" : "pendiente"),
+      (categoryIsValid ? "✅" : "◻️") + " **03 · Categoría de tickets** — " + (categoryIsValid ? "configurada" : "pendiente"),
       "",
       "**ORDEN RECOMENDADO**",
       "Selecciona el canal público, asigna los roles que atenderán las solicitudes y elige la categoría donde se crearán los canales privados. Después pulsa **Publicar panel**.",
@@ -323,7 +328,7 @@ function mainEmbed(guild, saved) {
       },
       {
         name: "🗂️ Categoría de Discord",
-        value: category ? category.toString() + "\n✅ Los tickets se crearán aquí." : "⚠️ Selecciona la categoría donde se crearán los tickets.",
+        value: categoryIsValid ? category.toString() + "\n✅ Los tickets se crearán aquí." : "⚠️ Selecciona una categoría de Discord válida.",
         inline: true
       },
       {
