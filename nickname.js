@@ -22,8 +22,9 @@ module.exports = {
     }
     if (!target.manageable) return i.reply({ content: "El bot no puede administrar a ese miembro por la jerarquía de roles.", ephemeral: true });
     const nickname = ["quitar", "reset", "borrar"].includes(nicknameInput.toLowerCase()) ? null : nicknameInput;
+    await i.deferReply({ ephemeral: true });
     await target.setNickname(nickname, reason);
-    return i.reply({
+    return i.editReply({
       content: nickname ? "✅ Apodo de " + target.toString() + " cambiado a " + nickname + "." : "✅ Apodo de " + target.toString() + " eliminado.",
       allowedMentions: { parse: [] }
     });
