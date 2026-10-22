@@ -9,6 +9,7 @@ const { emoji, commandEmoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveaways = require("./giveaway-service");
 const storeStats = require("./store-service");
+const communityService = require("./services/community-service");
 
 const applicationAnswers = new Map();
 const ticketCreationLocks = new Set();
@@ -18,6 +19,35 @@ module.exports = client => {
   client.on("interactionCreate", async i => {
     try {
       if (i.isStringSelectMenu() && i.customId === "ticket_create") return createTicket(i);
+
+      if (i.isButton() && i.customId.startsWith("flux_poll_vote:")) {
+        const [, id, optionIndex] = i.customId.split(":");
+        const result = communityService.castPollVote({
+          id,
+          guildId: i.guildId,
+          channelId: i.channelId,
+          messageId: i.message.id,
+          userId: i.user.id,
+          optionIndex
+        });
+        if (!result.ok) return i.reply({ content: result.message, ephemeral: true });
+        await i.message.edit({ embeds: [communityService.buildPollEmbed(result.poll)] });
+        return i.reply({ content: result.message, ephemeral: true });
+      }
+      if (i.isButton() && i.customId.startsWith("flux_suggestion_vote:")) {
+        const [, id, choice] = i.customId.split(":");
+        const result = communityService.castSuggestionVote({
+          id,
+          guildId: i.guildId,
+          channelId: i.channelId,
+          messageId: i.message.id,
+          userId: i.user.id,
+          choice
+        });
+        if (!result.ok) return i.reply({ content: result.message, ephemeral: true });
+        await i.message.edit({ embeds: [communityService.buildSuggestionEmbed(result.suggestion)] });
+        return i.reply({ content: result.message, ephemeral: true });
+      }
       if (i.isButton() && i.customId.startsWith("giveaway:join:")) {
         await i.deferReply({ ephemeral: true });
         const giveawayId = i.customId.split(":")[2];
@@ -237,19 +267,23 @@ async function helpCategory(i, client) {
   const entries = {
     comunidad: [
       ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
+      ["encuesta", "Crear encuesta interactiva"], ["sugerencia", "Enviar ideas y votar"],
       ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
       ["say", "Enviar mensaje como el bot"]
     ],
     administracion: [
-      ["tienda", "Administrar el catálogo de productos y precios"], ["ventas", "Ver y editar el contador de ventas"], ["legit", "Publicar el panel de verificación legit"],
+      ["tienda", "Catálogo, productos y stock"], ["pedido", "Pedidos e historial de clientes"],
+      ["cupones", "Cupones, vencimientos y límites"], ["pagos", "Métodos de pago configurados"],
+      ["resena", "Reseñas verificadas"], ["estadisticas", "Estadísticas de ventas y pedidos"],
+      ["ventas", "Ver y editar el contador de ventas"], ["legit", "Publicar el panel de verificación legit"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
       ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"], ["slowmode", "Configurar modo lento"]
     ],
     utilidad: [
-      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"],
-      ["help", "Centro de comandos"]
+      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["userinfo", "Información de usuario"],
+      ["serverinfo", "Información del servidor"], ["help", "Centro de comandos"]
     ],
     moderacion: [
       ["ban", "Banear miembro"], ["kick", "Expulsar miembro"], ["timeout", "Aplicar timeout"],
