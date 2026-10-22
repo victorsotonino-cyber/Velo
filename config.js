@@ -6,6 +6,11 @@ module.exports = {
   token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID,
+  store: {
+    currency: env("STORE_CURRENCY") || "USD",
+    paymentMethods: (env("STORE_PAYMENT_METHODS") || "PayPal,Transferencia bancaria,Pago móvil").split(",").map(value => value.trim()).filter(Boolean).slice(0, 25),
+    paymentInstructions: env("STORE_PAYMENT_INSTRUCTIONS")
+  },
   colors: {
     primary: 0x8B5CF6,
     dark: 0x111111,
@@ -17,6 +22,8 @@ module.exports = {
     terms: env("TERMS_CHANNEL_ID"),
     paymentMethods: env("PAYMENT_METHODS_CHANNEL_ID"),
     ticketInfo: env("TICKETS_INFO_CHANNEL_ID"),
+    suggestions: env("SUGGESTIONS_CHANNEL_ID"),
+    reviews: env("REVIEWS_CHANNEL_ID"),
     welcome: env("WELCOME_CHANNEL_ID"),
     logs: env("LOGS_CHANNEL_ID"),
     tickets: env("TICKETS_CATEGORY_ID"),
