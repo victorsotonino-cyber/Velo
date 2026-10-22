@@ -4,7 +4,7 @@ const {
 } = require("discord.js");
 const config = require("./config");
 const { canManageTickets } = require("./utils/permissions");
-const { emoji, commandEmoji } = require("./ui");
+const { emoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveaways = require("./giveaway-service");
 const storeStats = require("./store-service");
