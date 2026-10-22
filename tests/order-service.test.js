@@ -11,6 +11,7 @@ process.env.STORE_CURRENCY = "USD";
 const { readJSON, writeJSON } = require("../storage");
 const orders = require("../services/order-service");
 const store = require("../store-service");
+const cartService = require("../services/cart-service");
 
 function resetData() {
   fs.rmSync(dataDir, { recursive: true, force: true });
@@ -19,6 +20,44 @@ function resetData() {
 
 test.beforeEach(() => resetData());
 test.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+
+test("cart merges quantities, checks stock and creates orders on checkout", () => {
+  writeJSON("flux-store-products.json", [
+    { id: "nitro", name: "Nitro", price: "5 USD", stock: 4 },
+    { id: "banner", name: "Banner", price: "$10", stock: -1 }
+  ]);
+  let cart = cartService.addItem("guild-1", "user-1", "Nitro", 2);
+  cart = cartService.addItem("guild-1", "user-1", "nitro", 1);
+  assert.equal(cart.items.length, 1);
+  assert.equal(cart.items[0].quantity, 3);
+  assert.throws(() => cartService.addItem("guild-1", "user-1", "Nitro", 2), /Stock insuficiente/);
+  cartService.addItem("guild-1", "user-1", "Banner", 1);
+  const result = cartService.checkout({
+    guildId: "guild-1", userId: "user-1", userTag: "client",
+    paymentMethod: "PayPal"
+  });
+  assert.equal(result.createdOrders.length, 2);
+  assert.equal(result.failedItems.length, 0);
+  assert.equal(cartService.getCart("guild-1", "user-1").items.length, 0);
+  assert.equal(readJSON("flux-store-products.json", [])[0].stock, 1);
+});
+
+test("cart keeps products that cannot be checked out", () => {
+  writeJSON("flux-store-products.json", [
+    { id: "nitro", name: "Nitro", price: "5 USD", stock: 1 }
+  ]);
+  cartService.addItem("guild-1", "user-1", "Nitro", 1);
+  writeJSON("flux-store-products.json", [
+    { id: "nitro", name: "Nitro", price: "5 USD", stock: 0 }
+  ]);
+  const result = cartService.checkout({
+    guildId: "guild-1", userId: "user-1", paymentMethod: "PayPal"
+  });
+  assert.equal(result.createdOrders.length, 0);
+  assert.equal(result.failedItems.length, 1);
+  assert.equal(cartService.getCart("guild-1", "user-1").items.length, 1);
+});
+
 
 test("parsePrice supports decimal comma, decimal point and currency symbols", () => {
   assert.deepEqual(orders.parsePrice("$5.99"), { amountMinor: 599, currency: "USD", amount: 5.99 });
