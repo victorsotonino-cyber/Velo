@@ -5,6 +5,8 @@ const updates = [
   "**🧪 Vista previa** — usa `!test-bienvenida` o `!bienvenida-test` para revisar el diseño sin simular una entrada.",
   "**🛍️ Catálogo de tienda** — consulta productos y administra precios/descripciones con `/tienda`.",
   "**🎟️ Atención al cliente** — panel de tickets con categorías de compras, dudas, reportes, partner y alianzas.",
+  "**🎨 Emojis de FLUX STORE** — los cinco emojis personalizados ya identifican Compras, Dudas, Reportes, Partner y Alianzas en el panel y los tickets abiertos.",
+  "**🔐 Tickets reforzados** — protección contra aperturas duplicadas por doble clic, bloqueo de tickets repetidos de la misma categoría, acceso explícito para Staff/Admin y transcripciones paginadas de hasta 2.000 mensajes.",
   "**🎉 Sorteos** — creación, participación, finalización y selección de ganadores con el sistema de giveaways.",
   "**🛡️ Moderación y utilidad** — herramientas de administración, ayuda, actividad, encuestas y estado del bot."
 ];
