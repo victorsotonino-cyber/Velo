@@ -26,8 +26,13 @@ function normalizeCode(value) {
 }
 
 function couponStatus(coupon) {
-  if (coupon.expiresAt && Date.now() >= Date.parse(coupon.expiresAt)) return "expired";
-  if (Number.isFinite(coupon.maxUses) && coupon.maxUses > 0 && coupon.uses >= coupon.maxUses) return "exhausted";
+  if (coupon.expiresAt) {
+    const expiresAt = Date.parse(coupon.expiresAt);
+    if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) return "expired";
+  }
+  const maxUses = Math.max(0, Number(coupon.maxUses) || 0);
+  const uses = Math.max(0, Number(coupon.uses) || 0);
+  if (maxUses > 0 && uses >= maxUses) return "exhausted";
   return "active";
 }
 
@@ -89,6 +94,7 @@ module.exports = {
         discount,
         maxUses,
         uses: 0,
+        redemptions: [],
         createdBy: interaction.user.id,
         createdAt: new Date().toISOString(),
         expiresAt: days > 0 ? new Date(Date.now() + days * 86400000).toISOString() : null
