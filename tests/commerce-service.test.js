@@ -11,15 +11,12 @@ process.env.STORE_CURRENCY = "USD";
 
 const commerce = require("../commerce-service");
 const store = require("../store-service");
-const { readJSON, writeJSON } = require("../storage");
+const { writeJSON } = require("../storage");
 
 function resetData() {
   store.saveProducts([
     { name: "Nitro Premium", price: "$5.99", description: "Suscripción mensual", stock: 3, enabled: true },
     { name: "Bot personalizado", price: "12.00 USD", description: "Servicio digital", stock: 2, enabled: true }
-  ]);
-  writeJSON("flux-store-coupons.json", [
-    { code: "SAVE10", discount: 10, maxUses: 2, uses: 0, redemptions: [] }
   ]);
   writeJSON("flux-store-orders.json", []);
   writeJSON("flux-store-carts.json", {});
@@ -45,28 +42,26 @@ test("normaliza nombres sin distinguir tildes ni mayúsculas", function () {
   assert.equal(commerce.normalize("Suscripción"), "suscripcion");
 });
 
-test("checkout aplica el cupón, reserva stock y cancelar lo restaura", function () {
+test("checkout usa el precio del catálogo, reserva stock y permite restaurarlo una sola vez", function () {
   const cart = commerce.addToCart("guild-a", "user-a", "nitro premium", 2);
   assert.equal(cart.subtotalCents, 1198);
 
   const order = commerce.checkout({
     guildId: "guild-a", userId: "user-a", userTag: "Client#0001",
-    paymentMethod: "PayPal", couponCode: "save10"
+    paymentMethod: "PayPal"
   });
 
   assert.equal(order.subtotalCents, 1198);
-  assert.equal(order.discountCents, 119);
-  assert.equal(order.totalCents, 1079);
+  assert.equal(order.discountCents, 0);
+  assert.equal(order.totalCents, 1198);
   assert.equal(store.getProducts()[0].stock, 1);
-  assert.equal(readJSON("flux-store-coupons.json", [])[0].uses, 1);
   assert.equal(commerce.calculateCart("guild-a", "user-a").lines.length, 0);
 
   assert.equal(commerce.releaseReservedStock(order), true);
   assert.equal(store.getProducts()[0].stock, 3);
-  assert.equal(commerce.releaseCouponRedemption(order), true);
-  assert.equal(readJSON("flux-store-coupons.json", [])[0].uses, 0);
+  assert.equal(commerce.releaseReservedStock(order), false);
+  assert.equal(store.getProducts()[0].stock, 3);
 });
-
 test("checkout impide sobreventa de stock entre dos carritos", function () {
   commerce.addToCart("guild-a", "user-a", "Nitro Premium", 2);
   commerce.addToCart("guild-a", "user-b", "Nitro Premium", 2);
@@ -83,20 +78,4 @@ test("checkout impide sobreventa de stock entre dos carritos", function () {
     });
   }, /Stock insuficiente/);
   assert.equal(store.getProducts()[0].stock, 1);
-});
-
-test("un cliente no puede canjear el mismo cupón dos veces", function () {
-  commerce.addToCart("guild-a", "user-a", "Nitro Premium", 1);
-  commerce.checkout({
-    guildId: "guild-a", userId: "user-a", userTag: "A",
-    paymentMethod: "PayPal", couponCode: "SAVE10"
-  });
-
-  commerce.addToCart("guild-a", "user-a", "Nitro Premium", 1);
-  assert.throws(function () {
-    commerce.checkout({
-      guildId: "guild-a", userId: "user-a", userTag: "A",
-      paymentMethod: "PayPal", couponCode: "SAVE10"
-    });
-  }, /Ya utilizaste ese cupón/);
 });
