@@ -29,6 +29,9 @@ Estos comandos muestran un ejemplo en el canal donde se ejecutan; no fingen una 
 ### 🛍️ Funciones existentes incluidas
 - Catálogo de productos con `/tienda`.
 - Panel de tickets con categorías de Compras, Dudas, Reportes, Partner y Alianzas.
+- Emojis personalizados asignados por ID: `<:emoji_20:1550146329915949077>` para Compras, `<:emoji_138:1561921833203142757>` para Dudas, `<:emoji_139:1561921915658969099>` para Reportes, `<:flux_pandahiyapolice_2219:1561698594136920214>` para Partner y `<:flux_owner_4264:1561551235285385227>` para Alianzas.
+- La selección de tickets usa un bloqueo de creación por usuario para evitar aperturas simultáneas por doble clic, y no permite repetir una categoría que ya tenga abierta.
+- Los permisos del canal privado incluyen los roles configurados de Staff y Admin. Al cerrar, se guarda una transcripción paginada de hasta 2.000 mensajes, con texto, embeds y enlaces de adjuntos.
 - Sistema de sorteos con botones.
 - Herramientas de moderación, ayuda, encuestas y utilidades.
 
