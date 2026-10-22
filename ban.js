@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require("discord.js");
 const config = require("./config");
 const { emoji } = require("./ui");
+const { canModerateTarget } = require("./utils/permissions");
 
 module.exports = {
   data: new SlashCommandBuilder().setName("ban").setDescription("Banea a un usuario.")
@@ -11,8 +12,14 @@ module.exports = {
     const u = i.options.getUser("usuario");
     const target = await i.guild.members.fetch(u.id).catch(() => null);
     const reason = i.options.getString("motivo") || "Sin motivo";
-    if (target && !target.bannable) {
-      return i.reply({ content: emoji(i.guild, "error", "❌") + " No puedo banear a ese usuario. Revisa la jerarquía de roles/permisos.", ephemeral: true });
+    if (target) {
+      const actor = await i.guild.members.fetch(i.user.id).catch(() => i.member);
+      if (!canModerateTarget(actor, target, i.guild.ownerId)) {
+        return i.reply({ content: emoji(i.guild, "error", "❌") + " No puedes banear al propietario, a ti mismo ni a alguien con un rol igual o superior al tuyo.", ephemeral: true });
+      }
+      if (!target.bannable) {
+        return i.reply({ content: emoji(i.guild, "error", "❌") + " El bot no puede banear a ese usuario. Comprueba la jerarquía de roles del bot.", ephemeral: true });
+      }
     }
     await i.guild.members.ban(u, { reason });
     const embed = new EmbedBuilder()
