@@ -4,13 +4,25 @@ const { readJSON, writeJSON } = require("./storage");
 
 const FILE = "flux-store-coupons.json";
 
-function readCoupons() {
+function readCoupons(guildId) {
   const data = readJSON(FILE, []);
-  return Array.isArray(data) ? data : [];
+  const coupons = Array.isArray(data) ? data : [];
+  let changed = false;
+  const legacyGuildId = config.guildId || guildId;
+  if (legacyGuildId) {
+    for (const coupon of coupons) {
+      if (!coupon.guildId) {
+        coupon.guildId = legacyGuildId;
+        changed = true;
+      }
+    }
+  }
+  if (changed) writeJSON(FILE, coupons);
+  return coupons;
 }
 
 function belongsToGuild(coupon, guildId) {
-  return !coupon.guildId || coupon.guildId === guildId;
+  return coupon.guildId === guildId;
 }
 
 function isStaff(interaction) {
@@ -55,7 +67,7 @@ module.exports = {
       .addStringOption(option => option.setName("codigo").setDescription("Código que quieres comprobar").setMaxLength(24).setRequired(true))),
   async execute(interaction) {
     const action = interaction.options.getSubcommand();
-    const coupons = readCoupons();
+    const coupons = readCoupons(interaction.guildId);
     const visibleCoupons = coupons.filter(coupon => belongsToGuild(coupon, interaction.guildId));
 
     if (action === "validar") {
