@@ -2,9 +2,8 @@ const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType,
   PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle
 } = require("discord.js");
-const fs = require("fs");
-const path = require("path");
 const config = require("./config");
+const { canManageTickets } = require("./utils/permissions");
 const { emoji, commandEmoji } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
 const giveaways = require("./giveaway-service");
@@ -56,8 +55,7 @@ function ticketChannels(guild, userId) {
 }
 
 function isStaff(i) {
-  return i.member?.permissions?.has(PermissionFlagsBits.ManageChannels) ||
-    i.member?.roles?.cache?.has(config.roles.staff);
+  return canManageTickets(i.member, config);
 }
 
 async function createTicket(i) {
