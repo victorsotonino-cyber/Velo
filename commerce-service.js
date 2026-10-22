@@ -29,7 +29,7 @@ function getOrders() {
   return Array.isArray(value) ? value : [];
 }
 
-remove coupon readerfunction parsePrice(raw) {
+function parsePrice(raw) {
   const matches = String(raw == null ? "" : raw).match(/\d[\d.,]*/g) || [];
   if (matches.length !== 1) {
     throw new Error("El precio del producto debe contener una sola cantidad numérica. Edita el precio del catálogo, por ejemplo: 5.99 USD.");
