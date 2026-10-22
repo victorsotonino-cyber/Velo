@@ -22,7 +22,7 @@ module.exports = {
   roles: {
     admin: env("ADMIN_ROLE_ID", "1550131491151945778"),
     staff: env("STAFF_ROLE_ID", "1552119717597028515"),
-    member: "1562619913485557901" // Rol automático fijado para FLUX STORE
+    member: env("MEMBER_ROLE_ID", "1562619913485557901")
   },
   ticket: {
     maxOpenPerUser: Number.isFinite(Number(process.env.MAX_TICKETS_PER_USER)) && process.env.MAX_TICKETS_PER_USER
