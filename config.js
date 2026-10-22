@@ -14,7 +14,7 @@ module.exports = {
     error: 0xEF4444
   },
   channels: {
-    welcome: env("WELCOME_CHANNEL_ID", "1550131491588014180"),
+    welcome: env("WELCOME_CHANNEL_ID", "1562615450834178179"),
     logs: env("LOGS_CHANNEL_ID", "1550131492578132010"),
     tickets: env("TICKETS_CATEGORY_ID", "1554962090295562240"),
     announcements: env("ANNOUNCEMENTS_CHANNEL_ID", "1550131491588014181")
