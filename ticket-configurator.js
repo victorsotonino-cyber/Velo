@@ -81,39 +81,88 @@ function mainEmbed(guild, saved) {
   const channel = saved.panelChannelId ? guild.channels.cache.get(saved.panelChannelId) : null;
   const category = saved.ticketCategoryId ? guild.channels.cache.get(saved.ticketCategoryId) : null;
   const roles = (saved.supportRoleIds || []).map(id => guild.roles.cache.get(id)).filter(Boolean);
-  return new EmbedBuilder()
+  const modeLabels = { channel: "Canal de registros", dm: "Mensaje privado", both: "Canal + mensaje privado" };
+  const requiredReady = [Boolean(channel), roles.length > 0, Boolean(category && category.type === ChannelType.GuildCategory)]
+    .filter(Boolean).length;
+  const iconURL = guild.iconURL({ size: 128 });
+
+  const embed = new EmbedBuilder()
     .setColor(config.colors.primary || 0x8B5CF6)
-    .setTitle("✦ FLUX STORE • Configuración de tickets")
-    .setDescription("Configura el canal donde irá el panel, el equipo de soporte y la categoría donde se crearán los tickets. Los cambios se guardan automáticamente.")
+    .setTitle("Centro de configuración")
+    .setDescription([
+      "Administra el sistema de atención de **FLUX STORE** desde esta consola. Los ajustes se guardan para este servidor.",
+      "",
+      "**ESTADO DE PUESTA EN MARCHA**",
+      "`" + requiredReady + "/3` requisitos principales completados.",
+      (channel ? "✅" : "◻️") + " **01 · Canal del panel** — " + (channel ? "configurado" : "pendiente"),
+      (roles.length ? "✅" : "◻️") + " **02 · Equipo de soporte** — " + (roles.length ? roles.length + " rol(es) asignado(s)" : "pendiente"),
+      (category && category.type === ChannelType.GuildCategory ? "✅" : "◻️") + " **03 · Categoría de tickets** — " + (category ? "configurada" : "pendiente"),
+      "",
+      "**ORDEN RECOMENDADO**",
+      "Selecciona el canal público, asigna los roles que atenderán las solicitudes y elige la categoría donde se crearán los canales privados. Después pulsa **Publicar panel**.",
+      "",
+      "Los controles administrativos están restringidos a administradores o al rol administrador configurado."
+    ].join("\n"))
     .addFields(
-      { name: "📨 Canal del panel", value: channel ? channel.toString() : "No seleccionado", inline: true },
-      { name: "🛡️ Roles de soporte", value: roles.length ? roles.map(r => r.toString()).join(", ") : "No seleccionados", inline: true },
-      { name: "🗂️ Categoría de tickets", value: category ? category.toString() : "No seleccionada", inline: true },
-      { name: "📑 Transcripciones", value: saved.transcriptMode || "channel", inline: true },
-      { name: "👥 Rol de cliente", value: saved.clientRoleId ? "<@&" + saved.clientRoleId + ">" : "No seleccionado", inline: true },
-      { name: "🔢 Máximo por usuario", value: String(saved.maxOpenPerUser || 2), inline: true }
+      {
+        name: "📨 Canal de publicación",
+        value: channel ? channel.toString() + "\n✅ Listo" : "⚠️ Selecciona el canal donde los miembros abrirán solicitudes.",
+        inline: true
+      },
+      {
+        name: "🛡️ Equipo responsable",
+        value: roles.length ? roles.map(role => role.toString()).join(", ") : "⚠️ Selecciona de 1 a 5 roles de soporte.",
+        inline: true
+      },
+      {
+        name: "🗂️ Categoría de Discord",
+        value: category ? category.toString() + "\n✅ Los tickets se crearán aquí." : "⚠️ Selecciona la categoría donde se crearán los tickets.",
+        inline: true
+      },
+      {
+        name: "🧾 Transcripciones",
+        value: modeLabels[saved.transcriptMode || "channel"] || "Canal de registros",
+        inline: true
+      },
+      {
+        name: "🔢 Límite por miembro",
+        value: String(saved.maxOpenPerUser || 2) + " ticket(s) abiertos",
+        inline: true
+      },
+      {
+        name: "⏱️ Automatización",
+        value: saved.autoCloseEnabled
+          ? "Autocierre activado · " + String(saved.autoCloseHours || 24) + " h"
+          : "Autocierre desactivado por seguridad",
+        inline: true
+      }
     )
-    .setFooter({ text: guild.name + " • Configuración guardada automáticamente" });
+    .setFooter({ text: "FLUX STORE • Consola administrativa • Guardado automático" })
+    .setTimestamp();
+
+  if (iconURL) embed.setAuthor({ name: "FLUX STORE  /  SISTEMA DE SOPORTE", iconURL });
+  else embed.setAuthor({ name: "FLUX STORE  /  SISTEMA DE SOPORTE" });
+  return embed;
 }
 
 function mainComponents() {
   const channelMenu = new ChannelSelectMenuBuilder()
     .setCustomId("flux_ticket_config:panel_channel")
-    .setPlaceholder("Elige el canal del panel")
+    .setPlaceholder("01 · Selecciona el canal público del panel")
     .setChannelTypes(ChannelType.GuildText)
     .setMinValues(1).setMaxValues(1);
   const roleMenu = new RoleSelectMenuBuilder()
     .setCustomId("flux_ticket_config:support_roles")
-    .setPlaceholder("Elige el rol de soporte")
+    .setPlaceholder("02 · Selecciona los roles que atenderán tickets")
     .setMinValues(1).setMaxValues(5);
   const categoryMenu = new ChannelSelectMenuBuilder()
     .setCustomId("flux_ticket_config:ticket_category")
-    .setPlaceholder("Elige una categoría para los tickets")
+    .setPlaceholder("03 · Selecciona dónde se crearán los tickets")
     .setChannelTypes(ChannelType.GuildCategory)
     .setMinValues(1).setMaxValues(1);
   const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("flux_ticket_config:create_panel").setLabel("Crear panel").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("flux_ticket_config:advanced").setLabel("Avanzado").setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId("flux_ticket_config:create_panel").setLabel("Publicar panel").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("flux_ticket_config:advanced").setLabel("Ajustes avanzados").setStyle(ButtonStyle.Primary)
   );
   return [
     new ActionRowBuilder().addComponents(channelMenu),
@@ -126,10 +175,10 @@ function mainComponents() {
 function advancedComponents() {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("flux_ticket_config:advanced_select")
-    .setPlaceholder("Selecciona una opción avanzada")
+    .setPlaceholder("Selecciona un módulo de configuración")
     .addOptions(ADVANCED_OPTIONS);
   const back = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("flux_ticket_config:back").setLabel("Volver").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("flux_ticket_config:back").setLabel("Volver al panel principal").setStyle(ButtonStyle.Secondary)
   );
   return [new ActionRowBuilder().addComponents(menu), back];
 }
@@ -267,7 +316,7 @@ module.exports = function registerTicketConfigurator(client) {
   client.on("messageCreate", async message => {
     if (!message.guild || message.author.bot) return;
     const content = message.content.trim();
-    const setupMatch = content.match(/^m!(?:ticket\s+setup|mticket\s+setup)$/i);
+    const setupMatch = content.match(/^f!ticket\s+setup$/i);
     if (!setupMatch) return;
     const saved = guildConfig(message.guild.id);
     await message.channel.send({
@@ -305,7 +354,25 @@ module.exports = function registerTicketConfigurator(client) {
         return;
       }
       if (action === "advanced") {
-        await interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6).setTitle("⚙️ Configuración avanzada • FLUX STORE").setDescription("Selecciona una sección para revisar su configuración.")], components: advancedComponents(), ephemeral: true });
+        const advancedEmbed = new EmbedBuilder()
+          .setColor(config.colors.primary || 0x8B5CF6)
+          .setTitle("Ajustes avanzados")
+          .setDescription([
+            "Configura con precisión el comportamiento de los tickets de **FLUX STORE**.",
+            "",
+            "**APARIENCIA** · título, descripción, color y pie del panel.",
+            "**CATEGORÍAS** · etiquetas, descripciones y emojis por tipo de solicitud.",
+            "**OPERACIÓN** · límite por miembro, recordatorios, transcripciones y autocierre.",
+            "",
+            "Elige un módulo en el menú. Los cambios se guardan en este servidor."
+          ].join("\n"))
+          .setFooter({ text: "FLUX STORE • Ajustes por servidor" })
+          .setTimestamp();
+        const guildIcon = guild.iconURL({ size: 128 });
+        advancedEmbed.setAuthor(guildIcon
+          ? { name: "FLUX STORE  /  CONFIGURACIÓN", iconURL: guildIcon }
+          : { name: "FLUX STORE  /  CONFIGURACIÓN" });
+        await interaction.reply({ embeds: [advancedEmbed], components: advancedComponents(), ephemeral: true });
         return;
       }
       if (action === "back") {
@@ -379,7 +446,7 @@ module.exports = function registerTicketConfigurator(client) {
           saved.autoCloseHours = autoCloseHours;
           saved.staffReminderHours = reminderHours;
         });
-        await interaction.reply({ content: "✅ Moderación guardada. El límite se aplica a nuevas aperturas. Las automatizaciones de recordatorio/autocierre requieren soporte en el módulo de automatización.", ephemeral: true });
+        await interaction.reply({ content: "✅ Moderación guardada. El límite se aplica a nuevas aperturas; los recordatorios y el autocierre seguirán las horas configuradas.", ephemeral: true });
         return;
       }
       if (action === "advanced_select") {
@@ -388,7 +455,7 @@ module.exports = function registerTicketConfigurator(client) {
         const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("⚙️ " + (ADVANCED_OPTIONS.find(x => x.value === key)?.label || "Configuración"))
           .setDescription(advancedDescription(key, saved, guild));
-        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key), ...advancedComponents().slice(1)] });
+        await interaction.update({ embeds: [embed], components: [...advancedDetailComponents(key), ...advancedComponents()] });
         return;
       }
       if (action === "transcript_mode") {
