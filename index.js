@@ -647,7 +647,7 @@ client.on(Events.GuildMemberAdd, async member => {
       console.error("No se pudo asignar el autorol a " + member.user.tag + ":", error?.message || error);
     }
   }
-  const ch = member.guild.channels.cache.get(config.channels.welcome || "1562615450834178179");
+  const ch = member.guild.channels.cache.get(config.channels.welcome);
   if (ch?.isTextBased()) {
     const embed = new EmbedBuilder()
       .setColor(0xFFFFFF)
