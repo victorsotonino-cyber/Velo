@@ -38,6 +38,15 @@ El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting qu
 - `/tienda cupon-eliminar`: elimina un cupón.
 - `/carrito confirmar` acepta la opción opcional `cupon`; el bot recalcula el total desde el catálogo y comprueba el límite de usos antes de aplicar el descuento.
 - \`/carrito agregar\`, \`/carrito ver\`, \`/carrito quitar\`, \`/carrito vaciar\`.
+
+### Panel editable y moderación de tickets
+- `m!ticket setup`: abre el panel de configuración actual.
+- En **Avanzado → Editor visual del panel** puedes guardar título, descripción, color hexadecimal y pie del panel para las próximas publicaciones.
+- En **Avanzado → Moderación de tickets** puedes configurar el máximo de tickets abiertos por usuario, autocierre y horas de inactividad, y recordatorios al staff.
+- `m!ticket blacklist @usuario razón`: impide que un usuario abra tickets en ese servidor.
+- `m!ticket unblacklist @usuario`: elimina el bloqueo.
+- `m!ticket blacklist-list`: muestra la lista negra.
+- Los recordatorios se activan si se configura una hora válida y se envían cuando el último mensaje humano del ticket es del cliente y no hay respuesta posterior del staff. El autocierre sigue desactivado por defecto.
 - \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
 
 Los productos antiguos sin propiedad \`stock\` siguen teniendo stock ilimitado por compatibilidad. Configura su stock con \`/tienda stock\` para habilitar el control de inventario. El precio debe contener una única cantidad numérica, por ejemplo \`7.50 USD\`; los importes escritos como rangos no se aceptan para el checkout.
