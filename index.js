@@ -155,6 +155,25 @@ client.on(Events.MessageCreate, async message => {
 
   try {
     switch (command) {
+      case "test-bienvenida":
+      case "bienvenida-test": {
+        const previewEmbed = new EmbedBuilder()
+          .setColor(0xFFFFFF)
+          .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
+          .setTitle("Welcome to FLUX STORE")
+          .setDescription(
+            "• • <#1562615455624077383> **TERMINOS**\\n" +
+            "• • <#1562615459256471642> **METODOS**\\n" +
+            "• • <#1562615495704838174> **TICKETS**"
+          )
+          .setThumbnail(message.author.displayAvatarURL({ size: 256 }))
+          .setFooter({ text: "#" + message.guild.memberCount });
+        return message.channel.send({
+          content: "👋 **Vista previa de la bienvenida** — así se verá el mensaje:",
+          embeds: [previewEmbed],
+          allowedMentions: { parse: [] }
+        });
+      }
       case "giveaway": return giveawayService.executePrefix(message, args, client);
       case "help":
       case "ayuda": {
