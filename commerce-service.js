@@ -7,6 +7,7 @@ const { readJSON, writeJSON } = require("./storage");
 
 const CARTS_FILE = "flux-store-carts.json";
 const ORDERS_FILE = "flux-store-orders.json";
+const COUPONS_FILE = "flux-store-coupons.json";
 const CURRENCY = String(process.env.STORE_CURRENCY || "USD").toUpperCase();
 const MAX_QUANTITY = 25;
 
@@ -27,6 +28,66 @@ function getCarts() {
 function getOrders() {
   const value = readJSON(ORDERS_FILE, []);
   return Array.isArray(value) ? value : [];
+}
+
+function getCoupons() {
+  const value = readJSON(COUPONS_FILE, []);
+  return Array.isArray(value) ? value : [];
+}
+
+function saveCoupons(coupons) {
+  writeJSON(COUPONS_FILE, coupons);
+  return coupons;
+}
+
+function createCoupon(guildId, code, percent, maxUses) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9_-]{2,23}$/.test(normalizedCode)) {
+    throw new Error("El código debe tener entre 3 y 24 caracteres: letras, números, guion o guion bajo.");
+  }
+  const discountPercent = Number(percent);
+  if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 90) {
+    throw new Error("El descuento debe ser un número entero entre 1 y 90 %.");
+  }
+  const limit = maxUses == null ? null : Number(maxUses);
+  if (limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > 1000000)) {
+    throw new Error("El límite de usos debe estar entre 1 y 1.000.000.");
+  }
+  const coupons = getCoupons();
+  if (coupons.some(c => c.guildId === String(guildId) && c.code === normalizedCode)) {
+    throw new Error("Ya existe un cupón con ese código en este servidor.");
+  }
+  const coupon = {
+    guildId: String(guildId), code: normalizedCode, percent: discountPercent,
+    maxUses: limit, uses: 0, enabled: true, createdAt: new Date().toISOString()
+  };
+  coupons.push(coupon);
+  saveCoupons(coupons);
+  return coupon;
+}
+
+function removeCoupon(guildId, code) {
+  const coupons = getCoupons();
+  const index = coupons.findIndex(c => c.guildId === String(guildId) && c.code === String(code || "").trim().toUpperCase());
+  if (index < 0) return false;
+  coupons.splice(index, 1);
+  saveCoupons(coupons);
+  return true;
+}
+
+function listCoupons(guildId) {
+  return getCoupons().filter(c => c.guildId === String(guildId));
+}
+
+function getUsableCoupon(guildId, code) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  if (!normalizedCode) return null;
+  const coupon = getCoupons().find(c => c.guildId === String(guildId) && c.code === normalizedCode && c.enabled !== false);
+  if (!coupon) throw new Error("El cupón no existe o está desactivado.");
+  if (coupon.maxUses !== null && coupon.maxUses !== undefined && Number(coupon.uses || 0) >= Number(coupon.maxUses)) {
+    throw new Error("Este cupón alcanzó su límite de usos.");
+  }
+  return coupon;
 }
 
 function parsePrice(raw) {
@@ -231,9 +292,10 @@ function createOrderFromItems(args) {
     });
   }
 
-  // Todos los pedidos nuevos usan el precio validado del catálogo.
-  const discountCents = 0;
-  const totalCents = subtotalCents;
+  // Los cupones se validan en el servidor y se limitan por servidor de Discord.
+  const coupon = args.couponCode ? getUsableCoupon(guildId, args.couponCode) : null;
+  const discountCents = coupon ? Math.min(subtotalCents, Math.round(subtotalCents * coupon.percent / 100)) : 0;
+  const totalCents = Math.max(0, subtotalCents - discountCents);
   const orders = getOrders();
 
   let id;
@@ -255,6 +317,7 @@ function createOrderFromItems(args) {
     currency: CURRENCY,
     subtotalCents: subtotalCents,
     discountCents: discountCents,
+    couponCode: coupon ? coupon.code : null,
     totalCents: totalCents,
     price: money(totalCents, CURRENCY),
     paymentMethod: String(args.paymentMethod || "Sin indicar").slice(0, 60),
@@ -274,6 +337,15 @@ function createOrderFromItems(args) {
 
   orders.push(order);
   writeJSON(ORDERS_FILE, orders.slice(-10000));
+  if (coupon) {
+    const coupons = getCoupons();
+    const savedCoupon = coupons.find(c => c.guildId === guildId && c.code === coupon.code && c.enabled !== false);
+    if (savedCoupon) {
+      savedCoupon.uses = Number(savedCoupon.uses || 0) + 1;
+      savedCoupon.updatedAt = now;
+      saveCoupons(coupons);
+    }
+  }
   if (orderItems.some(function (item) { return item.stockTracked; })) store.saveProducts(products);
 
   return order;
@@ -288,7 +360,8 @@ function checkout(args) {
     userTag: args.userTag,
     items: view.lines,
     paymentMethod: args.paymentMethod,
-    details: args.details
+    details: args.details,
+    couponCode: args.couponCode
   });
   clearCart(args.guildId, args.userId);
   return order;
@@ -336,5 +409,6 @@ function getOrderStats(guildId) {
 module.exports = {
   CURRENCY, MAX_QUANTITY, normalize, money, parsePrice, getCart, calculateCart,
   addToCart, removeFromCart, clearCart, checkout, createOrderFromItems,
-  releaseReservedStock, getOrderStats, getOrders
+  releaseReservedStock, getOrderStats, getOrders,
+  getCoupons, createCoupon, removeCoupon, listCoupons, getUsableCoupon
 };

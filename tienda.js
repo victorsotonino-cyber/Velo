@@ -86,10 +86,71 @@ module.exports = {
           return o.setName("nombre").setDescription("Nombre exacto del producto")
             .setMaxLength(80).setRequired(true);
         });
+    })
+    .addSubcommand(function (s) {
+      return s.setName("cupon-crear").setDescription("Crea un cupón de descuento para este servidor.")
+        .addStringOption(function (o) {
+          return o.setName("codigo").setDescription("Ejemplo: FLUX10").setMinLength(3).setMaxLength(24).setRequired(true);
+        })
+        .addIntegerOption(function (o) {
+          return o.setName("porcentaje").setDescription("Descuento del 1 al 90 %").setMinValue(1).setMaxValue(90).setRequired(true);
+        })
+        .addIntegerOption(function (o) {
+          return o.setName("usos-maximos").setDescription("Déjalo vacío para usos ilimitados").setMinValue(1).setMaxValue(1000000).setRequired(false);
+        });
+    })
+    .addSubcommand(function (s) {
+      return s.setName("cupon-eliminar").setDescription("Elimina un cupón de este servidor.")
+        .addStringOption(function (o) {
+          return o.setName("codigo").setDescription("Código exacto del cupón").setMinLength(3).setMaxLength(24).setRequired(true);
+        });
+    })
+    .addSubcommand(function (s) {
+      return s.setName("cupones").setDescription("Lista los cupones de este servidor (solo personal).");
     }),
   async execute(i) {
     const action = i.options.getSubcommand();
     const products = store.getProducts();
+
+    if (["cupon-crear", "cupon-eliminar", "cupones"].includes(action)) {
+      if (!store.isStoreStaff(i.member)) {
+        return i.reply({ content: "❌ Solo el personal autorizado puede administrar cupones.", ephemeral: true });
+      }
+      if (action === "cupon-crear") {
+        try {
+          const coupon = commerce.createCoupon(
+            i.guildId,
+            i.options.getString("codigo"),
+            i.options.getInteger("porcentaje"),
+            i.options.getInteger("usos-maximos")
+          );
+          return i.reply({
+            content: "✅ Cupón **" + coupon.code + "** creado: **" + coupon.percent + "%** de descuento · " +
+              (coupon.maxUses === null ? "usos ilimitados" : "máximo " + coupon.maxUses + " usos") + ".",
+            ephemeral: true
+          });
+        } catch (error) {
+          return i.reply({ content: "❌ " + error.message, ephemeral: true });
+        }
+      }
+      if (action === "cupon-eliminar") {
+        const removed = commerce.removeCoupon(i.guildId, i.options.getString("codigo"));
+        return i.reply({
+          content: removed ? "✅ Cupón eliminado." : "❌ No encontré ese cupón en este servidor.",
+          ephemeral: true
+        });
+      }
+      const coupons = commerce.listCoupons(i.guildId);
+      const description = coupons.slice(0, 25).map(c =>
+        "`" + c.code + "` — " + c.percent + "% · usos " + Number(c.uses || 0) +
+        (c.maxUses == null ? "/∞" : "/" + c.maxUses) + (c.enabled === false ? " · desactivado" : "")
+      ).join("\n");
+      return i.reply({
+        embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle("🎟️ Cupones de FLUX STORE")
+          .setDescription(description || "No hay cupones configurados.")],
+        ephemeral: true
+      });
+    }
 
     if (action === "catalogo") {
       const available = products.filter(function (p) {

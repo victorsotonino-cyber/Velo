@@ -20,6 +20,7 @@ function resetData() {
   ]);
   writeJSON("flux-store-orders.json", []);
   writeJSON("flux-store-carts.json", {});
+  writeJSON("flux-store-coupons.json", []);
 }
 
 test.beforeEach(resetData);
@@ -78,4 +79,35 @@ test("checkout impide sobreventa de stock entre dos carritos", function () {
     });
   }, /Stock insuficiente/);
   assert.equal(store.getProducts()[0].stock, 1);
+});
+
+test("cupón aplica descuento del catálogo y respeta el máximo de usos", function () {
+  const coupon = commerce.createCoupon("guild-a", "FLUX10", 10, 1);
+  assert.equal(coupon.code, "FLUX10");
+  commerce.addToCart("guild-a", "user-a", "Nitro Premium", 1);
+  const order = commerce.checkout({
+    guildId: "guild-a", userId: "user-a", userTag: "Client#0001",
+    paymentMethod: "PayPal", couponCode: "flux10"
+  });
+  assert.equal(order.subtotalCents, 599);
+  assert.equal(order.discountCents, 60);
+  assert.equal(order.totalCents, 539);
+  assert.equal(order.couponCode, "FLUX10");
+  assert.equal(commerce.listCoupons("guild-a")[0].uses, 1);
+
+  commerce.addToCart("guild-a", "user-b", "Nitro Premium", 1);
+  assert.throws(function () {
+    commerce.checkout({
+      guildId: "guild-a", userId: "user-b", userTag: "Client#0002",
+      paymentMethod: "PayPal", couponCode: "FLUX10"
+    });
+  }, /límite de usos/);
+});
+
+test("cupones están aislados por servidor y validan porcentaje", function () {
+  commerce.createCoupon("guild-a", "STORE20", 20, null);
+  assert.equal(commerce.listCoupons("guild-b").length, 0);
+  assert.throws(function () { commerce.createCoupon("guild-a", "BAD", 100, null); }, /entre 1 y 90/);
+  assert.equal(commerce.removeCoupon("guild-a", "store20"), true);
+  assert.equal(commerce.removeCoupon("guild-a", "store20"), false);
 });
