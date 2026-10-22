@@ -240,7 +240,7 @@ function categoryManagerComponents(guildId, guild, selectedKey = null) {
           ...(item.emojiId ? { emoji: { id: String(item.emojiId), name: String(item.emojiName || item.emojiKey || "ticket").slice(0, 32) } }
             : item.emojiUnicode ? { emoji: { name: String(item.emojiUnicode).slice(0, 32) } } : {})
         })))
-    );
+    ));
   }
 
   const selected = all.find(([key]) => key === selectedKey);
