@@ -10,6 +10,7 @@ const storeService = require("./store-service");
 const automodService = require("./automod-service");
 const { canModerateTarget } = require("./utils/permissions");
 const prefixCommandSuite = require("./utils/prefix-command-suite");
+const { sendTransactionLog } = require("./utils/transaction-log");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
@@ -168,7 +169,14 @@ client.on(Events.MessageCreate, async message => {
       .setFooter({ text: "Flux STORE • Venta #" + stats.sales })
       .setTimestamp();
     await message.channel.send({ embeds: [embed] });
-    return message.channel.send("⚡ Vouch registrado con éxito, **Flux STORE ahora tiene #" + stats.sales + " ventas**.");
+    if (message.channel.id !== config.channels.transactions) {
+      await sendTransactionLog(message.guild, {
+        content: "🧾 Vouch de venta #" + stats.sales + " registrado por <@" + message.author.id + "> para <@" + buyer.id + ">.",
+        embeds: [embed],
+        allowedMentions: { parse: [] }
+      }, "el vouch de venta #" + stats.sales);
+    }
+    return message.channel.send("⚡ Vouch registrado con éxito, **FLUX STORE ahora tiene #" + stats.sales + " ventas**.");
   }
   if (!message.content.startsWith(PREFIX)) return;
   const args = message.content.slice(PREFIX.length).trim().split(/\s+/);

@@ -3,6 +3,7 @@ const config = require("./config");
 const store = require("./store-service");
 const commerce = require("./commerce-service");
 const { readJSON, writeJSON } = require("./storage");
+const { sendTransactionLog } = require("./utils/transaction-log");
 const FILE = "flux-store-orders.json";
 const LABELS = { pendiente: "🟡 Pendiente", pago_verificado: "🔵 Pago verificado", procesando: "🟣 En preparación", completado: "🟢 Completado", cancelado: "🔴 Cancelado" };
 const STATUSES = Object.keys(LABELS);
@@ -69,6 +70,24 @@ module.exports = {
           )
           .setFooter({ text: "FLUX STORE • El pago no se considera recibido hasta que el equipo lo verifique." })
           .setTimestamp();
+        const transactionEmbed = new EmbedBuilder()
+          .setColor(config.colors.primary)
+          .setTitle("🧾 Nueva transacción registrada")
+          .setDescription([
+            "**Pedido:** #" + order.id,
+            "**Cliente:** <@" + order.userId + ">",
+            "**Producto:** " + order.product,
+            "**Total:** " + order.price,
+            "**Método elegido:** " + order.paymentMethod,
+            "**Estado:** " + LABELS.pendiente
+          ].join("\n"))
+          .setFooter({ text: "FLUX STORE • Solicitud registrada; pago pendiente de verificación." })
+          .setTimestamp();
+        await sendTransactionLog(i.guild, {
+          content: "🛒 Nueva solicitud de pedido #" + order.id,
+          embeds: [transactionEmbed],
+          allowedMentions: { parse: [] }
+        }, "el pedido #" + order.id);
         return i.reply({ embeds: [embed], ephemeral: true });
       } catch (error) {
         return i.reply({
@@ -102,13 +121,37 @@ module.exports = {
     if (next === "cancelado") {
       commerce.releaseReservedStock(order);
     }
+    const previousStatus = order.status;
     const now = new Date().toISOString();
     order.status = next;
     order.updatedAt = now;
     order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
     order.statusHistory.push({ status: next, by: i.user.id, at: now });
     writeJSON(FILE, orders);
-    const embed = new EmbedBuilder().setColor(config.colors.success).setTitle("✅ Estado actualizado").setDescription("**Pedido:** #" + order.id + "\n**Cliente:** <@" + order.userId + ">\n**Producto:** " + order.product + "\n**Estado:** " + LABELS[next] + "\n**Actualizado por:** <@" + i.user.id + ">").setTimestamp();
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.success)
+      .setTitle("✅ Estado actualizado")
+      .setDescription("**Pedido:** #" + order.id + "\n**Cliente:** <@" + order.userId + ">\n**Producto:** " + order.product + "\n**Estado:** " + LABELS[next] + "\n**Actualizado por:** <@" + i.user.id + ">")
+      .setTimestamp();
+    const transactionEmbed = new EmbedBuilder()
+      .setColor(next === "cancelado" ? config.colors.error : (next === "completado" ? config.colors.success : config.colors.primary))
+      .setTitle("🔄 Actualización de transacción")
+      .setDescription([
+        "**Pedido:** #" + order.id,
+        "**Cliente:** <@" + order.userId + ">",
+        "**Producto:** " + order.product,
+        "**Total:** " + order.price,
+        "**Estado anterior:** " + (LABELS[previousStatus] || previousStatus),
+        "**Estado nuevo:** " + LABELS[next],
+        "**Actualizado por:** <@" + i.user.id + ">"
+      ].join("\n"))
+      .setFooter({ text: "FLUX STORE • Registro de transacciones" })
+      .setTimestamp();
+    await sendTransactionLog(i.guild, {
+      content: "🔄 Pedido #" + order.id + " · " + next,
+      embeds: [transactionEmbed],
+      allowedMentions: { parse: [] }
+    }, "la actualización del pedido #" + order.id);
     return i.reply({ embeds: [embed], ephemeral: true });
   }
 }
