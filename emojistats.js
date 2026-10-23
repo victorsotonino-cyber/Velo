@@ -8,7 +8,7 @@ module.exports = {
     const emojis = [...i.guild.emojis.cache.values()];
     const animated = emojis.filter(emoji => emoji.animated);
     const regular = emojis.length - animated.length;
-    const examples = emojis.slice(0, 18).map(emoji => emoji.toString()).join(" ");
+    const examples = emojis.slice(0, 15).map(emoji => emoji.toString()).join(" ").slice(0, 900);
     const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
       .setTitle("✨ " + i.guild.name + " • Emojis")
       .addFields(
