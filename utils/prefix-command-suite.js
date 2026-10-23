@@ -96,7 +96,7 @@ async function executePrefix(message, command, args, client) {
           { name: "Total", value: String(emojis.length), inline: true },
           { name: "Estáticos", value: String(emojis.length - animated), inline: true },
           { name: "Animados", value: String(animated), inline: true },
-          { name: "Ejemplos", value: emojis.slice(0, 15).map(item => item.toString()).join(" ") || "Sin emojis personalizados en caché.", inline: false }
+          { name: "Ejemplos", value: emojis.slice(0, 15).map(item => item.toString()).join(" ").slice(0, 900) || "Sin emojis personalizados en caché.", inline: false }
         );
       await message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
       return true;
