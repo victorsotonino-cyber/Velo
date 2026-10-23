@@ -66,10 +66,7 @@ module.exports = {
           return o.setName("detalles").setDescription("Información adicional del pedido")
             .setMaxLength(500).setRequired(false);
         })
-        .addStringOption(function (o) {
-          return o.setName("cupon").setDescription("Código de descuento opcional")
-            .setMinLength(3).setMaxLength(24).setRequired(false);
-        });
+
     }),
   async execute(i) {
     if (!i.guildId) {
@@ -118,7 +115,6 @@ module.exports = {
         userTag: i.user.tag,
         paymentMethod: i.options.getString("metodo"),
         details: i.options.getString("detalles"),
-        couponCode: i.options.getString("cupon")
       });
 
       const embed = new EmbedBuilder()
@@ -128,7 +124,6 @@ module.exports = {
           "**Pedido:** #" + order.id +
           "\n**Productos:** " + order.product +
           "\n**Subtotal:** " + commerce.money(order.subtotalCents, order.currency) +
-          (order.discountCents > 0 ? "\n**Descuento (" + order.couponCode + "):** −" + commerce.money(order.discountCents, order.currency) : "") +
           "\n**Total:** **" + order.price + "**" +
           "\n**Método elegido:** " + order.paymentMethod +
           "\n**Estado:** 🟡 Pendiente"
