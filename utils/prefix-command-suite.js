@@ -268,6 +268,15 @@ async function executePrefix(message, command, args, client) {
         await message.reply(rows.length ? ("Advertencias de " + target.tag + " (" + rows.length + "):\n" + lines.join("\n").slice(0, 1700)) : target.tag + " no tiene advertencias guardadas.");
         return true;
       }
+      const targetMember = message.mentions.members.first();
+      if (!targetMember) {
+        await message.reply("Para limpiar advertencias, menciona a un miembro que siga en el servidor.");
+        return true;
+      }
+      if (!canModerateTarget(message.member, targetMember, message.guild.ownerId)) {
+        await message.reply("❌ No puedes limpiar advertencias del propietario ni de alguien con un rol igual o superior al tuyo.");
+        return true;
+      }
       const removed = warningService.clearWarnings(message.guild.id, target.id);
       await message.reply(removed ? "✅ Se eliminaron " + removed + " advertencia(s) de " + target.tag + "." : "No hay advertencias guardadas para ese usuario.");
       return true;
