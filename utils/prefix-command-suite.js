@@ -7,6 +7,7 @@ const {
 } = require("discord.js");
 const config = require("../config");
 const storeService = require("../store-service");
+const { readJSON } = require("../storage");
 const warningService = require("./warnings-service");
 const { canModerateTarget } = require("./permissions");
 const { formatDuration, parseHexColor, getTicketStats, canManageRole, isValidUnixSeconds } = require("./command-helpers");
@@ -191,6 +192,87 @@ async function executePrefix(message, command, args, client) {
         await target.roles.remove(role, "Role manager de " + message.author.tag);
         await message.reply("✅ Rol retirado de " + target.user.tag + ".");
       }
+      return true;
+    }
+    case "servericon": {
+      const iconURL = message.guild.iconURL({ size: 1024 });
+      if (!iconURL) {
+        await message.reply("Este servidor no tiene un icono configurado.");
+        return true;
+      }
+      const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
+        .setTitle("Icono de " + message.guild.name).setImage(iconURL);
+      await message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+      return true;
+    }
+    case "boosters": {
+      const boosters = message.guild.members.cache.filter(member => Boolean(member.premiumSince));
+      const names = [...boosters.values()].slice(0, 12)
+        .map(member => "• " + member.user.tag + " — desde <t:" + Math.floor(member.premiumSinceTimestamp / 1000) + ":D>");
+      const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
+        .setTitle("💎 " + message.guild.name + " • Boosters")
+        .addFields(
+          { name: "Boosts", value: String(message.guild.premiumSubscriptionCount ?? 0), inline: true },
+          { name: "Boosters en caché", value: String(boosters.size), inline: true },
+          { name: "Miembros", value: names.join("\n").slice(0, 1024) || "No hay boosters visibles en caché.", inline: false }
+        ).setFooter({ text: "El listado usa la caché del servidor." });
+      await message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+      return true;
+    }
+    case "emoji-search": {
+      const query = args.join(" ").trim().toLowerCase();
+      if (!query) {
+        await message.reply("Uso: !emoji-search nombre");
+        return true;
+      }
+      const found = [...message.guild.emojis.cache.values()]
+        .filter(item => item.name.toLowerCase().includes(query))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 15);
+      if (!found.length) {
+        await message.reply("No encontré emojis que coincidan con " + query + ".");
+        return true;
+      }
+      const list = found.map(item => item.toString() + " **" + item.name + "**").join("\n").slice(0, 1800);
+      await message.reply({ content: list, allowedMentions: { parse: [] } });
+      return true;
+    }
+    case "diagnostico": {
+      if (!storeService.isStoreStaff(message.member)) {
+        await message.reply("❌ Solo administración o staff autorizado puede revisar el diagnóstico.");
+        return true;
+      }
+      const saved = readJSON("ticket-config.json", {})[message.guild.id] || {};
+      const checks = [
+        ["Token configurado", Boolean(String(config.token || "").trim())],
+        ["CLIENT_ID", Boolean(config.clientId)],
+        ["GUILD_ID", Boolean(config.guildId)],
+        ["Canal de logs", Boolean(config.channels.logs)],
+        ["Categoría base de tickets", Boolean(config.channels.tickets)],
+        ["Rol administrador", Boolean(config.roles.admin)],
+        ["Rol staff", Boolean(config.roles.staff)],
+        ["Panel guardado", Boolean(saved.panelMessageId && saved.publishedPanelChannelId)],
+        ["Canal público guardado", Boolean(saved.panelChannelId && message.guild.channels.cache.has(saved.panelChannelId))],
+        ["Categoría válida", Boolean(saved.ticketCategoryId && message.guild.channels.cache.get(saved.ticketCategoryId)?.type === ChannelType.GuildCategory)],
+        ["Rol de soporte válido", Array.isArray(saved.supportRoleIds) && saved.supportRoleIds.some(id => message.guild.roles.cache.has(id))]
+      ];
+      const description = checks.map(([label, okay]) => (okay ? "✅ " : "⚠️ ") + label + ": " + (okay ? "configurado" : "pendiente")).join("\n");
+      const currentPerms = message.channel.permissionsFor(message.guild.members.me);
+      const channelChecks = [
+        [PermissionFlagsBits.ViewChannel, "Ver canal"],
+        [PermissionFlagsBits.SendMessages, "Enviar mensajes"],
+        [PermissionFlagsBits.EmbedLinks, "Insertar enlaces"],
+        [PermissionFlagsBits.ManageChannels, "Gestionar canales"]
+      ];
+      const missing = channelChecks.filter(([bit]) => !currentPerms?.has(bit)).map(([, label]) => label);
+      const embed = new EmbedBuilder()
+        .setColor(checks.some(([, okay]) => !okay) || missing.length ? config.colors.warning : config.colors.success)
+        .setTitle("🔎 FLUX STORE • Diagnóstico")
+        .setDescription(description)
+        .addFields({ name: "Permisos del canal actual", value: missing.length ? "Faltan: " + missing.join(", ") : "Todos los permisos comprobados están disponibles." })
+        .setFooter({ text: "No se muestra el token. Que esté configurado no significa que sea válido." })
+        .setTimestamp();
+      await message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
       return true;
     }
     case "ticketstats": {
