@@ -6,7 +6,7 @@ const modules = [
   "../botinfo", "../uptime", "../membercount", "../roleinfo", "../channelinfo",
   "../timestamp", "../poll", "../purge", "../nickname", "../rolemanager",
   "../permcheck", "../ticketstats", "../embed", "../topic", "../emojistats",
-  "../banner", "../warnings"
+  "../banner", "../warnings", "../diagnostico", "../servericon", "../boosters", "../emoji-search"
 ];
 
 test("each added command exports a serializable slash command and an execute function", () => {
