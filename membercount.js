@@ -9,8 +9,10 @@ module.exports = {
     const cachedBots = cached.filter(member => member.user.bot).size;
     const cachedHumans = cached.size - cachedBots;
     const embed = new EmbedBuilder().setColor(config.colors.primary || 0x8B5CF6)
-      .setTitle("👥 " + i.guild.name + " • Miembros").setThumbnail(i.guild.iconURL({ size: 256 }))
-      .addFields(
+      .setTitle("👥 " + i.guild.name + " • Miembros");
+    const guildIcon = i.guild.iconURL({ size: 256 });
+    if (guildIcon) embed.setThumbnail(guildIcon);
+    embed.addFields(
         { name: "Total de miembros", value: String(i.guild.memberCount), inline: true },
         { name: "Humanos en caché", value: String(cachedHumans), inline: true },
         { name: "Bots en caché", value: String(cachedBots), inline: true },
