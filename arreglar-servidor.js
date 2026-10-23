@@ -119,15 +119,30 @@ module.exports = {
 
       if (action !== "crear-base" || groupChannelsMissing.length === 0) continue;
 
-      let category = allCategories().find(channel => group.categoryMatch.test(normalizeName(channel.name)));
+      const matchingCategory = allCategories().find(channel =>
+        group.categoryMatch.test(normalizeName(channel.name))
+      );
+      let category = matchingCategory &&
+        matchingCategory.permissionsFor(guild.roles.everyone)?.has(PermissionFlagsBits.ViewChannel)
+        ? matchingCategory
+        : null;
       if (!category) {
         try {
+          // New categories explicitly allow @everyone to view them. A private matching
+          // category is left untouched so public info channels are not hidden in it.
+          const newCategoryName = matchingCategory
+            ? group.categoryName + "・PUBLICO"
+            : group.categoryName;
           category = await guild.channels.create({
-            name: group.categoryName,
+            name: newCategoryName,
             type: ChannelType.GuildCategory,
+            permissionOverwrites: [{
+              id: guild.roles.everyone.id,
+              allow: [PermissionFlagsBits.ViewChannel]
+            }],
             reason: "Reparación solicitada por la administración de FLUX STORE"
           });
-          created.push("Categoría " + category.name);
+          created.push("Categoría pública " + category.name);
         } catch (error) {
           errors.push("No pude crear la categoría " + group.categoryName + ": " + String(error.message || error).slice(0, 160));
           continue;
