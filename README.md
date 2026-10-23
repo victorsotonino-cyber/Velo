@@ -71,6 +71,7 @@ Los pagos no se verifican automáticamente. Elegir un método no significa que e
 - /emoji-search: busca emojis personalizados por nombre y muestra los emojis coincidentes.
 - /boosters: estadísticas de boosts y lista de miembros visibles en la caché.
 - /diagnostico: diagnóstico privado de la configuración de ticket, canales, roles y permisos; nunca muestra el token.
+- /arreglar-servidor: revisa canales base ausentes, roles con permiso Administrador y canales sensibles visibles para @everyone. Con `accion: Crear canales base faltantes`, crea únicamente los canales públicos que falten; no borra, mueve ni renombra canales ni modifica roles existentes.
 - Los mismos comandos de utilidad también se han añadido como alias con prefijo \`!\` cuando corresponde.
 - /poll: publica una encuesta con entre 2 y 5 opciones y reacciones numeradas; necesita Añadir reacciones en el canal.
 - /purge: elimina mensajes recientes; puede limitarse a un usuario y omite mensajes demasiado antiguos para borrado masivo.
