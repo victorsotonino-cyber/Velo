@@ -27,7 +27,8 @@ module.exports = {
     error: 0xEF4444
   },
   channels: {
-    welcome: readId("WELCOME_CHANNEL_ID"),
+    // Canal de bienvenida predeterminado de FLUX STORE; .env puede sobrescribirlo.
+    welcome: readId("WELCOME_CHANNEL_ID") || "1562615450834178179",
     logs: readId("LOGS_CHANNEL_ID"),
     tickets: readId("TICKETS_CATEGORY_ID"),
     announcements: readId("ANNOUNCEMENTS_CHANNEL_ID"),
