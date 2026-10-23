@@ -713,7 +713,12 @@ client.on(Events.GuildMemberAdd, async member => {
       console.error("No se pudo asignar el autorol a " + member.user.tag + ":", error?.message || error);
     }
   }
-  const ch = config.channels.welcome ? member.guild.channels.cache.get(config.channels.welcome) : null;
+  // Fetch the configured channel instead of relying only on cache.
+  const welcomeChannelId = config.channels.welcome || "1562615450834178179";
+  const ch = await member.guild.channels.fetch(welcomeChannelId).catch(error => {
+    console.error("No se pudo encontrar el canal de bienvenida " + welcomeChannelId + ":", error?.message || error);
+    return null;
+  });
   if (ch?.isTextBased()) {
     const embed = new EmbedBuilder()
       .setColor(0xFFFFFF)
@@ -727,11 +732,21 @@ client.on(Events.GuildMemberAdd, async member => {
       .setThumbnail(member.displayAvatarURL({ size: 256 }))
       .setFooter({ text: "#" + member.guild.memberCount });
 
-    await ch.send({
-      content: member.toString() + " ingresó al servidor!",
-      embeds: [embed],
-      allowedMentions: { users: [member.id] }
-    }).catch(error => console.error("No se pudo enviar la bienvenida:", error));
+    const botMember = member.guild.members.me;
+    const permissions = botMember ? ch.permissionsFor(botMember) : null;
+    if (!permissions?.has(PermissionFlagsBits.ViewChannel) ||
+        !permissions?.has(PermissionFlagsBits.SendMessages) ||
+        !permissions?.has(PermissionFlagsBits.EmbedLinks)) {
+      console.error("El bot necesita Ver canal, Enviar mensajes e Insertar enlaces en el canal de bienvenida " + welcomeChannelId + ".");
+    } else {
+      await ch.send({
+        content: member.toString() + " ingresó al servidor!",
+        embeds: [embed],
+        allowedMentions: { users: [member.id] }
+      }).catch(error => console.error("No se pudo enviar la bienvenida:", error));
+    }
+  } else {
+    console.error("El canal de bienvenida " + welcomeChannelId + " no existe en este servidor o no admite mensajes de texto.");
   }
   await storeService.refreshCounters(member.guild);
 });
