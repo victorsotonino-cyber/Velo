@@ -5,7 +5,6 @@ const { getTicketStats } = require("./utils/command-helpers");
 const { hasPermission, hasConfiguredRole } = require("./utils/permissions");
 module.exports = {
   data: new SlashCommandBuilder().setName("ticketstats").setDescription("Muestra las estadísticas de los tickets que siguen abiertos.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   async execute(i) {
     if (!i.guild) return i.reply({ content: "Este comando solo funciona en un servidor.", ephemeral: true });
     const allowed = hasPermission(i.member, PermissionFlagsBits.ManageChannels) ||
