@@ -189,6 +189,17 @@ client.on(Events.MessageCreate, async message => {
         if (!storeService.isStoreStaff(message.member)) {
           return fail("Solo el equipo autorizado puede probar la bienvenida.");
         }
+        const welcomeChannelId = config.channels.welcome || "1562615450834178179";
+        const welcomeChannel = await message.guild.channels.fetch(welcomeChannelId).catch(() => null);
+        if (!welcomeChannel?.isTextBased()) {
+          return fail("No encuentro el canal de bienvenida configurado.");
+        }
+        const welcomePermissions = welcomeChannel.permissionsFor(message.guild.members.me);
+        if (!welcomePermissions?.has(PermissionFlagsBits.ViewChannel) ||
+            !welcomePermissions?.has(PermissionFlagsBits.SendMessages) ||
+            !welcomePermissions?.has(PermissionFlagsBits.EmbedLinks)) {
+          return fail("Necesito Ver canal, Enviar mensajes e Insertar enlaces en el canal de bienvenida.");
+        }
         const previewEmbed = new EmbedBuilder()
           .setColor(0xFFFFFF)
           .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
@@ -200,9 +211,13 @@ client.on(Events.MessageCreate, async message => {
           ].join("\n"))
           .setThumbnail(message.author.displayAvatarURL({ size: 256 }))
           .setFooter({ text: "#" + message.guild.memberCount });
-        return message.channel.send({
+        await welcomeChannel.send({
           content: "👋 **Vista previa de la bienvenida** — así se verá el mensaje:",
           embeds: [previewEmbed],
+          allowedMentions: { parse: [] }
+        });
+        return message.reply({
+          content: "✅ Vista previa publicada en <#" + welcomeChannel.id + ">.",
           allowedMentions: { parse: [] }
         });
       }
