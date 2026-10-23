@@ -71,7 +71,11 @@ Los pagos no se verifican automáticamente. Elegir un método no significa que e
 - /membercount: total del servidor, miembros en caché, bots y boosts.
 - /roleinfo y /channelinfo: detalles de roles, permisos, canales, temas y modo lento.
 - /timestamp: convierte segundos Unix a las etiquetas de fecha y hora de Discord.
-- /banner y /emojistats: banner de perfil disponible y resumen de emojis del servidor.
+- /banner, /servericon y /emojistats: banner de perfil disponible, icono del servidor y resumen de emojis.
+- /emoji-search: busca emojis personalizados por nombre y muestra los emojis coincidentes.
+- /boosters: estadísticas de boosts y lista de miembros visibles en la caché.
+- /diagnostico: diagnóstico privado de la configuración de ticket, canales, roles y permisos; nunca muestra el token.
+- Los mismos comandos de utilidad también se han añadido como alias con prefijo \`!\` cuando corresponde.
 - /poll: publica una encuesta con entre 2 y 5 opciones y reacciones numeradas; necesita Añadir reacciones en el canal.
 - /purge: elimina mensajes recientes; puede limitarse a un usuario y omite mensajes demasiado antiguos para borrado masivo.
 - /nickname: cambia o elimina el apodo de un miembro con comprobación de jerarquía.
