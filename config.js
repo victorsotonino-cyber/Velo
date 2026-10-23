@@ -32,9 +32,9 @@ module.exports = {
     logs: readId("LOGS_CHANNEL_ID"),
     tickets: readId("TICKETS_CATEGORY_ID"),
     announcements: readId("ANNOUNCEMENTS_CHANNEL_ID"),
-    terms: readId("TERMS_CHANNEL_ID"),
-    paymentMethods: readId("PAYMENT_METHODS_CHANNEL_ID"),
-    ticketInfo: readId("TICKET_INFO_CHANNEL_ID"),
+    terms: readId("TERMS_CHANNEL_ID") || "1562615455624077383",
+    paymentMethods: readId("PAYMENT_METHODS_CHANNEL_ID") || "1562615459256471642",
+    ticketInfo: readId("TICKET_INFO_CHANNEL_ID") || "1562615495704838174",
     suggestions: readId("SUGGESTIONS_CHANNEL_ID"),
     reviews: readId("REVIEWS_CHANNEL_ID")
   },
