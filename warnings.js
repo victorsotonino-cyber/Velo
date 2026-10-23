@@ -2,6 +2,7 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const config = require("./config");
 const warningService = require("./utils/warnings-service");
+const { canModerateTarget } = require("./utils/permissions");
 module.exports = {
   data: new SlashCommandBuilder().setName("warnings").setDescription("Consulta o limpia las advertencias guardadas de un miembro.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
@@ -30,6 +31,17 @@ module.exports = {
     }
     const existing = warningService.listWarnings(i.guild.id, user.id);
     if (!existing.length) return i.reply({ content: "No hay advertencias guardadas para " + user.tag + ".", ephemeral: true });
+    const targetMember = await i.guild.members.fetch(user.id).catch(() => null);
+    if (!targetMember) {
+      if (!i.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+        return i.reply({ content: "Solo un administrador puede limpiar advertencias de alguien que ya no está en el servidor.", ephemeral: true });
+      }
+    } else {
+      const actor = await i.guild.members.fetch(i.user.id).catch(() => i.member);
+      if (!canModerateTarget(actor, targetMember, i.guild.ownerId)) {
+        return i.reply({ content: "No puedes limpiar advertencias del propietario ni de alguien con un rol igual o superior al tuyo.", ephemeral: true });
+      }
+    }
     await i.deferReply({ ephemeral: true });
     const removed = warningService.clearWarnings(i.guild.id, user.id);
     const log = config.channels.logs ? i.guild.channels.cache.get(config.channels.logs) : null;
