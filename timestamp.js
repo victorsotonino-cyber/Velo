@@ -18,7 +18,7 @@ module.exports = {
         { name: "Fecha corta", value: "<t:" + seconds + ":d>", inline: true },
         { name: "Hora", value: "<t:" + seconds + ":t>", inline: true },
         { name: "Relativo", value: "<t:" + seconds + ":R>", inline: true },
-        { name: "Código para copiar", value: "t:" + seconds + ":F", inline: false }
+        { name: "Código para copiar", value: String.fromCharCode(96) + "<t:" + seconds + ":F>" + String.fromCharCode(96), inline: false }
       ).setFooter({ text: "La visualización se adapta a la zona horaria de cada miembro." });
     return i.reply({ embeds: [embed], allowedMentions: { parse: [] } });
   }
