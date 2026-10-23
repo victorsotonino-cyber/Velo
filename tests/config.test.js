@@ -43,7 +43,7 @@ test("blank numeric environment variables preserve documented defaults", () => {
 test("FLUX STORE channel defaults point to the configured terms, payments, ticket and welcome channels", () => {
   const script = [
     'const config = require("./config");',
-    'console.log(JSON.stringify({ welcome: config.channels.welcome, terms: config.channels.terms, paymentMethods: config.channels.paymentMethods, ticketInfo: config.channels.ticketInfo, transactions: config.channels.transactions }));'
+    'console.log(JSON.stringify({ welcome: config.channels.welcome, terms: config.channels.terms, paymentMethods: config.channels.paymentMethods, ticketInfo: config.channels.ticketInfo, transactions: config.channels.transactions, logs: config.channels.logs }));'
   ].join("\n");
   const env = {
     ...process.env,
@@ -51,7 +51,8 @@ test("FLUX STORE channel defaults point to the configured terms, payments, ticke
     TERMS_CHANNEL_ID: "",
     PAYMENT_METHODS_CHANNEL_ID: "",
     TICKET_INFO_CHANNEL_ID: "",
-    TRANSACTIONS_CHANNEL_ID: ""
+    TRANSACTIONS_CHANNEL_ID: "",
+    LOGS_CHANNEL_ID: ""
   };
   const result = spawnSync(process.execPath, ["-e", script], {
     cwd: path.resolve(__dirname, ".."),
@@ -66,14 +67,15 @@ test("FLUX STORE channel defaults point to the configured terms, payments, ticke
     terms: "1562615455624077383",
     paymentMethods: "1562615459256471642",
     ticketInfo: "1562615495704838174",
-    transactions: "1562615500968820802"
+    transactions: "1562615500968820802",
+    logs: "1562615500968820802"
   });
 });
 
 test("valid environment channel IDs can override FLUX STORE defaults", () => {
   const script = [
     'const config = require("./config");',
-    'console.log(JSON.stringify({ welcome: config.channels.welcome, terms: config.channels.terms, paymentMethods: config.channels.paymentMethods, ticketInfo: config.channels.ticketInfo, transactions: config.channels.transactions }));'
+    'console.log(JSON.stringify({ welcome: config.channels.welcome, terms: config.channels.terms, paymentMethods: config.channels.paymentMethods, ticketInfo: config.channels.ticketInfo, transactions: config.channels.transactions, logs: config.channels.logs }));'
   ].join("\n");
   const env = {
     ...process.env,
@@ -81,7 +83,8 @@ test("valid environment channel IDs can override FLUX STORE defaults", () => {
     TERMS_CHANNEL_ID: "12345678901234568",
     PAYMENT_METHODS_CHANNEL_ID: "12345678901234569",
     TICKET_INFO_CHANNEL_ID: "12345678901234570",
-    TRANSACTIONS_CHANNEL_ID: "12345678901234571"
+    TRANSACTIONS_CHANNEL_ID: "12345678901234571",
+    LOGS_CHANNEL_ID: "12345678901234572"
   };
   const result = spawnSync(process.execPath, ["-e", script], {
     cwd: path.resolve(__dirname, ".."),
@@ -96,6 +99,7 @@ test("valid environment channel IDs can override FLUX STORE defaults", () => {
     terms: "12345678901234568",
     paymentMethods: "12345678901234569",
     ticketInfo: "12345678901234570",
-    transactions: "12345678901234571"
+    transactions: "12345678901234571",
+    logs: "12345678901234572"
   });
 });

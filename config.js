@@ -29,7 +29,7 @@ module.exports = {
   channels: {
     // Canal de bienvenida predeterminado de FLUX STORE; .env puede sobrescribirlo.
     welcome: readId("WELCOME_CHANNEL_ID") || "1562615450834178179",
-    logs: readId("LOGS_CHANNEL_ID"),
+    logs: readId("LOGS_CHANNEL_ID") || "1562615500968820802",
     tickets: readId("TICKETS_CATEGORY_ID"),
     announcements: readId("ANNOUNCEMENTS_CHANNEL_ID"),
     terms: readId("TERMS_CHANNEL_ID") || "1562615455624077383",

@@ -228,17 +228,35 @@ async function ticketButton(i) {
 }
 
 async function sendTranscript(i) {
-  if (!config.channels.logs) {
-    console.error("No se cerró el ticket: LOGS_CHANNEL_ID no está configurado.");
+  const logsChannelId = config.channels.logs;
+  if (!logsChannelId) {
+    console.error("No se puede guardar la transcripción: LOGS_CHANNEL_ID no está configurado.");
     return false;
   }
 
-  const log = await i.guild.channels.fetch(config.channels.logs).catch(error => {
-    console.error("No se pudo acceder al canal de registros:", error.message);
+  const log = await i.guild.channels.fetch(logsChannelId).catch(error => {
+    console.error("No se pudo acceder al canal de registros " + logsChannelId + ":", error?.code || "", error?.message || error);
     return null;
   });
   if (!log?.isTextBased() || typeof log.send !== "function") {
-    console.error("No se cerró el ticket: LOGS_CHANNEL_ID no apunta a un canal de texto accesible.");
+    console.error("No se puede guardar la transcripción: LOGS_CHANNEL_ID no apunta a un canal de texto accesible.");
+    return false;
+  }
+
+  const botMember = i.guild.members.me || await i.guild.members.fetchMe().catch(() => null);
+  const logPermissions = botMember ? log.permissionsFor(botMember) : null;
+  const sourcePermissions = botMember ? i.channel.permissionsFor(botMember) : null;
+  const canReadTicket = sourcePermissions?.has(PermissionFlagsBits.ViewChannel) &&
+    sourcePermissions?.has(PermissionFlagsBits.ReadMessageHistory);
+  if (!canReadTicket) {
+    console.error("No se puede generar la transcripción del ticket " + i.channel.id + ": el bot necesita Ver canal y Leer historial de mensajes en el ticket.");
+    return false;
+  }
+  const canWriteLogs = logPermissions?.has(PermissionFlagsBits.ViewChannel) &&
+    logPermissions?.has(PermissionFlagsBits.SendMessages) &&
+    logPermissions?.has(PermissionFlagsBits.AttachFiles);
+  if (!canWriteLogs) {
+    console.error("No se puede guardar la transcripción en el canal " + logsChannelId + ": el bot necesita Ver canal, Enviar mensajes y Adjuntar archivos.");
     return false;
   }
 
@@ -269,7 +287,11 @@ async function sendTranscript(i) {
     });
     return Boolean(sent?.id);
   } catch (error) {
-    console.error("No se pudo guardar la transcripción del ticket " + i.channel.id + ":", error.message);
+    console.error(
+      "No se pudo guardar la transcripción del ticket " + i.channel.id + " en " + logsChannelId + ":",
+      error?.code || "",
+      error?.message || error
+    );
     return false;
   }
 }
