@@ -9,6 +9,7 @@ const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
 const automodService = require("./automod-service");
 const { canModerateTarget } = require("./utils/permissions");
+const prefixCommandSuite = require("./utils/prefix-command-suite");
 
 if (!config.token) {
   console.error("Falta DISCORD_TOKEN en las variables de entorno del hosting.");
@@ -111,7 +112,8 @@ client.on(Events.InteractionCreate, async interaction => {
   catch (e) {
     console.error("Error en /" + interaction.commandName + ":", e);
     const msg = { content: emoji(interaction.guild, "error", "❌") + " Error en /" + interaction.commandName + ". Revisa los permisos del bot y vuelve a intentarlo.", ephemeral: true };
-    if (interaction.replied || interaction.deferred) await interaction.followUp(msg).catch(() => {});
+    if (interaction.deferred) await interaction.editReply(msg).catch(() => {});
+    else if (interaction.replied) await interaction.followUp(msg).catch(() => {});
     else await interaction.reply(msg).catch(() => {});
   }
 });
@@ -232,10 +234,14 @@ client.on(Events.MessageCreate, async message => {
           .setDescription([
             "**Utilidad**",
             "`!help` `!comandos` `!ping` `!avatar [@usuario]` `!userinfo [@usuario]` `!roleinfo @rol` `!poll pregunta | opción 1 | opción 2`",
-            "`!serverinfo` `!afk [mensaje]` `!messagecount [@usuario]` `!tienda catalogo` `!ventas ver`",
+            "`!serverinfo` `!botinfo` `!uptime` `!membercount` `!channelinfo [#canal]` `!banner [@usuario]`",
+            "`!servericon` `!boosters` `!timestamp segundos` `!emojistats` `!emoji-search nombre` `!ticketstats`",
+            "`!diagnostico` `!afk [mensaje]` `!messagecount [@usuario]` `!tienda catalogo` `!ventas ver`",
             "**Moderación**",
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
-            "`!untimeout @usuario` `!warn @usuario [razón]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
+            "`!untimeout @usuario` `!warn @usuario [razón]` `!warnings view|clear @usuario` `!nickname @usuario apodo`",
+            "`!rolemanager add|remove @usuario @rol` `!purge cantidad [@usuario]` `!clear cantidad` `!lock` `!unlock` `!slowmode segundos`",
+            "`!embed título | descripción | #8B5CF6` `!topic texto`",
             "**Tickets, mensajes y sorteos**",
             "`!ticket-panel` `f!ticket setup` `!setup-plantilla` `!setup-sorteos` `!crear-roles-tienda` `!say texto`",
             "`!update` — novedades del bot",
@@ -254,7 +260,7 @@ client.on(Events.MessageCreate, async message => {
           .setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("Flux STORE • Centro de comandos")
           .setDescription(names.map(n => "`/" + n + "`").join(" · ").slice(0, 4000))
-          .addFields({ name: "Comandos con prefijo", value: "`!help` `!ping` `!userinfo` `!roleinfo` `!poll` `!unban` `!ban` `!kick` `!timeout` `!clear` `!lock` `!unlock` `!slowmode`" })
+          .addFields({ name: "Comandos con prefijo", value: "`!help` `!ping` `!userinfo` `!roleinfo` `!poll` `!botinfo` `!uptime` `!membercount` `!channelinfo` `!timestamp` `!servericon` `!boosters` `!emoji-search` `!diagnostico` `!emojistats` `!banner` `!ticketstats` `!purge` `!nickname` `!rolemanager` `!warnings` `!embed` `!topic` `!unban` `!ban` `!kick` `!timeout` `!clear` `!lock` `!unlock` `!slowmode`" })
           .setFooter({ text: "Comandos cargados: " + names.length + " • Prefijo: " + PREFIX });
         return message.reply({ embeds: [embed] });
       }
@@ -709,8 +715,11 @@ client.on(Events.MessageCreate, async message => {
           .setTimestamp();
         return message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       }
-      default:
+      default: {
+        const handled = await prefixCommandSuite.executePrefix(message, command, args, client);
+        if (handled) return;
         return fail("No conozco ese comando. Usa `!help` para ver los comandos.");
+      }
     }
   } catch (e) {
     console.error("Error en !" + command + ":", e);

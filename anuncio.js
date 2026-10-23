@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { canManageStore } = require("./utils/permissions");
 const config = require("./config");
 const { emoji } = require("./ui");
 
@@ -93,6 +94,9 @@ module.exports = {
     ),
 
   async execute(i) {
+    if (!i.guild || !canManageStore(i.member, config)) {
+      return i.reply({ content: "❌ Solo administración o staff autorizado puede publicar anuncios.", ephemeral: true });
+    }
     const text = i.options.getString("texto");
     const title = i.options.getString("titulo");
     const type = i.options.getString("tipo") || "automatico";

@@ -1192,8 +1192,9 @@ module.exports = function registerTicketConfigurator(client) {
       }
     } catch (error) {
       console.error("Error en el configurador de tickets:", error);
-      const response = { content: ticketConfigErrorMessage(error, action), ephemeral: true };
-      if (interaction.deferred || interaction.replied) await interaction.followUp(response).catch(() => {});
+      const response = { content: ticketConfigErrorMessage(error, action), ephemeral: true, allowedMentions: { parse: [] } };
+      if (interaction.deferred) await interaction.editReply(response).catch(() => {});
+      else if (interaction.replied) await interaction.followUp(response).catch(() => {});
       else await interaction.reply(response).catch(() => {});
     }
   });

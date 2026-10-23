@@ -39,8 +39,9 @@ module.exports = client => {
     } catch (e) {
       console.error("Error en interacción:", e);
       const msg = emoji(i.guild, "error", "❌") + " No pude completar esa acción. Revisa los permisos del bot.";
-      if (i.replied || i.deferred) await i.followUp({ content: msg, ephemeral: true }).catch(() => {});
-      else await i.reply({ content: msg, ephemeral: true }).catch(() => {});
+      if (i.deferred) await i.editReply({ content: msg, allowedMentions: { parse: [] } }).catch(() => {});
+      else if (i.replied) await i.followUp({ content: msg, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+      else await i.reply({ content: msg, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
     }
   });
 };
@@ -385,34 +386,43 @@ async function helpCategory(i, client) {
   const entries = {
     comunidad: [
       ["afk", "Estado ausente"], ["anuncio", "Crear anuncios"], ["avatar", "Ver avatar"],
-      ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información del servidor"],
+      ["help", "Centro de comandos"], ["messagecount", "Contar mensajes"], ["serverinfo", "Información de usuario"],
+      ["membercount", "Estadísticas de miembros"], ["poll", "Encuestas de la comunidad"], ["banner", "Banner de perfil"],
       ["resena", "Reseñas verificadas"], ["sugerencia", "Proponer mejoras"], ["userinfo", "Información de usuario"],
       ["say", "Enviar mensaje como el bot"]
     ],
     administracion: [
       ["tienda", "Administrar catálogo y stock"], ["ventas", "Ver y editar el contador de ventas"], ["estadisticas-tienda", "Ver métricas de pedidos e ingresos"], ["legit", "Publicar el panel de verificación legit"],
+      ["embed", "Publicar embeds personalizados"], ["topic", "Editar tema de canal"], ["nickname", "Administrar apodos"], ["rolemanager", "Añadir o quitar roles"],
+      ["purge", "Limpieza filtrada de mensajes"], ["warnings", "Historial de advertencias"], ["permcheck", "Diagnóstico de permisos"], ["ticketstats", "Estadísticas de tickets"],
       ["ticket-config", "Ver configuración de tickets"], ["ticket-panel", "Publicar panel de tickets"],
       ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Publicar postulaciones"],
       ["postulaciones-config", "Configurar preguntas"], ["giveaway", "Administrar sorteos"],
       ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"], ["slowmode", "Configurar modo lento"]
     ],
     utilidad: [
-      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"], ["carrito", "Carrito y pedidos"], ["estadisticas-tienda", "Estadísticas de ventas"], ["resena", "Reseñas de clientes"], ["sugerencia", "Sugerencias de la comunidad"], ["userinfo", "Información de usuario"],
+      ["ping", "Latencia del bot"], ["avatar", "Ver avatar"], ["serverinfo", "Información del servidor"],
+      ["botinfo", "Información técnica del bot"], ["uptime", "Tiempo activo"], ["channelinfo", "Información de canales"],
+      ["roleinfo", "Información de roles"], ["timestamp", "Convertir fecha de Discord"], ["emojistats", "Estadísticas de emojis"],
+      ["permcheck", "Comprobar permisos"], ["carrito", "Carrito y pedidos"], ["estadisticas-tienda", "Estadísticas de ventas"],
+      ["resena", "Reseñas de clientes"], ["sugerencia", "Sugerencias de la comunidad"], ["userinfo", "Información de usuario"],
       ["help", "Centro de comandos"]
     ],
     moderacion: [
       ["ban", "Banear miembro"], ["kick", "Expulsar miembro"], ["timeout", "Aplicar timeout"],
-      ["untimeout", "Quitar timeout"], ["warn", "Advertir miembro"], ["unban", "Quitar baneo"],
-      ["clear", "Borrar mensajes"], ["lock", "Bloquear canal"], ["unlock", "Desbloquear canal"],
-      ["slowmode", "Modo lento"]
+      ["untimeout", "Quitar timeout"], ["warn", "Advertir miembro"], ["warnings", "Consultar o limpiar advertencias"],
+      ["unban", "Quitar baneo"], ["clear", "Borrar mensajes"], ["purge", "Borrar mensajes con filtro"],
+      ["nickname", "Cambiar apodos"], ["rolemanager", "Gestionar roles"], ["lock", "Bloquear canal"],
+      ["unlock", "Desbloquear canal"], ["slowmode", "Modo lento"]
     ],
     tickets: [
       ["ticket-panel", "Publicar el panel de tickets"], ["ticket", "Información de tickets"],
-      ["ticket-edit", "Administrar tickets"], ["postulaciones-panel", "Panel de postulaciones"],
-      ["postulaciones-config", "Configurar preguntas"]
+      ["ticket-edit", "Administrar tickets"], ["ticketstats", "Estadísticas de tickets"],
+      ["postulaciones-panel", "Panel de postulaciones"], ["postulaciones-config", "Configurar preguntas"]
     ],
     diversion: [
-      ["giveaway", "Sorteos"], ["tienda", "Ver el catálogo"], ["ventas", "Contador de ventas"], ["help", "Centro de comandos"]
+      ["giveaway", "Sorteos"], ["poll", "Encuestas"], ["tienda", "Ver el catálogo"],
+      ["ventas", "Contador de ventas"], ["help", "Centro de comandos"]
     ]
   };
   const titles = {
