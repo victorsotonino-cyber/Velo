@@ -39,7 +39,7 @@ function getTicketStats(channels) {
 }
 
 function canManageRole(actor, botMember, role, guildOwnerId) {
-  if (!actor || !botMember || !role || role.managed) return false;
+  if (!actor || !botMember || !role || role.managed || (role.guild && role.id === role.guild.id)) return false;
   if (!Number.isFinite(role.position) || !Number.isFinite(botMember.roles?.highest?.position)) return false;
   if (role.position >= botMember.roles.highest.position) return false;
   if (actor.id === guildOwnerId) return true;
