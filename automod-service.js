@@ -5,6 +5,7 @@ const config = require("./config");
 
 const bursts = new Map();
 const STATE_TTL_MS = 60000;
+const ALLIANCE_LINKS_ROLE_ID = "1563339743138283550";
 
 function getState(key, now) {
   let state = bursts.get(key);
@@ -63,7 +64,8 @@ async function processMessage(message) {
   }
 
   const invitePattern = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[a-z0-9-]+/i;
-  if (config.automod.blockInvites && invitePattern.test(message.content || "")) {
+  const canShareAllianceLinks = message.member.roles?.cache?.has(ALLIANCE_LINKS_ROLE_ID) === true;
+  if (config.automod.blockInvites && !canShareAllianceLinks && invitePattern.test(message.content || "")) {
     await message.delete().catch(function () {});
     await logViolation(message.guild, message.author, "Enlace de invitación de Discord no permitido", message.content);
     return true;
