@@ -33,6 +33,7 @@ test("role hierarchy blocks managed, bot-top and peer or higher roles", () => {
   assert.equal(canManageRole(actor, bot, { position: 10, managed: false }, "owner"), false);
   assert.equal(canManageRole(actor, bot, { position: 2, managed: true }, "owner"), false);
   assert.equal(canManageRole({ id: "owner" }, bot, { position: 3, managed: false }, "owner"), true);
+  assert.equal(canManageRole(actor, bot, { id: "g", guild: { id: "g" }, position: 0, managed: false }, "owner"), false);
 });
 test("Unix timestamp input stays within the supported range", () => {
   assert.equal(isValidUnixSeconds("0"), true);
