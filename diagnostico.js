@@ -1,5 +1,5 @@
 "use strict";
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } = require("discord.js");
 const config = require("./config");
 const { hasPermission, hasConfiguredRole } = require("./utils/permissions");
 const { readJSON } = require("./storage");
@@ -23,7 +23,7 @@ module.exports = {
       ["Rol staff", Boolean(config.roles.staff)],
       ["Panel guardado para este servidor", Boolean(saved.panelMessageId && saved.publishedPanelChannelId)],
       ["Canal público guardado", Boolean(saved.panelChannelId && i.guild.channels.cache.has(saved.panelChannelId))],
-      ["Categoría para tickets guardada", Boolean(saved.ticketCategoryId && i.guild.channels.cache.get(saved.ticketCategoryId)?.type === 4)],
+      ["Categoría para tickets guardada", Boolean(saved.ticketCategoryId && i.guild.channels.cache.get(saved.ticketCategoryId)?.type === ChannelType.GuildCategory)],
       ["Rol de soporte guardado", Array.isArray(saved.supportRoleIds) && saved.supportRoleIds.some(id => i.guild.roles.cache.has(id))],
       ["Gateway conectado", Boolean(client.isReady())]
     ];
