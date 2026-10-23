@@ -35,6 +35,7 @@ module.exports = {
     terms: readId("TERMS_CHANNEL_ID") || "1562615455624077383",
     paymentMethods: readId("PAYMENT_METHODS_CHANNEL_ID") || "1562615459256471642",
     ticketInfo: readId("TICKET_INFO_CHANNEL_ID") || "1562615495704838174",
+    transactions: readId("TRANSACTIONS_CHANNEL_ID") || "1562615500968820802",
     suggestions: readId("SUGGESTIONS_CHANNEL_ID"),
     reviews: readId("REVIEWS_CHANNEL_ID")
   },

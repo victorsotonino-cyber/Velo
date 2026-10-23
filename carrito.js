@@ -1,10 +1,11 @@
 "use strict";
 
 const {
-  SlashCommandBuilder, EmbedBuilder, ChannelType
+  SlashCommandBuilder, EmbedBuilder
 } = require("discord.js");
 const config = require("./config");
 const commerce = require("./commerce-service");
+const { sendTransactionLog } = require("./utils/transaction-log");
 
 function cartEmbed(view) {
   const lines = view.lines.map(function (item) {
@@ -135,19 +136,11 @@ module.exports = {
         .setFooter({ text: "FLUX STORE • El pago debe ser verificado por el equipo." })
         .setTimestamp();
 
-      const logId = config.channels.logs;
-      if (logId) {
-        const logChannel = await i.guild.channels.fetch(logId).catch(function () { return null; });
-        if (logChannel && logChannel.type === ChannelType.GuildText) {
-          await logChannel.send({
-            content: "🛒 Nuevo pedido de <@" + order.userId + "> · #" + order.id,
-            embeds: [embed],
-            allowedMentions: { parse: [] }
-          }).catch(function (error) {
-            console.error("No se pudo registrar el pedido en el canal de logs:", error.message);
-          });
-        }
-      }
+      await sendTransactionLog(i.guild, {
+        content: "🛒 Nuevo pedido de <@" + order.userId + "> · #" + order.id,
+        embeds: [embed],
+        allowedMentions: { parse: [] }
+      }, "el pedido #" + order.id);
 
       return i.reply({
         content: "✅ Tu pedido quedó registrado. Guarda el identificador para consultar su estado con /pedido mis-compras.",
