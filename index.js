@@ -219,9 +219,9 @@ client.on(Events.MessageCreate, async message => {
           .setDescription([
             "**Utilidad**",
             "`!help` `!comandos` `!ping` `!avatar [@usuario]` `!userinfo [@usuario]` `!roleinfo @rol` `!poll pregunta | opción 1 | opción 2`",
-            "`!help` `!comandos` `!ping` `!avatar [@usuario]` `!userinfo [@usuario]` `!roleinfo @rol` `!poll pregunta | opción 1 | opción 2`",
             "`!serverinfo` `!botinfo` `!uptime` `!membercount` `!channelinfo [#canal]` `!banner [@usuario]`",
-            "`!timestamp segundos` `!emojistats` `!ticketstats` `!afk [mensaje]` `!messagecount [@usuario]` `!tienda catalogo` `!ventas ver`",
+            "`!servericon` `!boosters` `!timestamp segundos` `!emojistats` `!emoji-search nombre` `!ticketstats`",
+            "`!diagnostico` `!afk [mensaje]` `!messagecount [@usuario]` `!tienda catalogo` `!ventas ver`",
             "**Moderación**",
             "`!ban @usuario [razón]` `!unban ID [razón]` `!kick @usuario [razón]` `!timeout @usuario minutos [razón]`",
             "`!untimeout @usuario` `!warn @usuario [razón]` `!warnings view|clear @usuario` `!nickname @usuario apodo`",
@@ -245,7 +245,7 @@ client.on(Events.MessageCreate, async message => {
           .setColor(config.colors.primary || 0x8B5CF6)
           .setTitle("Flux STORE • Centro de comandos")
           .setDescription(names.map(n => "`/" + n + "`").join(" · ").slice(0, 4000))
-          .addFields({ name: "Comandos con prefijo", value: "`!help` `!ping` `!userinfo` `!roleinfo` `!poll` `!botinfo` `!uptime` `!membercount` `!channelinfo` `!timestamp` `!emojistats` `!banner` `!ticketstats` `!purge` `!nickname` `!rolemanager` `!warnings` `!embed` `!topic` `!unban` `!ban` `!kick` `!timeout` `!clear` `!lock` `!unlock` `!slowmode`" })
+          .addFields({ name: "Comandos con prefijo", value: "`!help` `!ping` `!userinfo` `!roleinfo` `!poll` `!botinfo` `!uptime` `!membercount` `!channelinfo` `!timestamp` `!servericon` `!boosters` `!emoji-search` `!diagnostico` `!emojistats` `!banner` `!ticketstats` `!purge` `!nickname` `!rolemanager` `!warnings` `!embed` `!topic` `!unban` `!ban` `!kick` `!timeout` `!clear` `!lock` `!unlock` `!slowmode`" })
           .setFooter({ text: "Comandos cargados: " + names.length + " • Prefijo: " + PREFIX });
         return message.reply({ embeds: [embed] });
       }
