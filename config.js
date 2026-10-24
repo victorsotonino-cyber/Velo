@@ -42,7 +42,7 @@ module.exports = {
   roles: {
     admin: readId("ADMIN_ROLE_ID"),
     staff: readId("STAFF_ROLE_ID"),
-    member: readId("MEMBER_ROLE_ID")
+    member: readId("MEMBER_ROLE_ID") || "1562619913485557901"
   },
   store: {
     currency: String(process.env.STORE_CURRENCY || "USD").toUpperCase()
