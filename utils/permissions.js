@@ -46,7 +46,8 @@ function canManageStore(member, config) {
 
   return hasConfiguredRole(member, [
     config.roles && config.roles.admin,
-    config.roles && config.roles.staff
+    config.roles && config.roles.staff,
+    "1550131491135291445"
   ]);
 }
 
