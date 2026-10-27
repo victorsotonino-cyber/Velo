@@ -30,6 +30,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "datashop.cogs.tickets",
                 "datashop.cogs.store",
                 "datashop.cogs.community",
+                "datashop.cogs.engagement",
                 "datashop.cogs.configuration",
             ):
                 await bot.load_extension(extension)
@@ -40,6 +41,8 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "ban", "kick", "timeout", "untimeout", "warn", "warnings", "clear",
                 "slowmode", "lock", "unlock", "nick", "role",
                 "ticket", "shop", "vouch", "suggestion", "poll", "botconfig",
+                "afk", "remind", "reminders", "reminder-cancel", "rank", "leaderboard",
+                "giveaway", "say", "announce",
             }
             self.assertTrue(
                 expected.issubset(commands_by_name),
@@ -72,6 +75,9 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             )
             payment_group = next(command for command in shop_group.commands if command.name == "payment")
             self.assertTrue({"add", "remove"}.issubset({command.name for command in payment_group.commands}))
+
+            giveaway_group = commands_by_name["giveaway"]
+            self.assertTrue({"start", "end", "reroll"}.issubset({command.name for command in giveaway_group.commands}))
 
             role_group = commands_by_name["role"]
             self.assertTrue({"add", "remove"}.issubset({command.name for command in role_group.commands}))
