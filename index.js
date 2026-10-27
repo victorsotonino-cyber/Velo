@@ -60,12 +60,15 @@ for (const file of fs.readdirSync(__dirname).filter(f =>
   try {
     const command = require(path.join(__dirname, file));
     if (command.data && command.execute) {
-      const name = command.data.name;
-      if (client.commands.has(name)) {
-        console.error("Comando duplicado ignorado:", name, "en", file, "(ya existe uno registrado)");
-        continue;
+      const entries = Array.isArray(command.setupCommands) ? command.setupCommands : [command.data];
+      for (const data of entries) {
+        const name = data.name;
+        if (client.commands.has(name)) {
+          console.error("Comando duplicado ignorado:", name, "en", file, "(ya existe uno registrado)");
+          continue;
+        }
+        client.commands.set(name, { ...command, data });
       }
-      client.commands.set(name, command);
     }
   } catch (e) {
     console.error("Error cargando " + file + ":", e);
@@ -75,6 +78,7 @@ for (const file of fs.readdirSync(__dirname).filter(f =>
 require("./buttons")(client);
 require("./ticket-configurator")(client);
 require("./ticket-tool-x-automation")(client);
+require("./gifted-events")(client);
 
 async function registerCommands() {
   if (!config.clientId || !config.guildId) {
