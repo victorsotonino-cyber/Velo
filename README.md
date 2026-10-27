@@ -25,7 +25,7 @@ No subas .env a GitHub, no insertes tokens en archivos y no compartas el token p
 Los comandos híbridos funcionan como comandos slash y con el prefijo configurado, que por defecto es !.
 
 - General: /help, /ping, /serverinfo, /userinfo.
-- Moderación: /ban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /slowmode, /lock, /unlock y /nick.
+- Moderación: /ban, /unban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /purge-user, /slowmode, /lock, /unlock y /nick. Las acciones principales también se registran en el canal configurado con /botconfig logs.
 - Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
 - Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript y /ticket delete.
 - Catálogo: /shop list, /shop browse (menú interactivo), /shop add, /shop edit, /shop stock y /shop remove.
