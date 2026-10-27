@@ -1,7 +1,11 @@
 .env
 .env.*
 !.env.example
-node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
 *.log
 data/
-coverage/
+.pytest_cache/
+.coverage

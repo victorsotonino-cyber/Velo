@@ -1,28 +1,56 @@
-# DATASHOP Discord Bot
+# DATASHOP Discord Bot — Python
 
-Base limpia para DATASHOP, desarrollada con Node.js 20+ y discord.js v14. El bot separa los comandos de la lógica principal y mantiene los secretos fuera del repositorio.
+DATASHOP está construido desde cero en Python con discord.py 2.7.1. La arquitectura separa comandos y funciones en extensiones (cogs), mantiene los secretos fuera del código y guarda la configuración básica en archivos JSON por servidor.
 
 ## Requisitos
-- Node.js 20 o superior.
-- Aplicación y bot creados en Discord Developer Portal.
-- Variables de entorno `DISCORD_TOKEN`, `CLIENT_ID` y `GUILD_ID`.
-- Activar Message Content Intent y Server Members Intent solo si las funciones instaladas los necesitan.
 
-## Configuración
-1. Copia `.env.example` a `.env` localmente o configura las variables directamente en tu hosting.
-2. No subas `.env`, no pegues el token en chats y no guardes secretos en el código.
-3. Instala dependencias con `npm install`.
-4. Valida el código con `npm run check`.
-5. Registra comandos con `npm run deploy`.
-6. Inicia el bot con `npm start`.
+- Python 3.12 recomendado.
+- Una aplicación y un bot creados en Discord Developer Portal.
+- El token del bot guardado como variable de entorno DISCORD_TOKEN.
+- El ID del servidor guardado como GUILD_ID para registrar y actualizar comandos slash de inmediato.
+- Activar Server Members Intent y Message Content Intent en el Developer Portal. El bot usa eventos de miembros y comandos por prefijo.
 
-## Comandos base
-- `/ping`: latencia del bot.
-- `/help`: ayuda inicial.
-- `!ping` y `!help`: alternativas por prefijo.
+## Ejecutar localmente
 
-## Seguridad y datos
-La rama `backup/pre-datashop-rebuild-2026-10-27` conserva el estado anterior del código. Los secretos y variables del hosting son externos a GitHub y deben conservarse en la configuración del servicio. Los datos de negocio no deben borrarse hasta exportarlos y verificarlos.
+1. Crea un entorno virtual: python -m venv .venv.
+2. Actívalo e instala dependencias: python -m pip install -r requirements.txt.
+3. Copia .env.example a .env y rellena DISCORD_TOKEN y GUILD_ID.
+4. Inicia el bot: python main.py.
+5. Ejecuta pruebas: python -m unittest discover -s tests -v.
 
-## Próxima fase
-Añadir por módulos: tienda y catálogo, carrito y pedidos, tickets, pagos configurables, reseñas, moderación, logs y paneles de administración. Cada sistema debe tener permisos, validación y pruebas antes de activarse.
+No subas .env a GitHub, no insertes tokens en archivos y no compartas el token por chat. Si el token actual es inválido, genera o copia uno nuevo desde Discord Developer Portal y actualízalo de forma privada en el hosting.
+
+## Comandos implementados
+
+Los comandos híbridos se pueden usar como comandos slash y con el prefijo configurado (por defecto !):
+
+- General: /help, /ping, /serverinfo, /userinfo.
+- Moderación: /ban, /kick, /timeout, /untimeout, /warn, /warnings, /clear.
+- Tickets: /ticket setup, /ticket close, /ticket add, con panel persistente y canales privados.
+- Tienda: /shop list, /shop add, /shop remove, /vouch.
+- Comunidad: /suggestion, /poll.
+- Configuración: /botconfig show, /botconfig welcome, /botconfig welcome-off, /botconfig logs, /botconfig autorole, /botconfig autorole-off, /botconfig automod.
+
+Los comandos de prefijo correspondientes funcionan con ! por defecto; por ejemplo !ping, !ban @miembro motivo y !shop list.
+
+## Registro de comandos antiguos
+
+En el arranque, el bot copia el árbol de comandos actual al servidor configurado y lo sincroniza. Discord sustituye el registro de comandos slash de ese servidor por los comandos que expone esta versión, eliminando los comandos antiguos que quedaron registrados. Esta operación requiere un token válido y acceso a esa aplicación y servidor.
+
+## Despliegue en Render
+
+Configura el servicio con:
+
+- Runtime: Python 3
+- Build Command: pip install -r requirements.txt
+- Start Command: python main.py
+- Variables de entorno: DISCORD_TOKEN, GUILD_ID, BOT_PREFIX, PORT, DATASHOP_DATA_DIR
+
+El servidor HTTP integrado expone /health para comprobar el estado. Usa almacenamiento persistente de Render para DATASHOP_DATA_DIR si necesitas conservar el catálogo, las advertencias y los ajustes después de reinicios o despliegues.
+
+## Notas
+
+- El catálogo registra productos, precio, stock y descripción; no procesa pagos reales.
+- Los tickets son privados por canal y permiten un ticket abierto por usuario y servidor.
+- Las funciones de moderación dependen de los permisos de Discord y de la jerarquía de roles.
+- El AutoMod inicial bloquea invitaciones de Discord solo cuando se activa desde /botconfig automod.
