@@ -160,6 +160,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "list", "add", "edit", "stock", "remove", "image", "payment", "order-expiry",
                 "browse", "cart-add", "cart-remove", "cart-view", "cart-clear", "checkout",
                 "order", "my-orders", "orders", "order-status", "cancel", "stats", "low-stock",
+                "review", "reviews",
             }
             self.assertTrue(
                 expected_shop_commands.issubset(shop_names),

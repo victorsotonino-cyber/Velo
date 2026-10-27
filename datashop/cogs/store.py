@@ -1182,6 +1182,108 @@ class Store(commands.Cog):
             f"✅ Pedido {order.get('id')} actualizado a **{labels[status]}**. Verifica el pago fuera del bot antes de marcarlo como pagado.",
         )
 
+    @shop.command(name="review", description="Valora un pedido completado que te pertenece.")
+    async def add_verified_review(
+        self,
+        ctx: commands.Context,
+        order_id: str,
+        rating: int,
+        *,
+        comment: str,
+    ) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        if not 1 <= rating <= 5:
+            await send_context(ctx, "La valoración debe estar entre 1 y 5 estrellas.")
+            return
+        comment = comment.strip()
+        if not comment or len(comment) > 1000:
+            await send_context(ctx, "El comentario debe tener entre 1 y 1000 caracteres.")
+            return
+        orders = _orders(ctx)
+        order = next(
+            (row for row in orders if isinstance(row, dict) and str(row.get("id", "")).upper() == order_id.strip().upper()),
+            None,
+        )
+        if order is None or order.get("buyer_id") != ctx.author.id:
+            await send_context(ctx, "No encontré un pedido tuyo con ese ID.")
+            return
+        if order.get("status") != "completed":
+            await send_context(ctx, "Solo puedes valorar pedidos marcados como completados.")
+            return
+        reviews = get_guild_data("reviews.json", ctx.guild.id, [])
+        if not isinstance(reviews, list):
+            reviews = []
+        if any(isinstance(row, dict) and str(row.get("order_id", "")).upper() == str(order.get("id", "")).upper() for row in reviews):
+            await send_context(ctx, "Ese pedido ya tiene una reseña registrada.")
+            return
+        review = {
+            "order_id": str(order.get("id", "")),
+            "buyer_id": ctx.author.id,
+            "buyer": str(ctx.author),
+            "product_id": str(order.get("product_id", "")),
+            "product": str(order.get("product", "Producto"))[:120],
+            "rating": rating,
+            "comment": comment,
+            "created_at": discord.utils.utcnow().isoformat(),
+            "verified": True,
+        }
+        reviews.append(review)
+        set_guild_data("reviews.json", ctx.guild.id, reviews)
+        embed = discord.Embed(
+            title="⭐ Reseña verificada",
+            description=comment,
+            color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.add_field(name="Producto", value=f"{review['product']} · ID {review['product_id']}", inline=False)
+        embed.add_field(name="Valoración", value="⭐" * rating + f" ({rating}/5)", inline=True)
+        embed.add_field(name="Pedido", value=str(order.get("id")), inline=True)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text="Reseña vinculada a un pedido completado")
+        await send_context(ctx, embed=embed, allowed_mentions=discord.AllowedMentions.none())
+
+    @shop.command(name="reviews", description="Consulta reseñas verificadas de los productos.")
+    async def list_verified_reviews(self, ctx: commands.Context, product_id: str | None = None) -> None:
+        reviews = get_guild_data("reviews.json", ctx.guild.id, [])
+        if not isinstance(reviews, list):
+            reviews = []
+        selected = [
+            row for row in reviews
+            if isinstance(row, dict)
+            and row.get("verified") is True
+            and (
+                product_id is None
+                or str(row.get("product_id", "")).casefold() == product_id.strip().casefold()
+                or str(row.get("product", "")).casefold() == product_id.strip().casefold()
+            )
+        ]
+        recent = selected[-10:]
+        if not recent:
+            await send_context(ctx, "Todavía no hay reseñas verificadas para esa búsqueda.", ephemeral=ctx.interaction is not None)
+            return
+        ratings = [int(row.get("rating", 0)) for row in selected if isinstance(row.get("rating"), int) and 1 <= row["rating"] <= 5]
+        average = sum(ratings) / len(ratings) if ratings else 0.0
+        lines = []
+        for row in reversed(recent):
+            rating = _safe_int(row.get("rating", 0))
+            stars = "⭐" * max(0, min(5, rating))
+            product = str(row.get("product", "Producto"))[:100]
+            comment = str(row.get("comment", ""))[:180].replace("\n", " ")
+            lines.append(f"{stars} **{product}**\n{comment}\nPedido: {row.get('order_id', '—')}")
+        embed = discord.Embed(
+            title="⭐ Reseñas verificadas",
+            description="\n\n".join(lines)[:4000],
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.add_field(name="Media", value=f"{average:.2f}/5 · {len(ratings)} reseñas", inline=False)
+        if product_id:
+            embed.set_footer(text=f"Filtro: {product_id}")
+        else:
+            embed.set_footer(text="Mostrando las 10 reseñas más recientes.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
     @commands.hybrid_command(name="vouch", description="Registra una reseña o venta completada.")
     @commands.guild_only()
     async def vouch(
