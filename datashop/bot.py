@@ -32,6 +32,7 @@ class DataShopBot(commands.Bot):
             "datashop.cogs.tickets",
             "datashop.cogs.store",
             "datashop.cogs.community",
+            "datashop.cogs.engagement",
             "datashop.cogs.configuration",
         ):
             await self.load_extension(extension)
