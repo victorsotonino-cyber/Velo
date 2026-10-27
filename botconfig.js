@@ -94,8 +94,7 @@ function checkChannel(channel, guild) {
 
 function buildStatusEmbed(guild, settings) {
   const fallbackLogs = guild.id === config.guildId ? config.channels.logs : null;
-  const fallbackWelcome = guild.id === config.guildId ? config.channels.welcome : null;
-  const welcomeId = settings.welcomeChannelId || fallbackWelcome;
+  const welcomeId = settings.welcomeChannelId;
   const logsId = settings.logsChannelId || fallbackLogs;
   const autoModEnabled = settings.automodEnabled === null
     ? config.automod.enabled
