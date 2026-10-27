@@ -1215,6 +1215,137 @@ class Tickets(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "La transcripción está guardada, pero Discord no permitió eliminar el canal.")
 
+    @ticket.command(name="client", description="Muestra la información del cliente del ticket.")
+    async def ticket_client(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal puede consultar los datos del cliente.")
+            return
+        owner_id = _ticket_owner(ctx.channel)
+        owner = ctx.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await ctx.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        ticket_type = _topic_value(ctx.channel, "DATASHOP_TYPE") or "support"
+        label = TICKET_TYPES.get(ticket_type, TICKET_TYPES["support"])[0]
+        priority_key = _topic_value(ctx.channel, "DATASHOP_PRIORITY") or "normal"
+        priority_label, priority_emoji = TICKET_PRIORITIES.get(priority_key, TICKET_PRIORITIES["normal"])
+        claimed_by = _topic_value(ctx.channel, "DATASHOP_CLAIMED_BY")
+        client_value = owner.mention if owner else f"ID {owner_id}"
+        embed = discord.Embed(
+            title="👤 Cliente del ticket",
+            description=(
+                f"Cliente: {client_value}\n"
+                f"Ticket: {ctx.channel.mention}\n"
+                f"Tipo: {label}\n"
+                f"Prioridad: {priority_emoji} {priority_label}\n"
+                f"Estado: {'Cerrado' if _topic_value(ctx.channel, 'DATASHOP_CLOSED') == '1' else 'Abierto'}\n"
+                f"Asignado a: {f'<@{claimed_by}>' if claimed_by else 'Sin asignar'}"
+            ),
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        if owner:
+            embed.set_thumbnail(url=owner.display_avatar.url)
+            embed.add_field(name="Cuenta creada", value=discord.utils.format_dt(owner.created_at, style="F"), inline=False)
+            if owner.joined_at:
+                embed.add_field(name="Entró al servidor", value=discord.utils.format_dt(owner.joined_at, style="F"), inline=False)
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @ticket.command(name="timer", description="Programa el autocierre por inactividad del ticket actual.")
+    async def ticket_timer(self, ctx: commands.Context, minutes: int) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal puede configurar el autocierre.")
+            return
+        if not 5 <= minutes <= 10080:
+            await send_context(ctx, "El tiempo debe estar entre 5 minutos y 7 días. Usa /ticket stoptimer para desactivarlo.")
+            return
+        try:
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_TIMER_MINUTES", str(minutes)),
+                reason=f"Autocierre por inactividad configurado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude guardar el temporizador; revisa mis permisos.")
+            return
+        await send_context(ctx, f"⏳ Autocierre configurado a {minutes} minutos desde el último mensaje.")
+
+    @ticket.command(name="stoptimer", description="Desactiva el autocierre por inactividad del ticket actual.")
+    async def ticket_stoptimer(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal puede desactivar el autocierre.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_TIMER_MINUTES") is None:
+            await send_context(ctx, "Este ticket no tiene autocierre configurado.")
+            return
+        try:
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_TIMER_MINUTES", None),
+                reason=f"Autocierre desactivado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude desactivar el temporizador; revisa mis permisos.")
+            return
+        await send_context(ctx, "✅ Autocierre desactivado para este ticket.")
+
+    @ticket.command(name="remember", description="Recuerda al cliente que debe responder al ticket.")
+    async def remember_client(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal puede recordar al cliente.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
+            await send_context(ctx, "El ticket está cerrado; reábrelo antes de enviar un recordatorio.")
+            return
+        last_raw = _topic_value(ctx.channel, "DATASHOP_LAST_REMINDER")
+        try:
+            last_sent = int(last_raw) if last_raw else 0
+        except ValueError:
+            last_sent = 0
+        now = int(discord.utils.utcnow().timestamp())
+        cooldown = 600
+        if last_sent and now - last_sent < cooldown:
+            await send_context(ctx, f"Espera {cooldown - (now - last_sent)} segundos antes de volver a recordar al cliente.")
+            return
+        owner_id = _ticket_owner(ctx.channel)
+        owner = ctx.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await ctx.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        if owner is None:
+            await send_context(ctx, "No pude localizar al cliente en el servidor.")
+            return
+        try:
+            await owner.send(
+                f"⏰ El equipo de {ctx.guild.name} necesita una respuesta tuya en el ticket "
+                f"{ctx.channel.name}: {ctx.channel.jump_url}"
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude enviar el recordatorio por privado; quizá el cliente tenga los DMs cerrados.")
+            return
+        try:
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_LAST_REMINDER", str(now)),
+                reason=f"Recordatorio enviado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            log.exception("Se envió un recordatorio, pero no se pudo guardar su cooldown en %s", ctx.channel.id)
+        await self._log_ticket_event(ctx.guild, "Recordatorio de ticket", ctx.channel, ctx.author)
+        await send_context(ctx, f"✅ Recordatorio enviado a {owner.mention}.", ephemeral=ctx.interaction is not None)
+
     @ticket.command(name="transcript", description="Genera una transcripción HTML segura del ticket.")
     async def transcript(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
