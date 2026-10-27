@@ -96,6 +96,8 @@ function buildStatusEmbed(guild, settings) {
   const fallbackLogs = guild.id === config.guildId ? config.channels.logs : null;
   const fallbackWelcome = guild.id === config.guildId ? config.channels.welcome : null;
   const welcomeId = settings.welcomeDisabled ? null : (settings.welcomeChannelId || fallbackWelcome);
+  const fallbackAutorole = guild.id === config.guildId ? config.roles.member : null;
+  const autoroleId = settings.autoroleDisabled ? null : (settings.autoroleId || fallbackAutorole);
   const logsId = settings.logsChannelId || fallbackLogs;
   const autoModEnabled = settings.automodEnabled === null
     ? config.automod.enabled
@@ -108,7 +110,7 @@ function buildStatusEmbed(guild, settings) {
     .addFields(
       { name: "Bienvenida y despedida", value: welcomeId ? "<#" + welcomeId + ">" : "No configurado", inline: true },
       { name: "Registros", value: logsId ? "<#" + logsId + ">" : "No configurado", inline: true },
-      { name: "Rol automático", value: settings.autoroleId ? "<@&" + settings.autoroleId + ">" : "Desactivado", inline: true },
+      { name: "Rol automático", value: autoroleId ? "<@&" + autoroleId + ">" : "Desactivado", inline: true },
       { name: "AutoMod", value: autoModEnabled ? "Activo" : "Desactivado", inline: true },
       { name: "Auditoría", value: settings.auditEnabled ? "Activa" : "Desactivada", inline: true },
       { name: "Módulos integrados", value: "Moderación · Tickets · Tienda · Sorteos · Encuestas · Sugerencias · Utilidades", inline: false }
@@ -190,7 +192,7 @@ module.exports = {
             allowedMentions: { parse: [] }
           });
         }
-        updateGuildSettings(guild.id, { autoroleId: role.id });
+        updateGuildSettings(guild.id, { autoroleId: role.id, autoroleDisabled: false });
         return interaction.reply({
           content: "Autorol configurado: los nuevos miembros recibirán " + role.toString() + ".",
           ephemeral: true,
@@ -199,7 +201,7 @@ module.exports = {
       }
 
       if (subcommand === "autorole-off") {
-        updateGuildSettings(guild.id, { autoroleId: null });
+        updateGuildSettings(guild.id, { autoroleId: null, autoroleDisabled: true });
         return interaction.reply({ content: "Autorol desactivado.", ephemeral: true });
       }
 
