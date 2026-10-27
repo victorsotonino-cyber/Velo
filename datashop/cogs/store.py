@@ -112,17 +112,18 @@ class Store(commands.Cog):
         if not 0 <= stock <= 1_000_000:
             await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
             return
-        products = _products(ctx)
-        product_id = secrets.token_hex(3).upper()
-        while product_id in products:
+        async with self._inventory_lock:
+            products = _products(ctx)
             product_id = secrets.token_hex(3).upper()
-        products[product_id] = {
-            "name": name.strip(),
-            "price": round(price, 2),
-            "stock": stock,
-            "description": description.strip()[:500] or "Sin descripción",
-        }
-        set_guild_data("products.json", ctx.guild.id, products)
+            while product_id in products:
+                product_id = secrets.token_hex(3).upper()
+            products[product_id] = {
+                "name": name.strip(),
+                "price": round(price, 2),
+                "stock": stock,
+                "description": description.strip()[:500] or "Sin descripción",
+            }
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(
             ctx,
             f"✅ Producto añadido: {name.strip()} — {price:.2f} {self.bot.settings.currency}. ID: {product_id}",
@@ -142,39 +143,40 @@ class Store(commands.Cog):
         if not _is_staff(ctx):
             await send_context(ctx, "Necesitas Gestionar servidor o Administrador para editar productos.")
             return
-        products = _products(ctx)
-        found = _find_product(products, product_id)
-        if found is None:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        if name is not None and (not name.strip() or len(name) > 80):
-            await send_context(ctx, "El nombre debe tener entre 1 y 80 caracteres.")
-            return
-        if price is not None and not 0 <= price <= 1_000_000:
-            await send_context(ctx, "El precio debe estar entre 0 y 1.000.000.")
-            return
-        if stock is not None and not 0 <= stock <= 1_000_000:
-            await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
-            return
-        key, item = found
-        changes: list[str] = []
-        if name is not None:
-            item["name"] = name.strip()
-            changes.append("nombre")
-        if price is not None:
-            item["price"] = round(price, 2)
-            changes.append("precio")
-        if stock is not None:
-            item["stock"] = stock
-            changes.append("stock")
-        if description is not None:
-            item["description"] = description.strip()[:500] or "Sin descripción"
-            changes.append("descripción")
-        if not changes:
-            await send_context(ctx, "Indica al menos un campo para cambiar: nombre, precio, stock o descripción.")
-            return
-        products[key] = item
-        set_guild_data("products.json", ctx.guild.id, products)
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            if name is not None and (not name.strip() or len(name) > 80):
+                await send_context(ctx, "El nombre debe tener entre 1 y 80 caracteres.")
+                return
+            if price is not None and not 0 <= price <= 1_000_000:
+                await send_context(ctx, "El precio debe estar entre 0 y 1.000.000.")
+                return
+            if stock is not None and not 0 <= stock <= 1_000_000:
+                await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
+                return
+            key, item = found
+            changes: list[str] = []
+            if name is not None:
+                item["name"] = name.strip()
+                changes.append("nombre")
+            if price is not None:
+                item["price"] = round(price, 2)
+                changes.append("precio")
+            if stock is not None:
+                item["stock"] = stock
+                changes.append("stock")
+            if description is not None:
+                item["description"] = description.strip()[:500] or "Sin descripción"
+                changes.append("descripción")
+            if not changes:
+                await send_context(ctx, "Indica al menos un campo para cambiar: nombre, precio, stock o descripción.")
+                return
+            products[key] = item
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"✅ Producto **{item.get('name', key)}** actualizado: {', '.join(changes)}.")
 
     @shop.command(name="stock", description="Establece el stock disponible de un producto.")
@@ -185,15 +187,16 @@ class Store(commands.Cog):
         if not 0 <= quantity <= 1_000_000:
             await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
             return
-        products = _products(ctx)
-        found = _find_product(products, product_id)
-        if found is None:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        key, item = found
-        item["stock"] = quantity
-        products[key] = item
-        set_guild_data("products.json", ctx.guild.id, products)
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            key, item = found
+            item["stock"] = quantity
+            products[key] = item
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"✅ Stock de **{item.get('name', key)}** establecido en {quantity}.")
 
     @shop.command(name="remove", description="Elimina un producto del catálogo usando su ID.")
@@ -201,13 +204,14 @@ class Store(commands.Cog):
         if not _is_staff(ctx):
             await send_context(ctx, "Necesitas Gestionar servidor o Administrador para eliminar productos.")
             return
-        products = _products(ctx)
-        key = product_id.strip().upper()
-        if key not in products:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        removed = products.pop(key)
-        set_guild_data("products.json", ctx.guild.id, products)
+        async with self._inventory_lock:
+            products = _products(ctx)
+            key = product_id.strip().upper()
+            if key not in products:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            removed = products.pop(key)
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"🗑️ Producto eliminado: {removed.get('name', key)}.")
 
     @shop.group(name="payment", description="Configura métodos de pago informativos.", invoke_without_command=True)
