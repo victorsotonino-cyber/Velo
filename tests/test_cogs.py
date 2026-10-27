@@ -156,7 +156,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             shop_group = commands_by_name["shop"]
             shop_names = {command.name for command in shop_group.commands}
             expected_shop_commands = {
-                "list", "add", "edit", "stock", "remove", "payment",
+                "list", "add", "edit", "stock", "remove", "image", "payment", "order-expiry",
                 "browse", "order", "my-orders", "orders", "order-status", "cancel", "stats", "low-stock",
             }
             self.assertTrue(
