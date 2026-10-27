@@ -123,7 +123,13 @@ class ShopOrderModal(discord.ui.Modal):
 
 
 class ShopProductSelect(discord.ui.Select):
-    def __init__(self, cog: "Store", products: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        cog: "Store",
+        products: dict[str, Any],
+        *,
+        custom_id: str = "datashop:shop:browse-product",
+    ) -> None:
         options: list[discord.SelectOption] = []
         for product_id, item in products.items():
             if not isinstance(item, dict):
@@ -147,7 +153,7 @@ class ShopProductSelect(discord.ui.Select):
             min_values=1,
             max_values=1,
             options=options,
-            custom_id="datashop:shop:browse-product",
+            custom_id=custom_id,
         )
         self.cog = cog
         self.has_products = any(option.value != "_none" for option in options)
