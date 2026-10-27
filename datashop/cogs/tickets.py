@@ -42,13 +42,95 @@ def _is_staff(member: discord.Member) -> bool:
     return member.guild_permissions.manage_channels or member.guild_permissions.administrator
 
 
+TICKET_TYPES = {
+    "support": ("Soporte", "🛠️"),
+    "purchase": ("Compras", "🛒"),
+    "refund": ("Reclamación", "↩️"),
+    "other": ("Otros", "💬"),
+}
+TICKET_PRIORITIES = {
+    "low": ("Baja", "🟢"),
+    "normal": ("Normal", "🟡"),
+    "high": ("Alta", "🟠"),
+    "urgent": ("Urgente", "🔴"),
+}
+
+
+class TicketRequestModal(discord.ui.Modal):
+    def __init__(self, cog: "Tickets", ticket_type: str) -> None:
+        label = TICKET_TYPES.get(ticket_type, TICKET_TYPES["support"])[0]
+        super().__init__(title=f"Abrir ticket · {label}", timeout=300)
+        self.cog = cog
+        self.ticket_type = ticket_type if ticket_type in TICKET_TYPES else "support"
+        self.subject = discord.ui.TextInput(
+            label="Asunto",
+            placeholder="Resume tu consulta",
+            min_length=3,
+            max_length=100,
+        )
+        self.details = discord.ui.TextInput(
+            label="Descripción",
+            placeholder="Explica lo que necesitas. No incluyas contraseñas ni tokens.",
+            style=discord.TextStyle.paragraph,
+            min_length=5,
+            max_length=1200,
+        )
+        self.add_item(self.subject)
+        self.add_item(self.details)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este formulario solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            channel = await self.cog.create_ticket(
+                interaction.guild,
+                interaction.user,
+                ticket_type=self.ticket_type,
+                subject=str(self.subject),
+                details=str(self.details),
+            )
+        except discord.HTTPException:
+            log.exception("No se pudo crear un ticket para el usuario %s", interaction.user.id)
+            channel = None
+        if channel is None:
+            await interaction.followup.send(
+                "No pude crear el ticket. Comprueba si ya alcanzaste tu límite, si estás bloqueado o si faltan permisos.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(f"Tu ticket está listo: {channel.mention}", ephemeral=True)
+
+
+class TicketTypeSelect(discord.ui.Select):
+    def __init__(self, cog: "Tickets") -> None:
+        options = [
+            discord.SelectOption(label=label, value=key, emoji=emoji, description=f"Abrir un ticket de {label.lower()}")
+            for key, (label, emoji) in TICKET_TYPES.items()
+        ]
+        super().__init__(
+            placeholder="Selecciona el tipo de ticket…",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="datashop:tickets:type",
+            row=0,
+        )
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(TicketRequestModal(self.cog, self.values[0]))
+
+
 class TicketPanelView(discord.ui.View):
     def __init__(self, cog: "Tickets") -> None:
         super().__init__(timeout=None)
         self.cog = cog
+        self.add_item(TicketTypeSelect(cog))
 
     @discord.ui.button(
-        label="Abrir ticket",
+        label="Abrir ticket de soporte",
         emoji="🎫",
         style=discord.ButtonStyle.primary,
         custom_id="datashop:tickets:open",
@@ -61,18 +143,7 @@ class TicketPanelView(discord.ui.View):
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            channel = await self.cog.create_ticket(interaction.guild, interaction.user)
-        except discord.HTTPException:
-            channel = None
-        if channel is None:
-            await interaction.followup.send(
-                "Ya tienes un ticket abierto o no pude crear el canal. Revisa la categoría y mis permisos.",
-                ephemeral=True,
-            )
-        else:
-            await interaction.followup.send(f"Tu ticket está listo: {channel.mention}", ephemeral=True)
+        await interaction.response.send_modal(TicketRequestModal(self.cog, "support"))
 
 
 class CloseTicketView(discord.ui.View):
