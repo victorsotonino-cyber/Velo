@@ -9,6 +9,7 @@ const DEFAULTS = Object.freeze({
   welcomeDisabled: false,
   logsChannelId: null,
   autoroleId: null,
+  autoroleDisabled: false,
   automodEnabled: null,
   auditEnabled: true
 });
@@ -59,7 +60,7 @@ function updateGuildSettings(guildId, patch) {
       continue;
     }
 
-    if (name === "welcomeDisabled" || name === "auditEnabled") {
+    if (name === "welcomeDisabled" || name === "autoroleDisabled" || name === "auditEnabled") {
       if (typeof value !== "boolean") throw new TypeError(name + " debe ser booleano.");
       current[name] = value;
     }
