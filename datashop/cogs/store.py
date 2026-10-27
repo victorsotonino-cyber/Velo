@@ -55,6 +55,20 @@ def _find_product(products: dict[str, Any], product_id: str) -> tuple[str, dict[
         return None
     return key, item
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _safe_money(value: Any, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return parsed if math.isfinite(parsed) else default
+
 
 def _payment_methods_for_guild(guild_id: int) -> list[str]:
     settings = get_guild_data("settings.json", guild_id, {})
@@ -531,12 +545,12 @@ class Store(commands.Cog):
         paid_orders = [item for item in orders if item.get("status") in {"paid", "completed"}]
         pending = [item for item in orders if item.get("status") == "pending"]
         completed = [item for item in orders if item.get("status") == "completed"]
-        try:
-            revenue = sum(max(0.0, float(item.get("total", 0))) for item in paid_orders)
-        except (TypeError, ValueError):
-            revenue = 0.0
-        sold_units = sum(max(0, int(item.get("quantity", 0))) for item in paid_orders if str(item.get("quantity", "")).isdigit())
-        out_of_stock = sum(1 for item in products.values() if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= 0)
+        revenue = sum(max(0.0, _safe_money(item.get("total", 0))) for item in paid_orders)
+        sold_units = sum(max(0, _safe_int(item.get("quantity", 0))) for item in paid_orders)
+        out_of_stock = sum(
+            1 for item in products.values()
+            if isinstance(item, dict) and _safe_int(item.get("stock", 0)) <= 0
+        )
         embed = discord.Embed(title="📈 DATASHOP · Estadísticas de tienda", color=discord.Color.from_str("#8B5CF6"))
         embed.add_field(name="Ventas verificadas", value=f"{revenue:.2f} {self.bot.settings.currency}", inline=True)
         embed.add_field(name="Unidades vendidas", value=str(sold_units), inline=True)
@@ -559,11 +573,11 @@ class Store(commands.Cog):
         products = _products(ctx)
         low = [
             (key, item) for key, item in products.items()
-            if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= threshold
+            if isinstance(item, dict) and _safe_int(item.get("stock", 0)) <= threshold
         ]
-        low.sort(key=lambda pair: int(pair[1].get("stock", 0) or 0))
+        low.sort(key=lambda pair: _safe_int(pair[1].get("stock", 0)))
         lines = [
-            f"**{item.get('name', key)}** · ID {key} · stock {int(item.get('stock', 0) or 0)}"
+            f"**{item.get('name', key)}** · ID {key} · stock {_safe_int(item.get('stock', 0))}"
             for key, item in low[:20]
         ]
         embed = discord.Embed(
