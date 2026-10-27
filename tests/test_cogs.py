@@ -184,7 +184,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "setup", "close", "claim", "unclaim", "reopen", "add", "remove", "rename",
                 "transfer", "priority", "move", "route", "max-open", "blacklist-add",
                 "blacklist-remove", "note", "list", "stats", "delete", "transcript",
-                "client", "timer", "stoptimer", "remember",
+                "client", "timer", "stoptimer", "remember", "lock", "unlock", "pin",
             }
             self.assertTrue(
                 expected_ticket_commands.issubset(ticket_names),
