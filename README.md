@@ -128,3 +128,33 @@ Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: 
 
 - `/verificacion-panel canal rol_verificado` publica un panel con captcha aritmético y asignación automática del rol tras verificar.
 - El bot necesita `Gestionar roles`, y el rol de verificado debe estar por debajo del rol más alto del bot.
+
+
+## Configuración unificada del bot
+
+El bot incorpora una configuración por servidor para que los módulos integrados puedan gestionarse desde Discord, sin instalar bots separados para cada tarea.
+
+### Comandos de administración
+
+- `/botconfig estado` — muestra los ajustes del servidor.
+- `/botconfig bienvenida canal:#bienvenida` — configura bienvenida y despedida.
+- `/botconfig bienvenida-off` — desactiva esos mensajes.
+- `/botconfig registros canal:#logs` — elige el canal de registros.
+- `/botconfig autorole rol:@Miembros` — asigna un rol seguro a nuevos miembros.
+- `/botconfig autorole-off` — desactiva el autorol.
+- `/botconfig automod activo:true` — activa o desactiva el AutoMod de este servidor.
+- `/botconfig auditoria activo:true` — activa o desactiva los registros de actividad.
+
+Las mismas operaciones están disponibles con el prefijo configurado, por ejemplo `!botconfig estado`, `!botconfig bienvenida #canal`, `!botconfig autorole @Miembros`, `!botconfig automod on` y `!botconfig auditoria off`.
+
+### Eventos registrados
+
+Cuando hay un canal de registros configurado y el bot tiene permisos, el módulo puede registrar mensajes editados/eliminados, entradas/salidas, cambios de apodo y roles, bans y cambios en canales o roles. Los mensajes se envían sin activar menciones de usuarios por el contenido registrado.
+
+### Requisitos de Discord y hosting
+
+- En el Developer Portal, activar el intent privilegiado **Server Members Intent** si se necesitan eventos de entrada/salida y autoroles. El intent Message Content ya se usa para comandos con prefijo y AutoMod.
+- Conceder solo los permisos necesarios: ver canales, enviar mensajes, insertar enlaces, gestionar roles (para autorol), y permisos de moderación que correspondan a los módulos utilizados.
+- Colocar el rol del bot por encima del rol básico que debe asignar.
+- Mantener el directorio de datos del bot en almacenamiento persistente del hosting para conservar la configuración tras reinicios o nuevos despliegues.
+- Los comandos slash se registran en el servidor indicado por `GUILD_ID` en las variables de entorno.
