@@ -861,6 +861,63 @@ class Tickets(commands.Cog):
         embed.add_field(name="Valoración media", value=f"{average:.2f}/5 ({len(valid_ratings)})" if average is not None else "Sin valoraciones", inline=False)
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
 
+    @ticket.command(name="delete", description="Guarda la transcripción en logs y elimina un ticket cerrado.")
+    async def delete_ticket(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede eliminar tickets.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") != "1":
+            await send_context(ctx, "Cierra el ticket antes de eliminarlo.")
+            return
+
+        channel = ctx.channel
+        settings = _get_settings(ctx.guild.id)
+        logs_id = settings.get("logs_channel_id") or self.bot.settings.logs_channel_id
+        try:
+            logs_channel = ctx.guild.get_channel(int(logs_id)) if logs_id else None
+        except (TypeError, ValueError):
+            logs_channel = None
+        if not isinstance(logs_channel, discord.TextChannel):
+            await send_context(ctx, "Configura el canal de registros con /botconfig logs. No eliminé el ticket.")
+            return
+
+        lines = [
+            f"Transcripción DATASHOP: {channel.name} ({channel.id})",
+            f"Servidor: {ctx.guild.name} ({ctx.guild.id})",
+            f"Generada: {discord.utils.utcnow().isoformat()}",
+            "-" * 70,
+        ]
+        try:
+            async for message in channel.history(limit=500, oldest_first=True):
+                timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+                body = (message.clean_content or "[sin texto]").replace("\n", " ")[:1800]
+                if message.attachments:
+                    body += " | Adjuntos: " + ", ".join(a.url for a in message.attachments[:5])
+                if message.embeds:
+                    body += f" | Embeds: {len(message.embeds)}"
+                lines.append(f"[{timestamp}] {message.author} ({message.author.id}): {body}")
+        except discord.HTTPException:
+            await send_context(ctx, "No pude leer el historial. El ticket no se eliminó.")
+            return
+
+        payload = "\n".join(lines).encode("utf-8")
+        transcript_file = discord.File(io.BytesIO(payload), filename=f"{channel.name}-transcript.txt")
+        try:
+            await logs_channel.send(
+                content=f"Transcripción del ticket eliminado **{channel.name}** (ID {channel.id}).",
+                file=transcript_file,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude guardar la transcripción en logs. El ticket no se eliminó.")
+            return
+
+        await send_context(ctx, "Transcripción guardada; eliminando el ticket.")
+        await channel.delete(reason=f"Ticket eliminado por {ctx.author} tras guardar transcript")
+
     @ticket.command(name="transcript", description="Genera un registro de texto del ticket.")
     async def transcript(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
