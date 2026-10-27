@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
-from datashop.cogs.tickets import TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
+from datashop.cogs.tickets import DEFAULT_STAFF_ROLE_ID, PUBLIC_TICKET_TYPE_KEYS, TICKET_TYPES, TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
 from datashop.cogs.store import ShopPanelView, _safe_int, _safe_money
 
 
@@ -110,7 +110,7 @@ class TicketRouteRoleTests(unittest.TestCase):
             },
         }
         purchase_roles = _staff_role_ids(settings, 100, "purchase")
-        self.assertEqual(purchase_roles, {100, 200, 400})
+        self.assertEqual(purchase_roles, {100, 200, 400, DEFAULT_STAFF_ROLE_ID})
         self.assertNotIn(300, purchase_roles)
 
     def test_invalid_and_missing_role_ids_are_ignored(self) -> None:
@@ -118,7 +118,34 @@ class TicketRouteRoleTests(unittest.TestCase):
             "staff_role_id": "not-an-id",
             "ticket_types": {"refund": {"staff_role_id": None}},
         }
-        self.assertEqual(_staff_role_ids(settings, None, "refund"), set())
+        self.assertEqual(_staff_role_ids(settings, None, "refund"), {DEFAULT_STAFF_ROLE_ID})
+
+class TicketPanelBrandingTests(unittest.TestCase):
+    def test_public_ticket_menu_has_five_requested_categories_and_emojis(self) -> None:
+        view = TicketPanelView(SimpleNamespace())
+        selector = next(child for child in view.children if isinstance(child, discord.ui.Select))
+        self.assertEqual(
+            [option.value for option in selector.options],
+            list(PUBLIC_TICKET_TYPE_KEYS),
+        )
+        self.assertEqual(
+            [option.emoji.id for option in selector.options],
+            [
+                1561518116826255441,
+                1550144965404004502,
+                1561921833203142757,
+                1550146329915949077,
+                1561925621578469450,
+            ],
+        )
+        self.assertEqual(TICKET_TYPES["purchase"][0], "Comprar un artículo")
+        self.assertEqual(TICKET_TYPES["support"][0], "Hacer una consulta")
+        self.assertEqual(TICKET_TYPES["report"][0], "Reportar un problema")
+        self.assertEqual(TICKET_TYPES["reward"][0], "Recibir una recompensa")
+        self.assertEqual(TICKET_TYPES["workers"][0], "Postular a Workers")
+        self.assertIn(DEFAULT_STAFF_ROLE_ID, _staff_role_ids({}, None))
+        view.stop()
+
 
 class InteractivePanelTests(unittest.TestCase):
     def test_shop_panel_is_persistent_and_has_distinct_component_ids(self) -> None:
