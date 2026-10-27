@@ -16,6 +16,8 @@ const ticketClosing = new Set();
 module.exports = client => {
   client.on("interactionCreate", async i => {
     try {
+      if (i.isButton() && i.customId.startsWith("gift_verify_start:")) return startGiftVerification(i);
+      if (i.isModalSubmit() && i.customId.startsWith("gift_verify_submit:")) return finishGiftVerification(i);
       if (i.isStringSelectMenu() && i.customId === "ticket_create") return createTicket(i);
       if (i.isButton() && i.customId.startsWith("ticket_create:")) return createTicket(i);
       if (i.isButton() && i.customId.startsWith("giveaway:join:")) {
@@ -484,4 +486,47 @@ async function handleLegitVote(i) {
       : "Gracias por tu respuesta. El contador de verificaciones legit es **" + result.count + "**.",
     ephemeral: true
   });
+}
+
+
+async function startGiftVerification(i) {
+  if (!i.guild) return i.reply({ content: "Este panel solo funciona dentro de un servidor.", ephemeral: true });
+  const roleId = i.customId.split(":")[1];
+  const role = i.guild.roles.cache.get(roleId);
+  if (!role) return i.reply({ content: "El rol de verificación ya no existe. Pide al staff que publique el panel otra vez.", ephemeral: true });
+  if (i.member?.roles?.cache?.has(roleId)) return i.reply({ content: "Ya tienes el rol de verificado. ¡Bienvenido/a!", ephemeral: true });
+  const a = Math.floor(Math.random() * 8) + 2;
+  const b = Math.floor(Math.random() * 8) + 2;
+  const expected = String(a + b);
+  const modal = new ModalBuilder()
+    .setCustomId("gift_verify_submit:" + roleId + ":" + expected)
+    .setTitle("Verificación de seguridad");
+  const answer = new TextInputBuilder()
+    .setCustomId("answer")
+    .setLabel("¿Cuánto es " + a + " + " + b + "?")
+    .setPlaceholder("Escribe el resultado")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(3);
+  modal.addComponents(new ActionRowBuilder().addComponents(answer));
+  return i.showModal(modal);
+}
+
+async function finishGiftVerification(i) {
+  if (!i.guild) return i.reply({ content: "Esta verificación solo funciona dentro de un servidor.", ephemeral: true });
+  const [, roleId, expected] = i.customId.split(":");
+  const submitted = i.fields.getTextInputValue("answer").trim();
+  if (submitted !== expected) {
+    return i.reply({ content: "❌ Respuesta incorrecta. Pulsa **Verificarme** y vuelve a intentarlo.", ephemeral: true });
+  }
+  const role = i.guild.roles.cache.get(roleId);
+  if (!role) return i.reply({ content: "El rol de verificación ya no existe. Avisa al staff.", ephemeral: true });
+  const botMember = i.guild.members.me;
+  if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) {
+    return i.reply({ content: "No puedo asignar ese rol. El staff debe revisar mis permisos y la posición del rol.", ephemeral: true });
+  }
+  const member = await i.guild.members.fetch(i.user.id);
+  if (member.roles.cache.has(roleId)) return i.reply({ content: "Ya estás verificado/a. ¡Bienvenido/a!", ephemeral: true });
+  await member.roles.add(role, "Verificación de miembro completada");
+  return i.reply({ content: "✅ ¡Verificación completada! Ya tienes el rol " + role.name + ".", ephemeral: true });
 }
