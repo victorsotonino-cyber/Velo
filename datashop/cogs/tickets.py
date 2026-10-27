@@ -4,9 +4,10 @@ import asyncio
 import io
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
@@ -331,6 +332,73 @@ class Tickets(commands.Cog):
     async def cog_load(self) -> None:
         self.bot.add_view(TicketPanelView(self))
         self.bot.add_view(CloseTicketView(self))
+        if not self.ticket_timer_worker.is_running():
+            self.ticket_timer_worker.start()
+
+    async def cog_unload(self) -> None:
+        self.ticket_timer_worker.cancel()
+
+    @tasks.loop(minutes=1)
+    async def ticket_timer_worker(self) -> None:
+        for guild in list(self.bot.guilds):
+            await self._process_ticket_timers(guild)
+
+    @ticket_timer_worker.before_loop
+    async def before_ticket_timer_worker(self) -> None:
+        await self.bot.wait_until_ready()
+
+    async def _process_ticket_timers(self, guild: discord.Guild) -> None:
+        timers = get_guild_data("ticket_timers.json", guild.id, {})
+        if not isinstance(timers, dict):
+            return
+        now = discord.utils.utcnow()
+        changed = False
+        for channel_key, timer in list(timers.items()):
+            if not isinstance(timer, dict) or timer.get("status") != "active":
+                continue
+            try:
+                due_at = datetime.fromisoformat(str(timer.get("due_at", "")))
+                if due_at.tzinfo is None:
+                    due_at = due_at.replace(tzinfo=timezone.utc)
+                due_at = due_at.astimezone(timezone.utc)
+                channel_id = int(timer.get("channel_id", channel_key))
+            except (TypeError, ValueError):
+                timer["status"] = "failed"
+                timer["error"] = "invalid_timer_data"
+                changed = True
+                continue
+            if due_at > now:
+                continue
+            channel = guild.get_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel) or not _is_ticket(channel):
+                timer["status"] = "cancelled"
+                timer["error"] = "ticket_unavailable"
+                changed = True
+                continue
+            if _topic_value(channel, "DATASHOP_CLOSED") == "1":
+                timer["status"] = "cancelled"
+                timer["error"] = "ticket_closed"
+                changed = True
+                continue
+            embed = discord.Embed(
+                title="⏰ Recordatorio del ticket",
+                description=str(timer.get("message", "Revisa este ticket."))[:1500],
+                color=discord.Color.from_str("#8B5CF6"),
+                timestamp=now,
+            )
+            embed.add_field(name="Ticket", value=channel.mention, inline=True)
+            embed.set_footer(text=f"Programado por ID {timer.get('creator_id', 'desconocido')}")
+            try:
+                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+                timer["status"] = "sent"
+                timer["sent_at"] = now.isoformat()
+            except discord.HTTPException:
+                timer["status"] = "failed"
+                timer["error"] = "delivery_failed"
+                log.exception("No se pudo enviar el temporizador del ticket %s", channel_id)
+            changed = True
+        if changed:
+            set_guild_data("ticket_timers.json", guild.id, timers)
 
     def is_staff(
         self,
