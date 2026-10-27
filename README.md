@@ -27,7 +27,7 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - General: /help, /ping, /serverinfo, /userinfo.
 - Moderación: /ban, /unban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /purge-user, /slowmode, /lock, /unlock y /nick. Las acciones principales también se registran en el canal configurado con /botconfig logs.
 - Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
-- Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript y /ticket delete.
+- Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript, /ticket delete, /ticket timer, /ticket stoptimer, /ticket client y /ticket remember.
 - Catálogo: /shop list, /shop browse (menú interactivo), /shop add, /shop edit, /shop image, /shop stock y /shop remove.
 - Carrito: /shop cart-add, /shop cart-remove, /shop cart-view, /shop cart-clear y /shop checkout (varios productos por checkout).
 - Pedidos: /shop order, /shop my-orders, /shop orders, /shop cancel, /shop order-status y /shop order-expiry.
