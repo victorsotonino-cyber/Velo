@@ -112,6 +112,7 @@ class Moderation(commands.Cog):
             log.exception("No se pudo guardar el registro de moderación en el servidor %s", ctx.guild.id)
 
     @commands.hybrid_command(name="ban", description="Banea a un miembro del servidor.")
+    @commands.hybrid_command(name="ban", description="Banea a un miembro del servidor.")
     @commands.guild_only()
     async def ban(
         self,
@@ -122,16 +123,21 @@ class Moderation(commands.Cog):
     ) -> None:
         if not await _require(ctx, "ban_members"):
             return
-        author = _member(ctx)
-        if member == ctx.guild.me or member == author:
-            await send_context(ctx, "No puedes aplicar esa sanción a ese miembro.")
+        if not await _target_allowed(ctx, member):
             return
-        if author and member.top_role >= author.top_role and ctx.guild.owner_id != author.id:
-            await send_context(ctx, "Tu rol debe estar por encima del miembro elegido.")
+        try:
+            await member.ban(reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.Forbidden:
+            await send_context(ctx, "Discord rechazó el baneo. Revisa mis permisos y mi jerarquía de roles.")
             return
-        await member.ban(reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.HTTPException:
+            await send_context(ctx, "No se pudo completar el baneo por un error de Discord.")
+            return
+        await self._log_action(ctx, "Ban", target=member, reason=reason)
         await send_context(ctx, f"🔨 {member} ha sido baneado. Motivo: {reason[:300]}")
 
+
+    @commands.hybrid_command(name="kick", description="Expulsa a un miembro del servidor.")
     @commands.hybrid_command(name="kick", description="Expulsa a un miembro del servidor.")
     @commands.guild_only()
     async def kick(
@@ -143,16 +149,21 @@ class Moderation(commands.Cog):
     ) -> None:
         if not await _require(ctx, "kick_members"):
             return
-        author = _member(ctx)
-        if member == ctx.guild.me or member == author:
-            await send_context(ctx, "No puedes expulsar a ese miembro.")
+        if not await _target_allowed(ctx, member):
             return
-        if author and member.top_role >= author.top_role and ctx.guild.owner_id != author.id:
-            await send_context(ctx, "Tu rol debe estar por encima del miembro elegido.")
+        try:
+            await member.kick(reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.Forbidden:
+            await send_context(ctx, "Discord rechazó la expulsión. Revisa mis permisos y mi jerarquía de roles.")
             return
-        await member.kick(reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.HTTPException:
+            await send_context(ctx, "No se pudo completar la expulsión por un error de Discord.")
+            return
+        await self._log_action(ctx, "Kick", target=member, reason=reason)
         await send_context(ctx, f"👢 {member} ha sido expulsado. Motivo: {reason[:300]}")
 
+
+    @commands.hybrid_command(name="timeout", description="Silencia temporalmente a un miembro.")
     @commands.hybrid_command(name="timeout", description="Silencia temporalmente a un miembro.")
     @commands.guild_only()
     async def timeout(
@@ -168,28 +179,41 @@ class Moderation(commands.Cog):
         if not 1 <= minutes <= 40320:
             await send_context(ctx, "La duración debe ser de 1 a 40320 minutos (28 días).")
             return
-        author = _member(ctx)
-        if member == ctx.guild.me or member == author:
-            await send_context(ctx, "No puedes aplicar un timeout a ese miembro.")
+        if not await _target_allowed(ctx, member):
             return
-        if author and member.top_role >= author.top_role and ctx.guild.owner_id != author.id:
-            await send_context(ctx, "Tu rol debe estar por encima del miembro elegido.")
+        try:
+            await member.timeout(timedelta(minutes=minutes), reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.Forbidden:
+            await send_context(ctx, "Discord rechazó el timeout. Revisa mis permisos y mi jerarquía de roles.")
             return
-        await member.timeout(timedelta(minutes=minutes), reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.HTTPException:
+            await send_context(ctx, "No se pudo completar el timeout por un error de Discord.")
+            return
+        await self._log_action(ctx, "Timeout", target=member, reason=reason, details=f"Duración: {minutes} minutos")
         await send_context(ctx, f"⏳ {member.mention} recibió timeout por {minutes} minutos. Motivo: {reason[:250]}")
 
+
+    @commands.hybrid_command(name="untimeout", description="Retira el timeout de un miembro.")
     @commands.hybrid_command(name="untimeout", description="Retira el timeout de un miembro.")
     @commands.guild_only()
     async def untimeout(self, ctx: commands.Context, member: discord.Member) -> None:
         if not await _require(ctx, "moderate_members"):
             return
-        author = _member(ctx)
-        if author and member.top_role >= author.top_role and ctx.guild.owner_id != author.id:
-            await send_context(ctx, "Tu rol debe estar por encima del miembro elegido.")
+        if not await _target_allowed(ctx, member):
             return
-        await member.timeout(None, reason=f"Timeout retirado por {ctx.author} ({ctx.author.id})")
+        try:
+            await member.timeout(None, reason=f"Timeout retirado por {ctx.author} ({ctx.author.id})")
+        except discord.Forbidden:
+            await send_context(ctx, "Discord rechazó retirar el timeout. Revisa mis permisos y mi jerarquía de roles.")
+            return
+        except discord.HTTPException:
+            await send_context(ctx, "No se pudo retirar el timeout por un error de Discord.")
+            return
+        await self._log_action(ctx, "Timeout retirado", target=member)
         await send_context(ctx, f"✅ Se retiró el timeout de {member.mention}.")
 
+
+    @commands.hybrid_command(name="warn", description="Añade una advertencia a un miembro.")
     @commands.hybrid_command(name="warn", description="Añade una advertencia a un miembro.")
     @commands.guild_only()
     async def warn(
@@ -200,6 +224,8 @@ class Moderation(commands.Cog):
         reason: str = "Sin razón indicada",
     ) -> None:
         if not await _require(ctx, "moderate_members"):
+            return
+        if not await _target_allowed(ctx, member, check_bot_hierarchy=False):
             return
         data = get_guild_data("warnings.json", ctx.guild.id, {})
         if not isinstance(data, dict):
@@ -215,7 +241,9 @@ class Moderation(commands.Cog):
         })
         data[str(member.id)] = user_warnings
         set_guild_data("warnings.json", ctx.guild.id, data)
+        await self._log_action(ctx, "Advertencia", target=member, reason=reason, details=f"Total de advertencias: {len(user_warnings)}")
         await send_context(ctx, f"⚠️ Advertencia registrada para {member.mention}. Total: {len(user_warnings)}.")
+
 
     @commands.hybrid_command(name="warnings", description="Consulta las advertencias de un miembro.")
     @commands.guild_only()
