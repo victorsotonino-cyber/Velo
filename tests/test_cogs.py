@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 from datashop.bot import DataShopBot
 from datashop.config import Settings
 from datashop.cogs.tickets import DEFAULT_STAFF_ROLE_ID, PUBLIC_TICKET_TYPE_KEYS, TICKET_TYPES, TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
+from datashop.cogs.community import LegitVoteView, _legit_yes_count, _normalize_legit_votes
 from datashop.cogs.store import ShopPanelView, _safe_int, _safe_money
 
 
@@ -76,6 +77,33 @@ class StoreInputSafetyTests(unittest.TestCase):
         self.assertEqual(_safe_money("NaN"), 0.0)
         self.assertEqual(_safe_money(float("inf")), 0.0)
         self.assertEqual(_safe_money("12.50"), 12.5)
+
+
+class LegitVotingTests(unittest.TestCase):
+    def test_legit_vote_normalization_keeps_one_valid_vote_per_user(self) -> None:
+        votes = _normalize_legit_votes({
+            "123": "yes",
+            "456": "no",
+            "789": "maybe",
+            "not-an-id": "yes",
+            987: "yes",
+        })
+        self.assertEqual(votes, {"123": "yes", "456": "no", "987": "yes"})
+        self.assertEqual(_legit_yes_count(votes), 2)
+
+    def test_legit_panel_view_is_persistent_with_yes_no_buttons(self) -> None:
+        view = LegitVoteView(SimpleNamespace(), guild_id=123456)
+        self.assertIsNone(view.timeout)
+        self.assertEqual(len(view.children), 2)
+        self.assertEqual(
+            [child.custom_id for child in view.children],
+            ["datashop:legit:123456:yes", "datashop:legit:123456:no"],
+        )
+        self.assertEqual(
+            [child.style for child in view.children],
+            [discord.ButtonStyle.success, discord.ButtonStyle.danger],
+        )
+        view.stop()
 
 
 class CannedReplyKeyTests(unittest.TestCase):
@@ -244,7 +272,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "help", "ping", "serverinfo", "userinfo",
                 "ban", "unban", "kick", "timeout", "untimeout", "warn", "warnings", "clear", "purge-user",
                 "slowmode", "lock", "unlock", "nick", "role",
-                "ticket", "shop", "vouch", "suggestion", "poll", "botconfig",
+                "ticket", "shop", "vouch", "suggestion", "poll", "legit", "botconfig",
                 "afk", "remind", "reminders", "reminder-cancel", "rank", "leaderboard",
                 "giveaway", "say", "announce",
             }
