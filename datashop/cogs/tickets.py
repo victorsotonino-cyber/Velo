@@ -126,6 +126,47 @@ class TicketTypeSelect(discord.ui.Select):
         await interaction.response.send_modal(TicketRequestModal(self.cog, self.values[0]))
 
 
+class TicketRatingView(discord.ui.View):
+    def __init__(self, guild_id: int, channel_id: int, owner_id: int) -> None:
+        super().__init__(timeout=86400)
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.owner_id = owner_id
+        for score in range(1, 6):
+            button = discord.ui.Button(
+                label=f"{score}/5",
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"datashop:ticket-rating:{channel_id}:{score}",
+            )
+            button.callback = self._callback(score)
+            self.add_item(button)
+
+    def _callback(self, score: int):
+        async def callback(interaction: discord.Interaction) -> None:
+            if interaction.user.id != self.owner_id:
+                await interaction.response.send_message("Esta encuesta pertenece a otro cliente.")
+                return
+            ratings = get_guild_data("ticket_ratings.json", self.guild_id, [])
+            if not isinstance(ratings, list):
+                ratings = []
+            if any(isinstance(item, dict) and item.get("ticket_id") == self.channel_id for item in ratings):
+                await interaction.response.send_message("Ya registraste una valoración para este ticket.")
+                return
+            ratings.append({
+                "ticket_id": self.channel_id,
+                "user_id": self.owner_id,
+                "rating": score,
+                "created_at": discord.utils.utcnow().isoformat(),
+            })
+            set_guild_data("ticket_ratings.json", self.guild_id, ratings)
+            await interaction.response.send_message(f"Gracias por tu valoración: {score}/5.")
+            try:
+                await interaction.message.edit(view=None)
+            except discord.HTTPException:
+                pass
+        return callback
+
+
 class TicketPanelView(discord.ui.View):
     def __init__(self, cog: "Tickets") -> None:
         super().__init__(timeout=None)
@@ -380,6 +421,15 @@ class Tickets(commands.Cog):
         new_name = channel.name if channel.name.startswith("cerrado-") else f"cerrado-{channel.name}"
         await channel.edit(name=new_name[:100], topic=topic)
         await channel.send(f"🔒 Ticket cerrado por {member.mention}.")
+        if owner:
+            try:
+                await owner.send(
+                    f"Tu ticket **{channel.name}** en **{channel.guild.name}** se ha cerrado. "
+                    "Valora la atención del 1 al 5:",
+                    view=TicketRatingView(channel.guild.id, channel.id, owner.id),
+                )
+            except discord.HTTPException:
+                pass
 
     async def reopen_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
