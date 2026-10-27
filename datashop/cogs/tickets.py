@@ -1045,6 +1045,137 @@ class Tickets(commands.Cog):
         await send_context(ctx, "Transcripción guardada; eliminando el ticket.")
         await channel.delete(reason=f"Ticket eliminado por {ctx.author} tras guardar transcript")
 
+    @ticket.command(name="timer", description="Programa un recordatorio en el ticket actual.")
+    async def set_ticket_timer(
+        self,
+        ctx: commands.Context,
+        minutes: int,
+        *,
+        message: str = "Revisa este ticket y responde al cliente.",
+    ) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede programar recordatorios.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
+            await send_context(ctx, "No puedes programar un recordatorio en un ticket cerrado.")
+            return
+        if not 1 <= minutes <= 10080:
+            await send_context(ctx, "El temporizador debe ser de 1 minuto a 7 días.")
+            return
+        message = message.strip()
+        if not message or len(message) > 1500:
+            await send_context(ctx, "El recordatorio debe tener entre 1 y 1500 caracteres.")
+            return
+        timers = get_guild_data("ticket_timers.json", ctx.guild.id, {})
+        if not isinstance(timers, dict):
+            timers = {}
+        due_at = discord.utils.utcnow() + timedelta(minutes=minutes)
+        timers[str(ctx.channel.id)] = {
+            "guild_id": ctx.guild.id,
+            "channel_id": ctx.channel.id,
+            "creator_id": ctx.author.id,
+            "message": message,
+            "created_at": discord.utils.utcnow().isoformat(),
+            "due_at": due_at.isoformat(),
+            "status": "active",
+        }
+        set_guild_data("ticket_timers.json", ctx.guild.id, timers)
+        await send_context(
+            ctx,
+            f"⏰ Recordatorio programado para <t:{int(due_at.timestamp())}:R>. Usa /ticket stoptimer para cancelarlo.",
+        )
+        await self._log_ticket_event(ctx.guild, "Temporizador de ticket programado", ctx.channel, ctx.author, f"Vence: {due_at.isoformat()}")
+
+    @ticket.command(name="stoptimer", description="Cancela el recordatorio programado del ticket actual.")
+    async def stop_ticket_timer(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede cancelar temporizadores.")
+            return
+        timers = get_guild_data("ticket_timers.json", ctx.guild.id, {})
+        if not isinstance(timers, dict):
+            timers = {}
+        timer = timers.get(str(ctx.channel.id))
+        if not isinstance(timer, dict) or timer.get("status") != "active":
+            await send_context(ctx, "Este ticket no tiene un temporizador activo.")
+            return
+        timer["status"] = "cancelled"
+        timer["cancelled_at"] = discord.utils.utcnow().isoformat()
+        timer["cancelled_by"] = ctx.author.id
+        timers[str(ctx.channel.id)] = timer
+        set_guild_data("ticket_timers.json", ctx.guild.id, timers)
+        await send_context(ctx, "✅ Temporizador cancelado.")
+        await self._log_ticket_event(ctx.guild, "Temporizador de ticket cancelado", ctx.channel, ctx.author)
+
+    @ticket.command(name="client", description="Muestra la ficha del cliente del ticket actual.")
+    async def ticket_client(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede consultar la ficha del cliente.")
+            return
+        owner_id = _ticket_owner(ctx.channel)
+        owner = ctx.guild.get_member(owner_id) if owner_id else None
+        if owner is None and owner_id:
+            try:
+                owner = await ctx.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        if owner is None:
+            await send_context(ctx, "No pude localizar al propietario actual del ticket.")
+            return
+        ticket_type = _topic_value(ctx.channel, "DATASHOP_TYPE") or "support"
+        type_label = TICKET_TYPES.get(ticket_type, ("Soporte", "🛠️"))[0]
+        priority = _topic_value(ctx.channel, "DATASHOP_PRIORITY") or "normal"
+        priority_label, priority_emoji = TICKET_PRIORITIES.get(priority, TICKET_PRIORITIES["normal"])
+        claimed_id = _topic_value(ctx.channel, "DATASHOP_CLAIMED_BY")
+        embed = discord.Embed(
+            title="👤 Ficha del cliente",
+            description=f"Cliente: {owner.mention}\nCuenta: **{owner}**\nID: {owner.id}",
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.set_thumbnail(url=owner.display_avatar.url)
+        embed.add_field(name="Cuenta creada", value=discord.utils.format_dt(owner.created_at, style="F"), inline=False)
+        if owner.joined_at:
+            embed.add_field(name="Se unió al servidor", value=discord.utils.format_dt(owner.joined_at, style="F"), inline=False)
+        embed.add_field(name="Tipo de ticket", value=type_label, inline=True)
+        embed.add_field(name="Prioridad", value=f"{priority_emoji} {priority_label}", inline=True)
+        embed.add_field(name="Asignado a", value=f"<@{claimed_id}>" if claimed_id else "Sin reclamar", inline=True)
+        embed.add_field(name="Estado", value="Cerrado" if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1" else "Abierto", inline=True)
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @ticket.command(name="remember", description="Publica y fija un recordatorio importante en el ticket.")
+    async def remember_ticket(self, ctx: commands.Context, *, note: str) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede fijar recordatorios.")
+            return
+        note = note.strip()
+        if not note or len(note) > 1500:
+            await send_context(ctx, "El recordatorio debe tener entre 1 y 1500 caracteres.")
+            return
+        embed = discord.Embed(
+            title="📌 Información importante del ticket",
+            description=note,
+            color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_footer(text=f"Fijado por {ctx.author.display_name}")
+        message = await ctx.channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        try:
+            await message.pin(reason=f"Recordatorio fijado por {ctx.author}")
+            await send_context(ctx, "✅ Recordatorio publicado y fijado.")
+        except discord.HTTPException:
+            await send_context(ctx, "Publiqué el recordatorio, pero Discord no permitió fijarlo. Revisa el permiso Administrar mensajes.")
+
     @ticket.command(name="transcript", description="Genera un registro de texto del ticket.")
     async def transcript(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
