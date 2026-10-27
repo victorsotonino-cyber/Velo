@@ -185,11 +185,15 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "setup", "close", "claim", "unclaim", "reopen", "add", "remove", "rename",
                 "transfer", "priority", "move", "route", "max-open", "blacklist-add",
                 "blacklist-remove", "note", "list", "stats", "delete", "transcript",
-                "timer", "stoptimer", "client", "remember", "lock", "unlock", "pin",
+                "timer", "stoptimer", "client", "remember", "control",
             }
             self.assertTrue(
                 expected_ticket_commands.issubset(ticket_names),
                 f"Faltan subcomandos ticket: {sorted(expected_ticket_commands - ticket_names)}",
+            )
+            control_group = next(command for command in ticket_group.commands if command.name == "control")
+            self.assertTrue(
+                {"lock", "unlock", "pin"}.issubset({command.name for command in control_group.commands})
             )
             note_group = next(command for command in ticket_group.commands if command.name == "note")
             self.assertTrue({"add", "list"}.issubset({command.name for command in note_group.commands}))
