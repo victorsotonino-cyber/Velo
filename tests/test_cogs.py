@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
-from datashop.cogs.tickets import TicketRatingView, _build_html_transcript, _staff_role_ids
+from datashop.cogs.tickets import TicketRatingView, _build_html_transcript, _parse_inactivity_minutes, _staff_role_ids
 from datashop.cogs.store import _safe_int, _safe_money
 
 
@@ -76,6 +76,17 @@ class StoreInputSafetyTests(unittest.TestCase):
         self.assertEqual(_safe_money("NaN"), 0.0)
         self.assertEqual(_safe_money(float("inf")), 0.0)
         self.assertEqual(_safe_money("12.50"), 12.5)
+
+
+class TicketInactivityValidationTests(unittest.TestCase):
+    def test_inactivity_window_has_safe_bounds(self) -> None:
+        self.assertEqual(_parse_inactivity_minutes(5), 5)
+        self.assertEqual(_parse_inactivity_minutes("1440"), 1440)
+        self.assertEqual(_parse_inactivity_minutes(10080), 10080)
+        self.assertIsNone(_parse_inactivity_minutes(4))
+        self.assertIsNone(_parse_inactivity_minutes(10081))
+        self.assertIsNone(_parse_inactivity_minutes("invalid"))
+        self.assertIsNone(_parse_inactivity_minutes(None))
 
 
 class TicketRouteRoleTests(unittest.TestCase):
@@ -193,7 +204,9 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             )
             control_group = next(command for command in ticket_group.commands if command.name == "control")
             self.assertTrue(
-                {"lock", "unlock", "pin"}.issubset({command.name for command in control_group.commands})
+                {"lock", "unlock", "pin", "autoclose", "autoclose-off"}.issubset(
+                    {command.name for command in control_group.commands}
+                )
             )
             note_group = next(command for command in ticket_group.commands if command.name == "note")
             self.assertTrue({"add", "list"}.issubset({command.name for command in note_group.commands}))
