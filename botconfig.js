@@ -94,7 +94,8 @@ function checkChannel(channel, guild) {
 
 function buildStatusEmbed(guild, settings) {
   const fallbackLogs = guild.id === config.guildId ? config.channels.logs : null;
-  const welcomeId = settings.welcomeChannelId;
+  const fallbackWelcome = guild.id === config.guildId ? config.channels.welcome : null;
+  const welcomeId = settings.welcomeDisabled ? null : (settings.welcomeChannelId || fallbackWelcome);
   const logsId = settings.logsChannelId || fallbackLogs;
   const autoModEnabled = settings.automodEnabled === null
     ? config.automod.enabled
@@ -145,7 +146,7 @@ module.exports = {
         const channel = interaction.options.getChannel("canal", true);
         const problem = checkChannel(channel, guild);
         if (problem) return interaction.reply({ content: "No se pudo configurar: " + problem, ephemeral: true });
-        updateGuildSettings(guild.id, { welcomeChannelId: channel.id });
+        updateGuildSettings(guild.id, { welcomeChannelId: channel.id, welcomeDisabled: false });
         return interaction.reply({
           content: "Bienvenida y despedida configuradas en " + channel.toString() + ".",
           ephemeral: true,
@@ -154,7 +155,7 @@ module.exports = {
       }
 
       if (subcommand === "bienvenida-off") {
-        updateGuildSettings(guild.id, { welcomeChannelId: null });
+        updateGuildSettings(guild.id, { welcomeChannelId: null, welcomeDisabled: true });
         return interaction.reply({ content: "Bienvenida y despedida desactivadas para este servidor.", ephemeral: true });
       }
 
