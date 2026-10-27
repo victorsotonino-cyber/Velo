@@ -5,6 +5,7 @@ const path = require("path");
 const config = require("./config");
 const { emoji, emojiData } = require("./ui");
 const { readJSON, writeJSON } = require("./storage");
+const { getGuildSettings, updateGuildSettings } = require("./guild-settings");
 const giveawayService = require("./giveaway-service");
 const storeService = require("./store-service");
 const automodService = require("./automod-service");
@@ -247,6 +248,130 @@ client.on(Events.MessageCreate, async message => {
           allowedMentions: { parse: [] }
         });
       }
+      case "botconfig": {
+        if (!can(PermissionFlagsBits.ManageGuild) && !can(PermissionFlagsBits.Administrator)) {
+          return fail("Necesitas Gestionar servidor o Administrador para configurar el bot.");
+        }
+
+        const action = String(args[0] || "estado").toLowerCase();
+        const settings = getGuildSettings(guildKey);
+        const fallbackLogs = message.guild.id === config.guildId ? config.channels.logs : null;
+        const fallbackWelcome = message.guild.id === config.guildId ? config.channels.welcome : null;
+        const fallbackAutorole = message.guild.id === config.guildId ? config.roles.member : null;
+
+        if (action === "estado" || action === "status") {
+          const welcomeId = settings.welcomeDisabled ? null : (settings.welcomeChannelId || fallbackWelcome);
+          const logsId = settings.logsChannelId || fallbackLogs;
+          const autoroleId = settings.autoroleDisabled ? null : (settings.autoroleId || fallbackAutorole);
+          const automodEnabled = settings.automodEnabled === null ? config.automod.enabled : settings.automodEnabled;
+          const embed = new EmbedBuilder()
+            .setColor(config.colors.primary)
+            .setTitle("Centro de control del bot")
+            .setDescription("Configuración guardada para " + message.guild.name + ".")
+            .addFields(
+              { name: "Bienvenida", value: welcomeId ? "<#" + welcomeId + ">" : "Desactivada", inline: true },
+              { name: "Registros", value: logsId ? "<#" + logsId + ">" : "No configurado", inline: true },
+              { name: "Autorol", value: autoroleId ? "<@&" + autoroleId + ">" : "Desactivado", inline: true },
+              { name: "AutoMod", value: automodEnabled ? "Activo" : "Desactivado", inline: true },
+              { name: "Auditoría", value: settings.auditEnabled ? "Activa" : "Desactivada", inline: true },
+              { name: "Módulos", value: "Moderación · Tickets · Tienda · Sorteos · Encuestas · Sugerencias · Utilidades", inline: false }
+            )
+            .setFooter({ text: "DATASHOP / Velo • Configuración por servidor" })
+            .setTimestamp();
+          return message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+        }
+
+        if (action === "bienvenida-off" || action === "welcome-off" ||
+            (action === "bienvenida" && ["off", "desactivar", "disable"].includes(String(args[1] || "").toLowerCase()))) {
+          updateGuildSettings(guildKey, { welcomeChannelId: null, welcomeDisabled: true });
+          return ok("Bienvenida y despedida desactivadas.");
+        }
+
+        if (action === "bienvenida" || action === "welcome") {
+          const rawChannelId = String(args[1] || "").replace(/[<#>]/g, "");
+          const channelId = message.mentions.channels.first()?.id ||
+            (/^\d{17,20}$/.test(rawChannelId) ? rawChannelId : null);
+          const channel = channelId
+            ? await message.guild.channels.fetch(channelId).catch(() => null)
+            : null;
+          if (!channel?.isTextBased()) return fail("Uso: !botconfig bienvenida #canal. Usa !botconfig bienvenida off para desactivar.");
+          const permissions = channel.permissionsFor(botMember);
+          if (!permissions?.has(PermissionFlagsBits.ViewChannel) ||
+              !permissions?.has(PermissionFlagsBits.SendMessages) ||
+              !permissions?.has(PermissionFlagsBits.EmbedLinks)) {
+            return fail("Necesito Ver canal, Enviar mensajes e Insertar enlaces en ese canal.");
+          }
+          updateGuildSettings(guildKey, { welcomeChannelId: channel.id, welcomeDisabled: false });
+          return ok("Bienvenida y despedida configuradas en #" + channel.name + ".");
+        }
+
+        if (action === "registros" || action === "logs") {
+          const rawChannelId = String(args[1] || "").replace(/[<#>]/g, "");
+          const channelId = message.mentions.channels.first()?.id ||
+            (/^\d{17,20}$/.test(rawChannelId) ? rawChannelId : null);
+          const channel = channelId
+            ? await message.guild.channels.fetch(channelId).catch(() => null)
+            : null;
+          if (!channel?.isTextBased()) return fail("Uso: !botconfig registros #canal.");
+          const permissions = channel.permissionsFor(botMember);
+          if (!permissions?.has(PermissionFlagsBits.ViewChannel) ||
+              !permissions?.has(PermissionFlagsBits.SendMessages) ||
+              !permissions?.has(PermissionFlagsBits.EmbedLinks)) {
+            return fail("Necesito Ver canal, Enviar mensajes e Insertar enlaces en ese canal.");
+          }
+          updateGuildSettings(guildKey, { logsChannelId: channel.id });
+          return ok("Registros configurados en #" + channel.name + ".");
+        }
+
+        if (action === "autorole" || action === "autorol") {
+          if (["off", "desactivar", "disable"].includes(String(args[1] || "").toLowerCase())) {
+            updateGuildSettings(guildKey, { autoroleId: null, autoroleDisabled: true });
+            return ok("Autorol desactivado.");
+          }
+          const rawRoleId = String(args[1] || "").replace(/[<@&>]/g, "");
+          const roleId = message.mentions.roles.first()?.id || (/^\d{17,20}$/.test(rawRoleId) ? rawRoleId : null);
+          const role = roleId ? await message.guild.roles.fetch(roleId).catch(() => null) : null;
+          if (!role) return fail("Uso: !botconfig autorole @rol o !botconfig autorole off.");
+          const riskyPermissions = [
+            PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageGuild,
+            PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageChannels,
+            PermissionFlagsBits.ManageMessages, PermissionFlagsBits.KickMembers,
+            PermissionFlagsBits.BanMembers, PermissionFlagsBits.ModerateMembers,
+            PermissionFlagsBits.ManageWebhooks
+          ];
+          if (role.id === message.guild.id || role.managed || role.permissions.any(riskyPermissions)) {
+            return fail("El autorol debe ser un rol no administrado y sin permisos administrativos o de moderación.");
+          }
+          if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles) ||
+              role.position >= botMember.roles.highest.position) {
+            return fail("Necesito Gestionar roles y mi rol más alto debe estar por encima del rol elegido.");
+          }
+          updateGuildSettings(guildKey, { autoroleId: role.id, autoroleDisabled: false });
+          return ok("Autorol configurado: " + role.name + ".");
+        }
+
+        if (action === "automod") {
+          const value = String(args[1] || "").toLowerCase();
+          if (!["on", "off", "activar", "desactivar", "true", "false"].includes(value)) {
+            return fail("Uso: !botconfig automod on|off.");
+          }
+          const enabled = ["on", "activar", "true"].includes(value);
+          updateGuildSettings(guildKey, { automodEnabled: enabled });
+          return ok("AutoMod " + (enabled ? "activado" : "desactivado") + " para este servidor.");
+        }
+
+        if (action === "auditoria" || action === "audit") {
+          const value = String(args[1] || "").toLowerCase();
+          if (!["on", "off", "activar", "desactivar", "true", "false"].includes(value)) {
+            return fail("Uso: !botconfig auditoria on|off.");
+          }
+          const enabled = ["on", "activar", "true"].includes(value);
+          updateGuildSettings(guildKey, { auditEnabled: enabled });
+          return ok("Auditoría " + (enabled ? "activada" : "desactivada") + ".");
+        }
+
+        return fail("Usa !botconfig estado, bienvenida #canal, bienvenida off, registros #canal, autorole @rol, autorole off, automod on|off o auditoria on|off.");
+      }
       case "update": {
         const updateCommand = client.commands.get("update");
         if (!updateCommand?.buildUpdateEmbed) return fail("El panel de actualizaciones no está disponible.");
@@ -269,6 +394,7 @@ client.on(Events.MessageCreate, async message => {
             "**Tickets, mensajes y sorteos**",
             "`!ticket-panel` `f!ticket setup` `!setup-plantilla` `!setup-sorteos` `!crear-roles-tienda` `!say texto`",
             "`!update` — novedades del bot",
+            "`!botconfig estado|bienvenida #canal|registros #canal|autorole @rol|automod on/off|auditoria on/off`",
             "`!giveaway start [#canal] 1h 1 Premio | descripción`",
             "`!giveaway end ID` `!giveaway cancel ID` `!giveaway reroll ID` `!giveaway list`",
             "**También disponible con /**",
