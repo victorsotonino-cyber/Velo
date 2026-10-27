@@ -112,7 +112,6 @@ class Moderation(commands.Cog):
             log.exception("No se pudo guardar el registro de moderación en el servidor %s", ctx.guild.id)
 
     @commands.hybrid_command(name="ban", description="Banea a un miembro del servidor.")
-    @commands.hybrid_command(name="ban", description="Banea a un miembro del servidor.")
     @commands.guild_only()
     async def ban(
         self,
@@ -138,7 +137,6 @@ class Moderation(commands.Cog):
 
 
     @commands.hybrid_command(name="kick", description="Expulsa a un miembro del servidor.")
-    @commands.hybrid_command(name="kick", description="Expulsa a un miembro del servidor.")
     @commands.guild_only()
     async def kick(
         self,
@@ -163,7 +161,6 @@ class Moderation(commands.Cog):
         await send_context(ctx, f"👢 {member} ha sido expulsado. Motivo: {reason[:300]}")
 
 
-    @commands.hybrid_command(name="timeout", description="Silencia temporalmente a un miembro.")
     @commands.hybrid_command(name="timeout", description="Silencia temporalmente a un miembro.")
     @commands.guild_only()
     async def timeout(
@@ -194,7 +191,6 @@ class Moderation(commands.Cog):
 
 
     @commands.hybrid_command(name="untimeout", description="Retira el timeout de un miembro.")
-    @commands.hybrid_command(name="untimeout", description="Retira el timeout de un miembro.")
     @commands.guild_only()
     async def untimeout(self, ctx: commands.Context, member: discord.Member) -> None:
         if not await _require(ctx, "moderate_members"):
@@ -213,7 +209,6 @@ class Moderation(commands.Cog):
         await send_context(ctx, f"✅ Se retiró el timeout de {member.mention}.")
 
 
-    @commands.hybrid_command(name="warn", description="Añade una advertencia a un miembro.")
     @commands.hybrid_command(name="warn", description="Añade una advertencia a un miembro.")
     @commands.guild_only()
     async def warn(
@@ -267,6 +262,64 @@ class Moderation(commands.Cog):
         embed.set_footer(text=f"Total: {len(entries)}")
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
 
+    @commands.hybrid_command(name="unban", description="Retira el baneo de un usuario mediante su ID.")
+    @commands.guild_only()
+    async def unban(self, ctx: commands.Context, user_id: str, *, reason: str = "Sin razón indicada") -> None:
+        if not await _require(ctx, "ban_members"):
+            return
+        try:
+            parsed_id = int(user_id.strip())
+            if parsed_id <= 0:
+                raise ValueError
+        except ValueError:
+            await send_context(ctx, "Indica un ID numérico de usuario válido.")
+            return
+        try:
+            user = await self.bot.fetch_user(parsed_id)
+            await ctx.guild.unban(user, reason=f"{ctx.author} ({ctx.author.id}): {reason[:400]}")
+        except discord.NotFound:
+            await send_context(ctx, "Ese usuario no está baneado o no existe.")
+            return
+        except discord.Forbidden:
+            await send_context(ctx, "Discord rechazó retirar el baneo. Comprueba mis permisos.")
+            return
+        except discord.HTTPException:
+            await send_context(ctx, "No se pudo retirar el baneo por un error de Discord.")
+            return
+        await self._log_action(ctx, "Unban", target=user, reason=reason)
+        await send_context(ctx, f"✅ Se retiró el baneo de **{user}**.")
+
+    @commands.hybrid_command(name="purge-user", description="Elimina mensajes recientes de un miembro en el canal actual.")
+    @commands.guild_only()
+    async def purge_user(self, ctx: commands.Context, member: discord.Member, amount: int = 100) -> None:
+        if not await _require(ctx, "manage_messages"):
+            return
+        if not 1 <= amount <= 1000:
+            await send_context(ctx, "Indica una cantidad entre 1 y 1000.")
+            return
+        if not isinstance(ctx.channel, (discord.TextChannel, discord.Thread)):
+            await send_context(ctx, "Este comando solo funciona en canales de texto o hilos.")
+            return
+        if ctx.interaction:
+            await ctx.defer(ephemeral=True)
+        try:
+            deleted = await ctx.channel.purge(
+                limit=amount,
+                check=lambda message: message.author.id == member.id,
+                reason=f"Mensajes de {member} limpiados por {ctx.author}",
+            )
+        except discord.Forbidden:
+            await send_context(ctx, "No tengo permisos para eliminar mensajes en este canal.", ephemeral=True)
+            return
+        except discord.HTTPException:
+            await send_context(ctx, "No pude eliminar los mensajes seleccionados.", ephemeral=True)
+            return
+        await self._log_action(
+            ctx, "Purge de usuario", target=member,
+            details=f"Mensajes eliminados: {len(deleted)} · Canal: {ctx.channel}",
+        )
+        await send_context(ctx, f"🧹 Eliminé {len(deleted)} mensajes de {member.mention}.", ephemeral=True)
+
     @commands.hybrid_command(name="clear", description="Elimina mensajes recientes.")
     @commands.guild_only()
     async def clear(self, ctx: commands.Context, amount: int) -> None:
@@ -277,7 +330,15 @@ class Moderation(commands.Cog):
             return
         if ctx.interaction:
             await ctx.defer(ephemeral=True)
-        deleted = await ctx.channel.purge(limit=amount)
+        try:
+            deleted = await ctx.channel.purge(limit=amount, reason=f"Limpieza solicitada por {ctx.author}")
+        except discord.Forbidden:
+            await send_context(ctx, "No tengo permisos para eliminar mensajes en este canal.", ephemeral=True)
+            return
+        except discord.HTTPException:
+            await send_context(ctx, "No pude eliminar los mensajes seleccionados.", ephemeral=True)
+            return
+        await self._log_action(ctx, "Limpieza de mensajes", details=f"Eliminados: {len(deleted)} · Canal: {ctx.channel}")
         await send_context(ctx, f"🧹 Se eliminaron {len(deleted)} mensajes.", ephemeral=True)
 
     @commands.hybrid_command(name="slowmode", description="Configura el modo lento del canal actual.")
@@ -299,6 +360,7 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "No pude cambiar el modo lento. Revisa mis permisos.")
             return
+        await self._log_action(ctx, "Modo lento", details=f"Canal: {ctx.channel} · Intervalo: {seconds} segundos")
         await send_context(ctx, f"✅ Modo lento establecido en {seconds} segundos.")
 
     @commands.hybrid_command(name="lock", description="Bloquea mensajes para @everyone en el canal actual.")
@@ -320,6 +382,7 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "No pude bloquear el canal. Revisa mis permisos.")
             return
+        await self._log_action(ctx, "Canal bloqueado", reason=reason, details=f"Canal: {ctx.channel}")
         await send_context(ctx, f"🔒 Canal bloqueado para @everyone. Motivo: {reason[:250]}")
 
     @commands.hybrid_command(name="unlock", description="Retira el bloqueo de @everyone en el canal actual.")
@@ -341,6 +404,7 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "No pude desbloquear el canal. Revisa mis permisos.")
             return
+        await self._log_action(ctx, "Canal desbloqueado", details=f"Canal: {ctx.channel}")
         await send_context(ctx, "🔓 Se retiró el bloqueo explícito para @everyone. Otros permisos del canal siguen vigentes.")
 
     @commands.hybrid_command(name="nick", description="Cambia o restablece el apodo de un miembro.")
@@ -367,6 +431,7 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "No pude cambiar el apodo. Revisa mis permisos.")
             return
+        await self._log_action(ctx, "Cambio de apodo", target=member, details=f"Nuevo apodo: {nickname or '[restablecido]'}")
         await send_context(ctx, f"✅ Apodo de {member.mention} actualizado.")
 
     @commands.hybrid_group(name="role", description="Administra roles básicos de miembros.", invoke_without_command=True)
@@ -380,6 +445,8 @@ class Moderation(commands.Cog):
             return
         author = _member(ctx)
         me = ctx.guild.me
+        if not await _target_allowed(ctx, member):
+            return
         if role.is_default() or role.managed or not _role_safe_for_management(role):
             await send_context(ctx, "Por seguridad, solo puedes administrar roles no administrados y sin permisos de moderación/administración.")
             return
@@ -397,6 +464,7 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "No pude asignar el rol. Comprueba permisos y jerarquía.")
             return
+        await self._log_action(ctx, "Rol asignado", target=member, details=f"Rol: {role.name} ({role.id})")
         await send_context(ctx, f"✅ Se asignó {role.mention} a {member.mention}.")
 
     @role.command(name="remove", description="Retira un rol de un miembro.")
@@ -419,6 +487,7 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "No pude retirar el rol. Comprueba permisos y jerarquía.")
             return
+        await self._log_action(ctx, "Rol retirado", target=member, details=f"Rol: {role.name} ({role.id})")
         await send_context(ctx, f"✅ Se retiró {role.mention} de {member.mention}.")
 
 
