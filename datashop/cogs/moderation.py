@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 import discord
@@ -7,6 +8,8 @@ from discord.ext import commands
 
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
+
+log = logging.getLogger("datashop.moderation")
 
 
 def _member(ctx: commands.Context) -> discord.Member | None:
@@ -20,6 +23,34 @@ async def _require(ctx: commands.Context, permission: str) -> bool:
         return False
     if not getattr(author.guild_permissions, permission, False):
         await send_context(ctx, "No tienes permiso para realizar esta acción.")
+        return False
+    return True
+
+
+async def _target_allowed(
+    ctx: commands.Context,
+    target: discord.Member,
+    *,
+    check_bot_hierarchy: bool = True,
+) -> bool:
+    """Protect owners, self-targets, and members above the acting/bot role."""
+    guild = ctx.guild
+    author = _member(ctx)
+    if target.id == guild.owner_id:
+        await send_context(ctx, "No se puede moderar al propietario del servidor con este comando.")
+        return False
+    if guild.me is not None and target.id == guild.me.id:
+        await send_context(ctx, "No puedes aplicar esta acción al propio bot.")
+        return False
+    if author is not None and target.id == author.id:
+        await send_context(ctx, "No puedes aplicar esta acción a tu propia cuenta.")
+        return False
+    if author is not None and author.id != guild.owner_id and target.top_role >= author.top_role:
+        await send_context(ctx, "Tu rol debe estar por encima del miembro elegido.")
+        return False
+    bot_member = guild.me
+    if check_bot_hierarchy and (bot_member is None or target.top_role >= bot_member.top_role):
+        await send_context(ctx, "Mi rol más alto debe estar por encima del miembro elegido.")
         return False
     return True
 
@@ -42,6 +73,43 @@ def _role_safe_for_management(role: discord.Role) -> bool:
 class Moderation(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+
+    async def _log_action(
+        self,
+        ctx: commands.Context,
+        action: str,
+        *,
+        target: discord.Member | discord.User | None = None,
+        reason: str | None = None,
+        details: str | None = None,
+    ) -> None:
+        settings = get_guild_data("settings.json", ctx.guild.id, {})
+        if not isinstance(settings, dict):
+            settings = {}
+        channel_id = settings.get("logs_channel_id") or self.bot.settings.logs_channel_id
+        try:
+            parsed_id = int(channel_id) if channel_id else None
+        except (TypeError, ValueError):
+            parsed_id = None
+        channel = ctx.guild.get_channel(parsed_id) if parsed_id else None
+        if not isinstance(channel, discord.TextChannel):
+            return
+        embed = discord.Embed(
+            title=f"🛡️ Moderación · {action}"[:256],
+            color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.add_field(name="Moderador", value=f"{ctx.author} (`{ctx.author.id}`)", inline=False)
+        if target is not None:
+            embed.add_field(name="Objetivo", value=f"{target} (`{target.id}`)", inline=False)
+        if reason:
+            embed.add_field(name="Motivo", value=reason[:1000], inline=False)
+        if details:
+            embed.add_field(name="Detalles", value=details[:1000], inline=False)
+        try:
+            await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            log.exception("No se pudo guardar el registro de moderación en el servidor %s", ctx.guild.id)
 
     @commands.hybrid_command(name="ban", description="Banea a un miembro del servidor.")
     @commands.guild_only()
