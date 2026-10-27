@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
-from datashop.cogs.tickets import DEFAULT_STAFF_ROLE_ID, PUBLIC_TICKET_TYPE_KEYS, TICKET_TYPES, TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
+from datashop.cogs.tickets import DEFAULT_STAFF_ROLE_ID, PUBLIC_TICKET_TYPE_KEYS, TICKET_TYPES, Tickets, TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _is_ticket, _parse_inactivity_minutes, _staff_role_ids
 from datashop.cogs.community import LegitVoteView, _legit_yes_count, _normalize_legit_votes
 from datashop.cogs.store import ShopPanelView, _safe_int, _safe_money
 
@@ -115,6 +115,19 @@ class CannedReplyKeyTests(unittest.TestCase):
         self.assertIsNone(_canned_reply_key("name/../../secret"))
         self.assertIsNone(_canned_reply_key("x" * 33))
         self.assertIsNone(_canned_reply_key(None))
+
+
+class TicketRuntimeRegressionTests(unittest.TestCase):
+    def test_ticket_detection_uses_owner_metadata(self) -> None:
+        self.assertTrue(_is_ticket(SimpleNamespace(topic="DATASHOP_OWNER=123;DATASHOP_CLOSED=0")))
+        self.assertFalse(_is_ticket(SimpleNamespace(topic="ordinary channel")))
+        self.assertFalse(_is_ticket(SimpleNamespace(topic="DATASHOP_OWNER=invalid")))
+
+    def test_registered_rating_keys_are_a_set(self) -> None:
+        cog = Tickets(SimpleNamespace())
+        self.assertIsInstance(cog._registered_rating_keys, set)
+        cog._registered_rating_keys.add((123, 456))
+        self.assertIn((123, 456), cog._registered_rating_keys)
 
 
 class TicketInactivityValidationTests(unittest.TestCase):
