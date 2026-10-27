@@ -46,6 +46,11 @@ def _ticket_owner(channel: discord.TextChannel) -> int | None:
         return None
 
 
+def _is_ticket(channel: discord.TextChannel) -> bool:
+    """Identify DATASHOP ticket channels via their owner metadata."""
+    return _ticket_owner(channel) is not None
+
+
 def _set_topic_value(channel: discord.TextChannel, key: str, value: str | None) -> str:
     parts = [part for part in (channel.topic or "").split(";") if part and not part.startswith(f"{key}=")]
     if value is not None:
@@ -550,7 +555,7 @@ class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
-        self._registered_rating_keys: set[tuple[int, int]] = {}
+        self._registered_rating_keys: set[tuple[int, int]] = set()
 
     async def cog_load(self) -> None:
         self.bot.add_view(TicketPanelView(self))
