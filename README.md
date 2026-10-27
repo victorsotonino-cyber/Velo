@@ -27,7 +27,7 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - General: /help, /ping, /serverinfo, /userinfo.
 - Moderación: /ban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /slowmode, /lock, /unlock y /nick.
 - Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
-- Tickets: /ticket setup, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove y /ticket transcript.
+- Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript y /ticket delete.
 - Catálogo: /shop list, /shop add, /shop edit, /shop stock y /shop remove.
 - Pedidos: /shop order, /shop my-orders, /shop orders y /shop order-status.
 - Métodos de pago informativos: /shop payment add y /shop payment remove.
@@ -39,7 +39,7 @@ Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
 
 ## Sistema de tickets
 
-El panel publica un botón persistente para abrir canales privados. Cada usuario puede tener un ticket abierto a la vez. El equipo configurado puede reclamar y liberar tickets, añadir o quitar participantes, cerrar o reabrir tickets y generar una transcripción de texto.
+El panel persistente permite seleccionar Soporte, Compras, Reclamación u Otros y completar un formulario de asunto y descripción. Cada usuario tiene un límite configurable de tickets abiertos, hay lista de bloqueo, rutas de categoría/rol por tipo, prioridades, reclamaciones, transferencia, notas internas privadas, valoraciones por DM y transcripciones. La eliminación requiere guardar primero una transcripción en el canal de logs.
 
 Puedes configurar categoría y rol de soporte desde el comando /ticket setup. Si no se indica categoría, el bot crea una categoría de tickets cuando haga falta. Los permisos efectivos también dependen de los permisos y la jerarquía de roles del bot en Discord.
 
@@ -70,5 +70,5 @@ El servidor HTTP integrado expone /health. Para conservar productos, pedidos, ad
 
 - La información se guarda en archivos JSON por servidor.
 - No se procesan pagos reales ni se verifican automáticamente transferencias.
-- El AutoMod del bot no sustituye las funciones nativas de seguridad de Discord ni un sistema completo anti-raid.
+- El AutoMod del bot no sustituye las funciones nativas de seguridad de Discord ni un sistema completo anti-raid. Las valoraciones del ticket se guardan como datos por servidor; los botones de valoración son temporales y pueden dejar de responder si el proceso se reinicia.
 - Los comandos de moderación dependen de los permisos de Discord y de la jerarquía de roles.
