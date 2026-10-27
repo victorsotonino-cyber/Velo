@@ -1194,13 +1194,13 @@ class Tickets(commands.Cog):
         embed.add_field(name="Valoración media", value=f"{average:.2f}/5 ({len(valid_ratings)})" if average is not None else "Sin valoraciones", inline=False)
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
 
-    @ticket.command(name="delete", description="Guarda la transcripción en logs y elimina un ticket cerrado.")
+    @ticket.command(name="delete", description="Archiva la transcripción HTML en logs y elimina el ticket cerrado.")
     async def delete_ticket(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
         if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal puede eliminar tickets.")
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede eliminar tickets.")
             return
         if _topic_value(ctx.channel, "DATASHOP_CLOSED") != "1":
             await send_context(ctx, "Cierra el ticket antes de eliminarlo.")
@@ -1217,30 +1217,19 @@ class Tickets(commands.Cog):
             await send_context(ctx, "Configura el canal de registros con /botconfig logs. No eliminé el ticket.")
             return
 
-        lines = [
-            f"Transcripción DATASHOP: {channel.name} ({channel.id})",
-            f"Servidor: {ctx.guild.name} ({ctx.guild.id})",
-            f"Generada: {discord.utils.utcnow().isoformat()}",
-            "-" * 70,
-        ]
         try:
-            async for message in channel.history(limit=500, oldest_first=True):
-                timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-                body = (message.clean_content or "[sin texto]").replace("\n", " ")[:1800]
-                if message.attachments:
-                    body += " | Adjuntos: " + ", ".join(a.url for a in message.attachments[:5])
-                if message.embeds:
-                    body += f" | Embeds: {len(message.embeds)}"
-                lines.append(f"[{timestamp}] {message.author} ({message.author.id}): {body}")
+            payload, message_count = await _build_html_transcript(channel, limit=1000)
         except discord.HTTPException:
             await send_context(ctx, "No pude leer el historial. El ticket no se eliminó.")
             return
 
-        payload = "\n".join(lines).encode("utf-8")
-        transcript_file = discord.File(io.BytesIO(payload), filename=f"{channel.name}-transcript.txt")
+        transcript_file = discord.File(
+            io.BytesIO(payload),
+            filename=f"ticket-{channel.id}-transcript.html",
+        )
         try:
             await logs_channel.send(
-                content=f"Transcripción del ticket eliminado **{channel.name}** (ID {channel.id}).",
+                content=f"Transcripción HTML del ticket {channel.name} (ID {channel.id}, {message_count} mensajes).",
                 file=transcript_file,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
@@ -1248,271 +1237,32 @@ class Tickets(commands.Cog):
             await send_context(ctx, "No pude guardar la transcripción en logs. El ticket no se eliminó.")
             return
 
-        await send_context(ctx, "Transcripción guardada; eliminando el ticket.")
-        await channel.delete(reason=f"Ticket eliminado por {ctx.author} tras guardar transcript")
+        await send_context(ctx, "Transcripción HTML guardada en logs; eliminando el ticket.")
+        try:
+            await channel.delete(reason=f"Ticket eliminado por {ctx.author} tras guardar transcript")
+        except discord.HTTPException:
+            await send_context(ctx, "La transcripción está guardada, pero Discord no permitió eliminar el canal.")
 
-    @ticket.command(name="timer", description="Programa un recordatorio en el ticket actual.")
-    async def set_ticket_timer(
-        self,
-        ctx: commands.Context,
-        minutes: int,
-        *,
-        message: str = "Revisa este ticket y responde al cliente.",
-    ) -> None:
+    @ticket.command(name="transcript", description="Genera una transcripción HTML segura del ticket.")
+    async def transcript(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
         if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede programar recordatorios.")
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede generar transcripciones.")
             return
-        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
-            await send_context(ctx, "No puedes programar un recordatorio en un ticket cerrado.")
+        try:
+            payload, message_count = await _build_html_transcript(ctx.channel, limit=1000)
+        except discord.HTTPException:
+            await send_context(ctx, "No pude leer el historial del ticket. No se generó la transcripción.")
             return
-        if not 1 <= minutes <= 10080:
-            await send_context(ctx, "El temporizador debe ser de 1 minuto a 7 días.")
-            return
-        message = message.strip()
-        if not message or len(message) > 1500:
-            await send_context(ctx, "El recordatorio debe tener entre 1 y 1500 caracteres.")
-            return
-        timers = get_guild_data("ticket_timers.json", ctx.guild.id, {})
-        if not isinstance(timers, dict):
-            timers = {}
-        due_at = discord.utils.utcnow() + timedelta(minutes=minutes)
-        timers[str(ctx.channel.id)] = {
-            "guild_id": ctx.guild.id,
-            "channel_id": ctx.channel.id,
-            "creator_id": ctx.author.id,
-            "message": message,
-            "created_at": discord.utils.utcnow().isoformat(),
-            "due_at": due_at.isoformat(),
-            "status": "active",
-        }
-        set_guild_data("ticket_timers.json", ctx.guild.id, timers)
+        file = discord.File(io.BytesIO(payload), filename=f"ticket-{ctx.channel.id}-transcript.html")
         await send_context(
             ctx,
-            f"⏰ Recordatorio programado para <t:{int(due_at.timestamp())}:R>. Usa /ticket stoptimer para cancelarlo.",
+            f"Transcripción HTML generada ({message_count} mensajes).",
+            file=file,
+            ephemeral=ctx.interaction is not None,
         )
-        await self._log_ticket_event(ctx.guild, "Temporizador de ticket programado", ctx.channel, ctx.author, f"Vence: {due_at.isoformat()}")
-
-    @ticket.command(name="stoptimer", description="Cancela el recordatorio programado del ticket actual.")
-    async def stop_ticket_timer(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede cancelar temporizadores.")
-            return
-        timers = get_guild_data("ticket_timers.json", ctx.guild.id, {})
-        if not isinstance(timers, dict):
-            timers = {}
-        timer = timers.get(str(ctx.channel.id))
-        if not isinstance(timer, dict) or timer.get("status") != "active":
-            await send_context(ctx, "Este ticket no tiene un temporizador activo.")
-            return
-        timer["status"] = "cancelled"
-        timer["cancelled_at"] = discord.utils.utcnow().isoformat()
-        timer["cancelled_by"] = ctx.author.id
-        timers[str(ctx.channel.id)] = timer
-        set_guild_data("ticket_timers.json", ctx.guild.id, timers)
-        await send_context(ctx, "✅ Temporizador cancelado.")
-        await self._log_ticket_event(ctx.guild, "Temporizador de ticket cancelado", ctx.channel, ctx.author)
-
-
-    @ticket.command(name="lock", description="Bloquea temporalmente las respuestas del cliente.")
-    async def lock_ticket(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede bloquear el ticket.")
-            return
-        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
-            await send_context(ctx, "Este ticket ya está cerrado.")
-            return
-        if _topic_value(ctx.channel, "DATASHOP_LOCKED") == "1":
-            await send_context(ctx, "Este ticket ya está bloqueado.")
-            return
-        owner_id = _ticket_owner(ctx.channel)
-        owner = ctx.guild.get_member(owner_id) if owner_id else None
-        if owner_id and owner is None:
-            try:
-                owner = await ctx.guild.fetch_member(owner_id)
-            except discord.HTTPException:
-                owner = None
-        if owner is None:
-            await send_context(ctx, "No pude localizar al cliente para bloquear sus permisos. No se cambió el ticket.")
-            return
-        try:
-            overwrite = ctx.channel.overwrites_for(owner)
-            overwrite.view_channel = True
-            overwrite.send_messages = False
-            overwrite.read_message_history = True
-            await ctx.channel.set_permissions(
-                owner, overwrite=overwrite, reason=f"Ticket bloqueado por {ctx.author}"
-            )
-            await ctx.channel.edit(
-                topic=_set_topic_value(ctx.channel, "DATASHOP_LOCKED", "1"),
-                reason=f"Ticket bloqueado por {ctx.author}",
-            )
-        except discord.HTTPException:
-            await send_context(ctx, "No pude bloquear el ticket. Comprueba mis permisos.")
-            return
-        await self._log_ticket_event(ctx.guild, "Ticket bloqueado", ctx.channel, ctx.author)
-        await send_context(ctx, "🔒 Ticket bloqueado; el cliente no puede escribir hasta que el personal lo desbloquee.")
-
-    @ticket.command(name="unlock", description="Permite de nuevo que el cliente responda.")
-    async def unlock_ticket(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede desbloquear el ticket.")
-            return
-        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
-            await send_context(ctx, "Reabre el ticket antes de permitir respuestas.")
-            return
-        if _topic_value(ctx.channel, "DATASHOP_LOCKED") != "1":
-            await send_context(ctx, "Este ticket no está bloqueado.")
-            return
-        owner_id = _ticket_owner(ctx.channel)
-        owner = ctx.guild.get_member(owner_id) if owner_id else None
-        if owner_id and owner is None:
-            try:
-                owner = await ctx.guild.fetch_member(owner_id)
-            except discord.HTTPException:
-                owner = None
-        if owner is None:
-            await send_context(ctx, "No pude localizar al cliente para restaurar sus permisos. No se cambió el ticket.")
-            return
-        try:
-            overwrite = ctx.channel.overwrites_for(owner)
-            overwrite.view_channel = True
-            overwrite.send_messages = True
-            overwrite.read_message_history = True
-            await ctx.channel.set_permissions(
-                owner, overwrite=overwrite, reason=f"Ticket desbloqueado por {ctx.author}"
-            )
-            await ctx.channel.edit(
-                topic=_set_topic_value(ctx.channel, "DATASHOP_LOCKED", None),
-                reason=f"Ticket desbloqueado por {ctx.author}",
-            )
-        except discord.HTTPException:
-            await send_context(ctx, "No pude desbloquear el ticket. Comprueba mis permisos.")
-            return
-        await self._log_ticket_event(ctx.guild, "Ticket desbloqueado", ctx.channel, ctx.author)
-        await send_context(ctx, "🔓 El cliente ya puede responder otra vez.")
-
-    @ticket.command(name="pin", description="Fija el primer mensaje del ticket.")
-    async def pin_ticket(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede fijar mensajes.")
-            return
-        if ctx.guild.me is None or not ctx.guild.me.guild_permissions.manage_messages:
-            await send_context(ctx, "Necesito el permiso Gestionar mensajes para fijar el mensaje.")
-            return
-        try:
-            first_message = None
-            async for message in ctx.channel.history(limit=20, oldest_first=True):
-                first_message = message
-                break
-            if first_message is None:
-                await send_context(ctx, "Este ticket no contiene mensajes para fijar.")
-                return
-            await first_message.pin(reason=f"Mensaje inicial fijado por {ctx.author}")
-        except discord.HTTPException:
-            await send_context(ctx, "No pude fijar el mensaje inicial. Revisa mis permisos.")
-            return
-        await self._log_ticket_event(ctx.guild, "Mensaje inicial fijado", ctx.channel, ctx.author)
-        await send_context(ctx, "📌 Mensaje inicial del ticket fijado.")
-
-    @ticket.command(name="client", description="Muestra la ficha del cliente del ticket actual.")
-    async def ticket_client(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede consultar la ficha del cliente.")
-            return
-        owner_id = _ticket_owner(ctx.channel)
-        owner = ctx.guild.get_member(owner_id) if owner_id else None
-        if owner is None and owner_id:
-            try:
-                owner = await ctx.guild.fetch_member(owner_id)
-            except discord.HTTPException:
-                owner = None
-        if owner is None:
-            await send_context(ctx, "No pude localizar al propietario actual del ticket.")
-            return
-        ticket_type = _topic_value(ctx.channel, "DATASHOP_TYPE") or "support"
-        type_label = TICKET_TYPES.get(ticket_type, ("Soporte", "🛠️"))[0]
-        priority = _topic_value(ctx.channel, "DATASHOP_PRIORITY") or "normal"
-        priority_label, priority_emoji = TICKET_PRIORITIES.get(priority, TICKET_PRIORITIES["normal"])
-        claimed_id = _topic_value(ctx.channel, "DATASHOP_CLAIMED_BY")
-        embed = discord.Embed(
-            title="👤 Ficha del cliente",
-            description=f"Cliente: {owner.mention}\nCuenta: **{owner}**\nID: {owner.id}",
-            color=discord.Color.from_str("#8B5CF6"),
-        )
-        embed.set_thumbnail(url=owner.display_avatar.url)
-        embed.add_field(name="Cuenta creada", value=discord.utils.format_dt(owner.created_at, style="F"), inline=False)
-        if owner.joined_at:
-            embed.add_field(name="Se unió al servidor", value=discord.utils.format_dt(owner.joined_at, style="F"), inline=False)
-        embed.add_field(name="Tipo de ticket", value=type_label, inline=True)
-        embed.add_field(name="Prioridad", value=f"{priority_emoji} {priority_label}", inline=True)
-        embed.add_field(name="Asignado a", value=f"<@{claimed_id}>" if claimed_id else "Sin reclamar", inline=True)
-        embed.add_field(name="Estado", value="Cerrado" if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1" else "Abierto", inline=True)
-        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
-
-    @ticket.command(name="remember", description="Publica y fija un recordatorio importante en el ticket.")
-    async def remember_ticket(self, ctx: commands.Context, *, note: str) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal asignado a esta ruta puede fijar recordatorios.")
-            return
-        note = note.strip()
-        if not note or len(note) > 1500:
-            await send_context(ctx, "El recordatorio debe tener entre 1 y 1500 caracteres.")
-            return
-        embed = discord.Embed(
-            title="📌 Información importante del ticket",
-            description=note,
-            color=discord.Color.from_str("#8B5CF6"),
-            timestamp=discord.utils.utcnow(),
-        )
-        embed.set_footer(text=f"Fijado por {ctx.author.display_name}")
-        message = await ctx.channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-        try:
-            await message.pin(reason=f"Recordatorio fijado por {ctx.author}")
-            await send_context(ctx, "✅ Recordatorio publicado y fijado.")
-        except discord.HTTPException:
-            await send_context(ctx, "Publiqué el recordatorio, pero Discord no permitió fijarlo. Revisa el permiso Administrar mensajes.")
-
-    @ticket.command(name="transcript", description="Genera un registro de texto del ticket.")
-    async def transcript(self, ctx: commands.Context) -> None:
-        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
-            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
-            return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
-            await send_context(ctx, "Solo el personal puede generar transcripciones.")
-            return
-        lines: list[str] = []
-        async for message in ctx.channel.history(limit=1000, oldest_first=True):
-            timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-            body = message.clean_content.replace("\n", " ")
-            if message.attachments:
-                body += " " + " ".join(attachment.url for attachment in message.attachments)
-            if message.embeds:
-                body += f" [embeds: {len(message.embeds)}]"
-            lines.append(f"[{timestamp}] {message.author} ({message.author.id}): {body}")
-        payload = "\n".join(lines).encode("utf-8") or b"Sin mensajes."
-        file = discord.File(io.BytesIO(payload), filename=f"{ctx.channel.name}-transcript.txt")
-        await send_context(ctx, "Transcripción del ticket:", file=file, ephemeral=ctx.interaction is not None)
 
 
 async def setup(bot: commands.Bot) -> None:
