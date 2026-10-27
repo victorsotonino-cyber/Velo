@@ -100,7 +100,7 @@ module.exports = function registerUnifiedEvents(client) {
           const embed = new EmbedBuilder()
             .setColor(0xFFFFFF)
             .setTitle("¡Bienvenido a " + member.guild.name.slice(0, 200) + "!")
-            .setDescription("¡Hola <@" + member.id +>! Gracias por unirte. Revisa las reglas y disfruta de la comunidad.")
+            .setDescription("¡Hola <@" + member.id + ">! Gracias por unirte. Revisa las reglas y disfruta de la comunidad.")
             .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
             .setFooter({ text: "Miembro #" + member.guild.memberCount })
             .setTimestamp();
