@@ -5,10 +5,12 @@ import copy
 import logging
 import math
 import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
@@ -16,7 +18,7 @@ from datashop.storage import get_guild_data, set_guild_data
 
 log = logging.getLogger("datashop.store")
 
-VALID_ORDER_STATUSES = {"pending", "paid", "completed", "cancelled"}
+VALID_ORDER_STATUSES = {"pending", "paid", "completed", "cancelled", "expired"}
 
 
 def _is_staff(ctx: commands.Context) -> bool:
@@ -163,6 +165,105 @@ class Store(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._inventory_lock = asyncio.Lock()
+
+    async def cog_load(self) -> None:
+        if not self.expire_pending_orders.is_running():
+            self.expire_pending_orders.start()
+
+    async def cog_unload(self) -> None:
+        self.expire_pending_orders.cancel()
+
+    @tasks.loop(minutes=1)
+    async def expire_pending_orders(self) -> None:
+        for guild in list(self.bot.guilds):
+            await self._expire_guild_orders(guild)
+
+    @expire_pending_orders.before_loop
+    async def before_expire_pending_orders(self) -> None:
+        await self.bot.wait_until_ready()
+
+    async def _expire_guild_orders(self, guild: discord.Guild) -> None:
+        settings = get_guild_data("settings.json", guild.id, {})
+        if not isinstance(settings, dict):
+            settings = {}
+        try:
+            expiry_minutes = int(settings.get("order_expiry_minutes", 1440))
+        except (TypeError, ValueError):
+            expiry_minutes = 1440
+        if expiry_minutes <= 0:
+            return
+
+        async with self._inventory_lock:
+            orders = get_guild_data("orders.json", guild.id, [])
+            products = get_guild_data("products.json", guild.id, {})
+            if not isinstance(orders, list) or not isinstance(products, dict):
+                return
+            now = discord.utils.utcnow()
+            cutoff = now - timedelta(minutes=expiry_minutes)
+            products_before = copy.deepcopy(products)
+            changed_orders = False
+            changed_stock = False
+
+            for order in orders:
+                if not isinstance(order, dict) or order.get("status") != "pending":
+                    continue
+                try:
+                    created_at = datetime.fromisoformat(str(order.get("created_at", "")))
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    created_at = created_at.astimezone(timezone.utc)
+                except (TypeError, ValueError):
+                    # Invalid timestamps are kept for manual review, rather than releasing stock blindly.
+                    continue
+                if created_at > cutoff:
+                    continue
+
+                product_id = str(order.get("product_id", ""))
+                product = products.get(product_id)
+                if isinstance(product, dict) and not order.get("stock_restored", False):
+                    try:
+                        quantity = int(order.get("quantity", 0))
+                        stock = int(product.get("stock", 0))
+                    except (TypeError, ValueError, OverflowError):
+                        log.error(
+                            "No se puede caducar el pedido %s: cantidad o stock inválido en el servidor %s",
+                            order.get("id"), guild.id,
+                        )
+                        continue
+                    if quantity < 1 or stock < 0:
+                        log.error(
+                            "No se puede caducar el pedido %s: cantidad o stock fuera de rango en el servidor %s",
+                            order.get("id"), guild.id,
+                        )
+                        continue
+                    product["stock"] = stock + quantity
+                    products[product_id] = product
+                    changed_stock = True
+
+                order["status"] = "expired"
+                order["stock_restored"] = True
+                order["expired_at"] = now.isoformat()
+                order["status_reason"] = "pending_timeout"
+                changed_orders = True
+
+            if not changed_orders:
+                return
+            products_saved = False
+            try:
+                if changed_stock:
+                    set_guild_data("products.json", guild.id, products)
+                    products_saved = True
+                set_guild_data("orders.json", guild.id, orders)
+            except RuntimeError:
+                if products_saved:
+                    try:
+                        set_guild_data("products.json", guild.id, products_before)
+                    except RuntimeError:
+                        log.exception(
+                            "No se pudo revertir el inventario tras fallar la caducidad de pedidos en %s",
+                            guild.id,
+                        )
+                log.exception("No se pudo caducar pedidos pendientes en el servidor %s", guild.id)
 
     @commands.hybrid_group(name="shop", description="Consulta y administra el catálogo y los pedidos.", invoke_without_command=True)
     @commands.guild_only()
@@ -333,6 +434,33 @@ class Store(commands.Cog):
             set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"✅ Stock de **{item.get('name', key)}** establecido en {quantity}.")
 
+    @shop.command(name="image", description="Configura o quita la imagen de un producto.")
+    async def set_product_image(self, ctx: commands.Context, product_id: str, image_url: str) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador para cambiar imágenes.")
+            return
+        remove_image = image_url.strip().casefold() in {"off", "remove", "none"}
+        if not remove_image:
+            parsed = urlparse(image_url.strip())
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                await send_context(ctx, "Indica una URL de imagen válida que empiece por https:// o http://; usa 'off' para quitarla.")
+                return
+            image_url = image_url.strip()
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            key, item = found
+            if remove_image:
+                item.pop("image_url", None)
+            else:
+                item["image_url"] = image_url[:1000]
+            products[key] = item
+            set_guild_data("products.json", ctx.guild.id, products)
+        await send_context(ctx, f"✅ Imagen {'retirada de' if remove_image else 'actualizada para'} **{item.get('name', key)}**.")
+
     @shop.command(name="remove", description="Elimina un producto del catálogo usando su ID.")
     async def remove_product(self, ctx: commands.Context, product_id: str) -> None:
         if not _is_staff(ctx):
@@ -442,6 +570,7 @@ class Store(commands.Cog):
                 "total": total,
                 "status": "pending",
                 "created_at": discord.utils.utcnow().isoformat(),
+                "image_url": str(item.get("image_url", ""))[:1000],
                 "stock_restored": False,
             }
             previous_products = copy.deepcopy(products)
@@ -473,6 +602,10 @@ class Store(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
         embed.add_field(name="Métodos informativos", value=", ".join(methods) if methods else "Consulta al personal.", inline=False)
+        image_url = str(order.get("image_url", "")).strip()
+        parsed_image = urlparse(image_url) if image_url else None
+        if parsed_image and parsed_image.scheme in {"http", "https"} and parsed_image.netloc:
+            embed.set_thumbnail(url=image_url)
         embed.set_footer(text="No hay cobro automático: el personal verificará el pago manualmente.")
         return embed
 
@@ -534,6 +667,20 @@ class Store(commands.Cog):
         embed = discord.Embed(title="📦 Pedidos de la tienda", description="\n".join(lines), color=discord.Color.from_str("#8B5CF6"))
         embed.set_footer(text="No se muestran más de 15 pedidos en esta vista.")
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="order-expiry", description="Configura caducidad automática para pedidos pendientes.")
+    async def set_order_expiry(self, ctx: commands.Context, minutes: int) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Solo el personal de la tienda puede cambiar la caducidad de pedidos.")
+            return
+        if minutes != 0 and not 5 <= minutes <= 10080:
+            await send_context(ctx, "Usa 0 para desactivar la caducidad o un valor entre 5 y 10080 minutos (7 días).")
+            return
+        settings = _settings(ctx)
+        settings["order_expiry_minutes"] = minutes
+        set_guild_data("settings.json", ctx.guild.id, settings)
+        message = "desactivada" if minutes == 0 else f"establecida en {minutes} minutos"
+        await send_context(ctx, f"✅ Caducidad automática de pedidos {message}.")
 
     @shop.command(name="stats", description="Muestra ventas, pedidos e inventario.")
     async def store_stats(self, ctx: commands.Context) -> None:
