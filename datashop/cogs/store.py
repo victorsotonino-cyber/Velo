@@ -33,6 +33,11 @@ def _products(ctx: commands.Context) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _products_for_guild(guild_id: int) -> dict[str, Any]:
+    data = get_guild_data("products.json", guild_id, {})
+    return data if isinstance(data, dict) else {}
+
+
 def _orders(ctx: commands.Context) -> list[dict[str, Any]]:
     data = get_guild_data("orders.json", ctx.guild.id, [])
     return data if isinstance(data, list) else []
