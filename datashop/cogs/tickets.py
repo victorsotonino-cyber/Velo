@@ -445,10 +445,104 @@ class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
+        self._registered_rating_keys: set[tuple[int, int]] = set()
 
     async def cog_load(self) -> None:
         self.bot.add_view(TicketPanelView(self))
         self.bot.add_view(CloseTicketView(self))
+        if not self.autoclose_inactive_tickets.is_running():
+            self.autoclose_inactive_tickets.start()
+
+    async def cog_unload(self) -> None:
+        self.autoclose_inactive_tickets.cancel()
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """Register outstanding ticket rating views once guilds are available."""
+        for guild in list(self.bot.guilds):
+            pending = get_guild_data("pending_ticket_ratings.json", guild.id, [])
+            if not isinstance(pending, list):
+                pending = []
+            ratings = get_guild_data("ticket_ratings.json", guild.id, [])
+            rated = {
+                str(row.get("ticket_id"))
+                for row in ratings
+                if isinstance(row, dict) and row.get("ticket_id") is not None
+            } if isinstance(ratings, list) else set()
+            known = {
+                str(row.get("ticket_id"))
+                for row in pending
+                if isinstance(row, dict) and row.get("ticket_id") is not None
+            }
+            changed = False
+            # Recover closed tickets from before persistent ratings were introduced.
+            for channel in guild.text_channels:
+                owner_id = _ticket_owner(channel)
+                if owner_id is None or _topic_value(channel, "DATASHOP_CLOSED") != "1":
+                    continue
+                if str(channel.id) in rated or str(channel.id) in known:
+                    continue
+                pending.append({
+                    "ticket_id": channel.id,
+                    "owner_id": owner_id,
+                    "created_at": discord.utils.utcnow().isoformat(),
+                })
+                known.add(str(channel.id))
+                changed = True
+            filtered = [
+                row for row in pending
+                if isinstance(row, dict) and str(row.get("ticket_id")) not in rated
+            ]
+            if changed or len(filtered) != len(pending):
+                set_guild_data("pending_ticket_ratings.json", guild.id, filtered)
+            for row in filtered:
+                try:
+                    channel_id = int(row.get("ticket_id", 0))
+                    owner_id = int(row.get("owner_id", 0))
+                except (TypeError, ValueError):
+                    continue
+                key = (guild.id, channel_id)
+                if channel_id <= 0 or owner_id <= 0 or key in self._registered_rating_keys:
+                    continue
+                self.bot.add_view(TicketRatingView(guild.id, channel_id, owner_id))
+                self._registered_rating_keys.add(key)
+
+    @tasks.loop(minutes=2)
+    async def autoclose_inactive_tickets(self) -> None:
+        """Close only tickets for which staff explicitly configured an inactivity timer."""
+        now = discord.utils.utcnow()
+        for guild in list(self.bot.guilds):
+            bot_member = guild.me
+            if bot_member is None:
+                continue
+            for channel in list(guild.text_channels):
+                if _ticket_owner(channel) is None or _topic_value(channel, "DATASHOP_CLOSED") == "1":
+                    continue
+                try:
+                    minutes = int(_topic_value(channel, "DATASHOP_TIMER_MINUTES") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not 5 <= minutes <= 10080 or channel.last_message_id is None:
+                    continue
+                try:
+                    last_message = await channel.fetch_message(channel.last_message_id)
+                    if now - last_message.created_at >= timedelta(minutes=minutes):
+                        await self.close_channel(channel, bot_member)
+                        await self._log_ticket_event(
+                            guild, "Ticket autocerrado por inactividad", channel, bot_member,
+                            f"Inactividad configurada: {minutes} minutos",
+                        )
+                except discord.NotFound:
+                    continue
+                except discord.Forbidden:
+                    log.warning("Sin permiso para comprobar actividad del ticket %s", channel.id)
+                except discord.HTTPException:
+                    log.exception("Falló la comprobación de inactividad del ticket %s", channel.id)
+                await asyncio.sleep(0.05)
+
+    @autoclose_inactive_tickets.before_loop
+    async def before_autoclose(self) -> None:
+        await self.bot.wait_until_ready()
 
     def is_staff(
         self,
