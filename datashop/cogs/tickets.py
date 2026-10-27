@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import io
+import logging
 import re
 
 import discord
@@ -8,6 +10,8 @@ from discord.ext import commands
 
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
+
+log = logging.getLogger("datashop.tickets")
 
 
 def _get_settings(guild_id: int) -> dict:
@@ -42,16 +46,140 @@ def _is_staff(member: discord.Member) -> bool:
     return member.guild_permissions.manage_channels or member.guild_permissions.administrator
 
 
+TICKET_TYPES = {
+    "support": ("Soporte", "🛠️"),
+    "purchase": ("Compras", "🛒"),
+    "refund": ("Reclamación", "↩️"),
+    "other": ("Otros", "💬"),
+}
+TICKET_PRIORITIES = {
+    "low": ("Baja", "🟢"),
+    "normal": ("Normal", "🟡"),
+    "high": ("Alta", "🟠"),
+    "urgent": ("Urgente", "🔴"),
+}
+
+
+class TicketRequestModal(discord.ui.Modal):
+    def __init__(self, cog: "Tickets", ticket_type: str) -> None:
+        label = TICKET_TYPES.get(ticket_type, TICKET_TYPES["support"])[0]
+        super().__init__(title=f"Abrir ticket · {label}", timeout=300)
+        self.cog = cog
+        self.ticket_type = ticket_type if ticket_type in TICKET_TYPES else "support"
+        self.subject = discord.ui.TextInput(
+            label="Asunto",
+            placeholder="Resume tu consulta",
+            min_length=3,
+            max_length=100,
+        )
+        self.details = discord.ui.TextInput(
+            label="Descripción",
+            placeholder="Explica lo que necesitas. No incluyas contraseñas ni tokens.",
+            style=discord.TextStyle.paragraph,
+            min_length=5,
+            max_length=1200,
+        )
+        self.add_item(self.subject)
+        self.add_item(self.details)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este formulario solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            channel = await self.cog.create_ticket(
+                interaction.guild,
+                interaction.user,
+                ticket_type=self.ticket_type,
+                subject=str(self.subject),
+                details=str(self.details),
+            )
+        except discord.HTTPException:
+            log.exception("No se pudo crear un ticket para el usuario %s", interaction.user.id)
+            channel = None
+        if channel is None:
+            await interaction.followup.send(
+                "No pude crear el ticket. Comprueba si ya alcanzaste tu límite, si estás bloqueado o si faltan permisos.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(f"Tu ticket está listo: {channel.mention}", ephemeral=True)
+
+
+class TicketTypeSelect(discord.ui.Select):
+    def __init__(self, cog: "Tickets") -> None:
+        options = [
+            discord.SelectOption(label=label, value=key, emoji=emoji, description=f"Abrir un ticket de {label.lower()}")
+            for key, (label, emoji) in TICKET_TYPES.items()
+        ]
+        super().__init__(
+            placeholder="Selecciona el tipo de ticket…",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="datashop:tickets:type",
+            row=0,
+        )
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(TicketRequestModal(self.cog, self.values[0]))
+
+
+class TicketRatingView(discord.ui.View):
+    def __init__(self, guild_id: int, channel_id: int, owner_id: int) -> None:
+        super().__init__(timeout=86400)
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.owner_id = owner_id
+        for score in range(1, 6):
+            button = discord.ui.Button(
+                label=f"{score}/5",
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"datashop:ticket-rating:{channel_id}:{score}",
+            )
+            button.callback = self._callback(score)
+            self.add_item(button)
+
+    def _callback(self, score: int):
+        async def callback(interaction: discord.Interaction) -> None:
+            if interaction.user.id != self.owner_id:
+                await interaction.response.send_message("Esta encuesta pertenece a otro cliente.")
+                return
+            ratings = get_guild_data("ticket_ratings.json", self.guild_id, [])
+            if not isinstance(ratings, list):
+                ratings = []
+            if any(isinstance(item, dict) and item.get("ticket_id") == self.channel_id for item in ratings):
+                await interaction.response.send_message("Ya registraste una valoración para este ticket.")
+                return
+            ratings.append({
+                "ticket_id": self.channel_id,
+                "user_id": self.owner_id,
+                "rating": score,
+                "created_at": discord.utils.utcnow().isoformat(),
+            })
+            set_guild_data("ticket_ratings.json", self.guild_id, ratings)
+            await interaction.response.send_message(f"Gracias por tu valoración: {score}/5.")
+            try:
+                await interaction.message.edit(view=None)
+            except discord.HTTPException:
+                pass
+        return callback
+
+
 class TicketPanelView(discord.ui.View):
     def __init__(self, cog: "Tickets") -> None:
         super().__init__(timeout=None)
         self.cog = cog
+        self.add_item(TicketTypeSelect(cog))
 
     @discord.ui.button(
-        label="Abrir ticket",
+        label="Abrir ticket de soporte",
         emoji="🎫",
         style=discord.ButtonStyle.primary,
         custom_id="datashop:tickets:open",
+        row=1,
     )
     async def open_ticket(
         self,
@@ -61,18 +189,7 @@ class TicketPanelView(discord.ui.View):
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            channel = await self.cog.create_ticket(interaction.guild, interaction.user)
-        except discord.HTTPException:
-            channel = None
-        if channel is None:
-            await interaction.followup.send(
-                "Ya tienes un ticket abierto o no pude crear el canal. Revisa la categoría y mis permisos.",
-                ephemeral=True,
-            )
-        else:
-            await interaction.followup.send(f"Tu ticket está listo: {channel.mention}", ephemeral=True)
+        await interaction.response.send_modal(TicketRequestModal(self.cog, "support"))
 
 
 class CloseTicketView(discord.ui.View):
@@ -109,9 +226,85 @@ class CloseTicketView(discord.ui.View):
         await interaction.followup.send("Ticket cerrado.", ephemeral=True)
 
 
+    @discord.ui.button(
+        label="Reclamar",
+        emoji="🙋",
+        style=discord.ButtonStyle.secondary,
+        custom_id="datashop:tickets:claim",
+        row=0,
+    )
+    async def claim_ticket_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este botón solo funciona en un servidor.", ephemeral=True)
+            return
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not _ticket_owner(channel):
+            await interaction.response.send_message("Este canal no es un ticket de DATASHOP.", ephemeral=True)
+            return
+        if not self.cog.is_staff(interaction.user):
+            await interaction.response.send_message("Solo el personal configurado puede reclamar tickets.", ephemeral=True)
+            return
+        if _topic_value(channel, "DATASHOP_CLOSED") == "1":
+            await interaction.response.send_message("Reabre el ticket antes de reclamarlo.", ephemeral=True)
+            return
+        current = _topic_value(channel, "DATASHOP_CLAIMED_BY")
+        if current and current != str(interaction.user.id):
+            await interaction.response.send_message(f"Ya está reclamado por <@{current}>.", ephemeral=True)
+            return
+        try:
+            await channel.edit(topic=_set_topic_value(channel, "DATASHOP_CLAIMED_BY", str(interaction.user.id)))
+        except discord.HTTPException:
+            await interaction.response.send_message("No pude reclamarlo; comprueba mis permisos.", ephemeral=True)
+            return
+        await interaction.response.send_message("✅ Ticket reclamado.", ephemeral=True)
+
+    @discord.ui.button(
+        label="Reabrir",
+        emoji="🔓",
+        style=discord.ButtonStyle.success,
+        custom_id="datashop:tickets:reopen",
+        row=1,
+    )
+    async def reopen_ticket_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este botón solo funciona en un servidor.", ephemeral=True)
+            return
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not _ticket_owner(channel):
+            await interaction.response.send_message("Este canal no es un ticket de DATASHOP.", ephemeral=True)
+            return
+        if not self.cog.is_staff(interaction.user):
+            await interaction.response.send_message("Solo el personal puede reabrir tickets desde el botón.", ephemeral=True)
+            return
+        if _topic_value(channel, "DATASHOP_CLOSED") != "1":
+            await interaction.response.send_message("Este ticket ya está abierto.", ephemeral=True)
+            return
+        owner_id = _ticket_owner(channel)
+        owner = channel.guild.get_member(owner_id) if owner_id else None
+        if owner is None and owner_id:
+            try:
+                owner = await channel.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        try:
+            if owner:
+                await channel.set_permissions(
+                    owner, view_channel=True, send_messages=True, read_message_history=True,
+                    attach_files=True, embed_links=True,
+                )
+            topic = _set_topic_value(channel, "DATASHOP_CLOSED", "0")
+            await channel.edit(name=re.sub(r"^cerrado-", "", channel.name)[:100], topic=topic)
+            await channel.send(f"🔓 Ticket reabierto por {interaction.user.mention}.")
+        except discord.HTTPException:
+            await interaction.response.send_message("No pude reabrir el ticket; revisa mis permisos.", ephemeral=True)
+            return
+        await interaction.response.send_message("✅ Ticket reabierto.", ephemeral=True)
+
+
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
 
     async def cog_load(self) -> None:
         self.bot.add_view(TicketPanelView(self))
@@ -122,24 +315,96 @@ class Tickets(commands.Cog):
             return True
         settings = _get_settings(member.guild.id)
         role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
-        return bool(role_id and any(role.id == int(role_id) for role in member.roles))
+        try:
+            parsed_role_id = int(role_id) if role_id else None
+        except (TypeError, ValueError):
+            parsed_role_id = None
+        return bool(parsed_role_id and any(role.id == parsed_role_id for role in member.roles))
+
+    async def _log_ticket_event(
+        self,
+        guild: discord.Guild,
+        action: str,
+        channel: discord.TextChannel,
+        actor: discord.Member | None = None,
+        extra: str = "",
+    ) -> None:
+        settings = _get_settings(guild.id)
+        channel_id = settings.get("logs_channel_id") or self.bot.settings.logs_channel_id
+        try:
+            log_channel = guild.get_channel(int(channel_id)) if channel_id else None
+        except (TypeError, ValueError):
+            log_channel = None
+        if not isinstance(log_channel, discord.TextChannel):
+            return
+        owner_id = _ticket_owner(channel)
+        description = f"Canal: {channel.mention} (ID {channel.id})"
+        if owner_id:
+            description += f"\nCliente: <@{owner_id}>"
+        if actor:
+            description += f"\nAcción de: {actor.mention}"
+        if extra:
+            description += f"\n{extra[:500]}"
+        embed = discord.Embed(
+            title=action[:250],
+            description=description[:3800],
+            color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
+        )
+        try:
+            await log_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            log.exception("No se pudo publicar un log de ticket en %s", guild.id)
 
     async def create_ticket(
         self,
         guild: discord.Guild,
         member: discord.Member,
+        *,
+        ticket_type: str = "support",
+        subject: str = "Consulta de soporte",
+        details: str = "Sin detalles adicionales",
     ) -> discord.TextChannel | None:
+        key = (guild.id, member.id)
+        lock = self._creation_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            return await self._create_ticket_locked(
+                guild, member, ticket_type=ticket_type, subject=subject, details=details
+            )
+
+    async def _create_ticket_locked(
+        self,
+        guild: discord.Guild,
+        member: discord.Member,
+        *,
+        ticket_type: str,
+        subject: str,
+        details: str,
+    ) -> discord.TextChannel | None:
+        settings = _get_settings(guild.id)
+        blacklist = get_guild_data("ticket_blacklist.json", guild.id, {})
+        if isinstance(blacklist, dict) and str(member.id) in blacklist:
+            return None
+
+        try:
+            max_open = max(1, min(5, int(settings.get("max_open_tickets", 1))))
+        except (TypeError, ValueError):
+            max_open = 1
         existing = [
             channel for channel in guild.text_channels
             if _ticket_owner(channel) == member.id and _topic_value(channel, "DATASHOP_CLOSED") != "1"
         ]
-        if existing:
+        if len(existing) >= max_open:
             return None
 
-        settings = _get_settings(guild.id)
-        category_id = settings.get("ticket_category_id") or self.bot.settings.ticket_category_id
+        ticket_type = ticket_type if ticket_type in TICKET_TYPES else "support"
+        routes = settings.get("ticket_types", {})
+        route = routes.get(ticket_type, {}) if isinstance(routes, dict) else {}
+        if not isinstance(route, dict):
+            route = {}
+        category_id = route.get("category_id") or settings.get("ticket_category_id") or self.bot.settings.ticket_category_id
         category = guild.get_channel(int(category_id)) if category_id else None
-        support_role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
+        support_role_id = route.get("staff_role_id") or settings.get("staff_role_id") or self.bot.settings.staff_role_id
         support_role = guild.get_role(int(support_role_id)) if support_role_id else None
 
         overwrites: dict[discord.abc.Snowflake, discord.PermissionOverwrite] = {
@@ -176,30 +441,42 @@ class Tickets(commands.Cog):
             settings["ticket_category_id"] = category.id
             set_guild_data("settings.json", guild.id, settings)
 
+        label, emoji = TICKET_TYPES[ticket_type]
         safe_name = "".join(ch.lower() if ch.isalnum() else "-" for ch in member.display_name)
-        safe_name = "-".join(part for part in safe_name.split("-") if part)[:35] or "cliente"
+        safe_name = "-".join(part for part in safe_name.split("-") if part)[:25] or "cliente"
         channel = await guild.create_text_channel(
-            name=f"ticket-{safe_name}"[:90],
+            name=f"ticket-{ticket_type}-{safe_name}"[:90],
             category=category,
             overwrites=overwrites,
-            topic=f"DATASHOP_OWNER={member.id};DATASHOP_CLOSED=0",
-            reason=f"Ticket abierto por {member} ({member.id})",
+            topic=f"DATASHOP_OWNER={member.id};DATASHOP_CLOSED=0;DATASHOP_TYPE={ticket_type};DATASHOP_PRIORITY=normal",
+            reason=f"Ticket de {label} abierto por {member} ({member.id})",
         )
         embed = discord.Embed(
-            title="🎫 DATASHOP • Ticket abierto",
+            title=f"{emoji} DATASHOP • {label}",
             description=(
-                f"Hola {member.mention}. Describe tu consulta con el mayor detalle posible.\n\n"
-                "El equipo de soporte te atenderá aquí. No publiques contraseñas ni tokens."
+                f"Cliente: {member.mention}\nAsunto: **{subject.strip()[:100]}**\n\n"
+                f"{details.strip()[:1200]}\n\n"
+                "El equipo de soporte atenderá esta solicitud aquí. No publiques contraseñas, tokens ni datos de pago privados."
             ),
             color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
         )
-        embed.set_footer(text="Usa los botones y comandos del ticket para gestionarlo.")
-        await channel.send(
-            content=support_role.mention if support_role else None,
-            embed=embed,
-            view=CloseTicketView(self),
-            allowed_mentions=discord.AllowedMentions(roles=bool(support_role), users=False),
-        )
+        embed.set_footer(text=f"Ticket ID: {channel.id} • Prioridad: normal")
+        try:
+            await channel.send(
+                content=support_role.mention if support_role else None,
+                embed=embed,
+                view=CloseTicketView(self),
+                allowed_mentions=discord.AllowedMentions(roles=bool(support_role), users=False),
+            )
+        except discord.HTTPException:
+            log.exception("No se pudo inicializar el ticket %s", channel.id)
+            try:
+                await channel.delete(reason="No se pudo enviar el panel inicial del ticket")
+            except discord.HTTPException:
+                pass
+            return None
+        await self._log_ticket_event(guild, "Ticket creado", channel, member, f"Tipo: {label}")
         return channel
 
     async def close_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
@@ -211,6 +488,16 @@ class Tickets(commands.Cog):
         new_name = channel.name if channel.name.startswith("cerrado-") else f"cerrado-{channel.name}"
         await channel.edit(name=new_name[:100], topic=topic)
         await channel.send(f"🔒 Ticket cerrado por {member.mention}.")
+        await self._log_ticket_event(channel.guild, "Ticket cerrado", channel, member)
+        if owner:
+            try:
+                await owner.send(
+                    f"Tu ticket **{channel.name}** en **{channel.guild.name}** se ha cerrado. "
+                    "Valora la atención del 1 al 5:",
+                    view=TicketRatingView(channel.guild.id, channel.id, owner.id),
+                )
+            except discord.HTTPException:
+                pass
 
     async def reopen_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
@@ -228,6 +515,7 @@ class Tickets(commands.Cog):
         new_name = re.sub(r"^cerrado-", "", channel.name)
         await channel.edit(name=new_name[:100], topic=topic)
         await channel.send(f"🔓 Ticket reabierto por {member.mention}.")
+        await self._log_ticket_event(channel.guild, "Ticket reabierto", channel, member)
 
     def _valid_ticket(self, channel: discord.TextChannel) -> bool:
         return _ticket_owner(channel) is not None
@@ -261,8 +549,8 @@ class Tickets(commands.Cog):
         embed = discord.Embed(
             title="DATASHOP • Centro de soporte",
             description=(
-                "Pulsa el botón para abrir un canal privado con el equipo de soporte.\n\n"
-                "El sistema permite reclamar, cerrar, reabrir y añadir participantes al ticket."
+                "Selecciona una categoría y completa el formulario para abrir un canal privado.\n\n"
+                "🛠️ Soporte · 🛒 Compras · ↩️ Reclamación · 💬 Otros"
             ),
             color=discord.Color.from_str("#8B5CF6"),
         )
@@ -375,6 +663,290 @@ class Tickets(commands.Cog):
             return
         await ctx.channel.set_permissions(member, overwrite=None)
         await send_context(ctx, f"✅ Se retiró el acceso de {member.mention} al ticket.")
+
+    @ticket.command(name="route", description="Configura la categoría y el rol de un tipo de ticket.")
+    async def set_route(
+        self,
+        ctx: commands.Context,
+        ticket_type: str,
+        category: discord.CategoryChannel,
+        staff_role: discord.Role | None = None,
+    ) -> None:
+        if not isinstance(ctx.author, discord.Member) or not ctx.author.guild_permissions.manage_guild:
+            await send_context(ctx, "Necesitas Gestionar servidor para configurar rutas.")
+            return
+        key = ticket_type.strip().casefold()
+        if key not in TICKET_TYPES:
+            await send_context(ctx, "Tipos válidos: support, purchase, refund y other.")
+            return
+        settings = _get_settings(ctx.guild.id)
+        routes = settings.get("ticket_types", {})
+        if not isinstance(routes, dict):
+            routes = {}
+        route = {"category_id": category.id}
+        if staff_role is not None:
+            route["staff_role_id"] = staff_role.id
+        routes[key] = route
+        settings["ticket_types"] = routes
+        set_guild_data("settings.json", ctx.guild.id, settings)
+        await send_context(ctx, f"Ruta de {TICKET_TYPES[key][0]} configurada en {category.mention}.")
+
+    @ticket.command(name="max-open", description="Establece el máximo de tickets abiertos por usuario.")
+    async def set_max_open(self, ctx: commands.Context, amount: int) -> None:
+        if not isinstance(ctx.author, discord.Member) or not ctx.author.guild_permissions.manage_guild:
+            await send_context(ctx, "Necesitas Gestionar servidor para cambiar el límite.")
+            return
+        if not 1 <= amount <= 5:
+            await send_context(ctx, "El límite debe estar entre 1 y 5.")
+            return
+        settings = _get_settings(ctx.guild.id)
+        settings["max_open_tickets"] = amount
+        set_guild_data("settings.json", ctx.guild.id, settings)
+        await send_context(ctx, f"✅ Máximo de tickets abiertos por usuario: {amount}.")
+
+    @ticket.command(name="blacklist-add", description="Impide que un miembro abra tickets.")
+    async def blacklist_add(self, ctx: commands.Context, member: discord.Member, *, reason: str = "Sin motivo indicado") -> None:
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede bloquear usuarios del sistema de tickets.")
+            return
+        blocked = get_guild_data("ticket_blacklist.json", ctx.guild.id, {})
+        if not isinstance(blocked, dict):
+            blocked = {}
+        blocked[str(member.id)] = {
+            "reason": reason[:300],
+            "moderator_id": ctx.author.id,
+            "created_at": discord.utils.utcnow().isoformat(),
+        }
+        set_guild_data("ticket_blacklist.json", ctx.guild.id, blocked)
+        await send_context(ctx, f"🚫 {member.mention} no puede abrir tickets. Motivo: {reason[:250]}.")
+
+    @ticket.command(name="blacklist-remove", description="Permite de nuevo que un miembro abra tickets.")
+    async def blacklist_remove(self, ctx: commands.Context, member: discord.Member) -> None:
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede administrar la lista de bloqueo.")
+            return
+        blocked = get_guild_data("ticket_blacklist.json", ctx.guild.id, {})
+        if not isinstance(blocked, dict) or str(member.id) not in blocked:
+            await send_context(ctx, "Ese miembro no está bloqueado para tickets.")
+            return
+        blocked.pop(str(member.id), None)
+        set_guild_data("ticket_blacklist.json", ctx.guild.id, blocked)
+        await send_context(ctx, f"✅ {member.mention} puede abrir tickets de nuevo.")
+
+    @ticket.command(name="rename", description="Cambia el nombre del ticket actual.")
+    async def rename_ticket(self, ctx: commands.Context, *, name: str) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede renombrar tickets.")
+            return
+        safe_name = "".join(ch.lower() if ch.isalnum() else "-" for ch in name)
+        safe_name = "-".join(part for part in safe_name.split("-") if part)[:90] or "ticket"
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1" and not safe_name.startswith("cerrado-"):
+            safe_name = f"cerrado-{safe_name}"[:100]
+        await ctx.channel.edit(name=safe_name, reason=f"Ticket renombrado por {ctx.author}")
+        await send_context(ctx, f"✅ Ticket renombrado a **{safe_name}**.")
+
+    @ticket.command(name="transfer", description="Transfiere el ticket a otro propietario.")
+    async def transfer_ticket(self, ctx: commands.Context, member: discord.Member) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede transferir tickets.")
+            return
+        if member.bot or member.id == _ticket_owner(ctx.channel):
+            await send_context(ctx, "Elige un miembro válido que no sea el propietario actual ni un bot.")
+            return
+        old_owner_id = _ticket_owner(ctx.channel)
+        old_owner = ctx.guild.get_member(old_owner_id) if old_owner_id else None
+        await ctx.channel.set_permissions(
+            member, view_channel=True, send_messages=not _is_closed(ctx.channel),
+            read_message_history=True, attach_files=True, embed_links=True,
+        )
+        if old_owner:
+            await ctx.channel.set_permissions(old_owner, overwrite=None)
+        await ctx.channel.edit(topic=_set_topic_value(ctx.channel, "DATASHOP_OWNER", str(member.id)))
+        await send_context(ctx, f"✅ Ticket transferido a {member.mention}.")
+        await self._log_ticket_event(ctx.guild, "Ticket transferido", ctx.channel, ctx.author, f"Nuevo propietario: {member.mention}")
+
+    @ticket.command(name="priority", description="Define la prioridad del ticket.")
+    async def set_priority(self, ctx: commands.Context, priority: str) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede cambiar prioridades.")
+            return
+        key = priority.strip().casefold()
+        if key not in TICKET_PRIORITIES:
+            await send_context(ctx, "Prioridades válidas: low, normal, high, urgent.")
+            return
+        await ctx.channel.edit(topic=_set_topic_value(ctx.channel, "DATASHOP_PRIORITY", key))
+        label, emoji = TICKET_PRIORITIES[key]
+        await send_context(ctx, f"{emoji} Prioridad actualizada: **{label}**.")
+
+    @ticket.command(name="move", description="Mueve el ticket a otra categoría.")
+    async def move_ticket(self, ctx: commands.Context, category: discord.CategoryChannel) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede mover tickets.")
+            return
+        await ctx.channel.edit(category=category, reason=f"Ticket movido por {ctx.author}")
+        await send_context(ctx, f"✅ Ticket movido a {category.mention}.")
+
+    @ticket.group(name="note", description="Administra notas privadas del ticket.", invoke_without_command=True)
+    async def note(self, ctx: commands.Context) -> None:
+        await send_context(ctx, "Usa ticket note add o ticket note list.")
+
+    @note.command(name="add", description="Añade una nota interna visible solo al personal.")
+    async def note_add(self, ctx: commands.Context, *, note: str) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede escribir notas internas.")
+            return
+        data = get_guild_data("ticket_notes.json", ctx.guild.id, {})
+        if not isinstance(data, dict):
+            data = {}
+        notes = data.get(str(ctx.channel.id), [])
+        if not isinstance(notes, list):
+            notes = []
+        notes.append({
+            "note": note.strip()[:1000],
+            "author_id": ctx.author.id,
+            "author": str(ctx.author),
+            "created_at": discord.utils.utcnow().isoformat(),
+        })
+        data[str(ctx.channel.id)] = notes[-100:]
+        set_guild_data("ticket_notes.json", ctx.guild.id, data)
+        await send_context(ctx, "🔒 Nota interna guardada.", ephemeral=ctx.interaction is not None)
+
+    @note.command(name="list", description="Lee las notas internas del ticket.")
+    async def note_list(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede leer notas internas.")
+            return
+        data = get_guild_data("ticket_notes.json", ctx.guild.id, {})
+        notes = data.get(str(ctx.channel.id), []) if isinstance(data, dict) else []
+        lines = [
+            f"**{i}.** {item.get('note', '')[:400]} — {item.get('author', 'staff')}"
+            for i, item in enumerate(notes[-10:], start=max(1, len(notes) - 9))
+            if isinstance(item, dict)
+        ]
+        embed = discord.Embed(title="🔒 Notas internas", description="\n".join(lines) or "No hay notas.", color=discord.Color.from_str("#8B5CF6"))
+        if ctx.interaction is not None:
+            await send_context(ctx, embed=embed, ephemeral=True)
+        else:
+            try:
+                await ctx.author.send(embed=embed)
+                await send_context(ctx, "Te envié las notas internas por mensaje privado.")
+            except discord.HTTPException:
+                await send_context(ctx, "No pude enviarte las notas por privado; comprueba si tienes los mensajes privados desactivados.")
+
+    @ticket.command(name="list", description="Lista los tickets abiertos.")
+    async def list_tickets(self, ctx: commands.Context, member: discord.Member | None = None) -> None:
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede consultar los tickets.")
+            return
+        items = [
+            channel for channel in ctx.guild.text_channels
+            if self._valid_ticket(channel) and _topic_value(channel, "DATASHOP_CLOSED") != "1"
+            and (member is None or _ticket_owner(channel) == member.id)
+        ]
+        lines = []
+        for channel in items[:15]:
+            owner_id = _ticket_owner(channel)
+            claimed = _topic_value(channel, "DATASHOP_CLAIMED_BY")
+            priority = _topic_value(channel, "DATASHOP_PRIORITY") or "normal"
+            label, emoji = TICKET_PRIORITIES.get(priority, TICKET_PRIORITIES["normal"])
+            lines.append(f"{channel.mention} · <@{owner_id}> · {emoji} {label}" + (f" · asignado a <@{claimed}>" if claimed else ""))
+        embed = discord.Embed(title="🎫 Tickets abiertos", description="\n".join(lines) or "No hay tickets abiertos.", color=discord.Color.from_str("#8B5CF6"))
+        if len(items) > 15:
+            embed.set_footer(text=f"Mostrando 15 de {len(items)} tickets.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @ticket.command(name="stats", description="Muestra estadísticas básicas de tickets.")
+    async def ticket_stats(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede consultar estadísticas.")
+            return
+        all_items = [channel for channel in ctx.guild.text_channels if self._valid_ticket(channel)]
+        opened = [channel for channel in all_items if _topic_value(channel, "DATASHOP_CLOSED") != "1"]
+        claimed = [channel for channel in opened if _topic_value(channel, "DATASHOP_CLAIMED_BY")]
+        ratings = get_guild_data("ticket_ratings.json", ctx.guild.id, [])
+        valid_ratings = [item.get("rating") for item in ratings if isinstance(item, dict) and isinstance(item.get("rating"), int)] if isinstance(ratings, list) else []
+        average = sum(valid_ratings) / len(valid_ratings) if valid_ratings else None
+        embed = discord.Embed(title="📊 Estadísticas de tickets", color=discord.Color.from_str("#8B5CF6"))
+        embed.add_field(name="Abiertos", value=str(len(opened)), inline=True)
+        embed.add_field(name="Cerrados en canales archivados", value=str(len(all_items) - len(opened)), inline=True)
+        embed.add_field(name="Reclamados", value=str(len(claimed)), inline=True)
+        embed.add_field(name="Valoración media", value=f"{average:.2f}/5 ({len(valid_ratings)})" if average is not None else "Sin valoraciones", inline=False)
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @ticket.command(name="delete", description="Guarda la transcripción en logs y elimina un ticket cerrado.")
+    async def delete_ticket(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal puede eliminar tickets.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") != "1":
+            await send_context(ctx, "Cierra el ticket antes de eliminarlo.")
+            return
+
+        channel = ctx.channel
+        settings = _get_settings(ctx.guild.id)
+        logs_id = settings.get("logs_channel_id") or self.bot.settings.logs_channel_id
+        try:
+            logs_channel = ctx.guild.get_channel(int(logs_id)) if logs_id else None
+        except (TypeError, ValueError):
+            logs_channel = None
+        if not isinstance(logs_channel, discord.TextChannel):
+            await send_context(ctx, "Configura el canal de registros con /botconfig logs. No eliminé el ticket.")
+            return
+
+        lines = [
+            f"Transcripción DATASHOP: {channel.name} ({channel.id})",
+            f"Servidor: {ctx.guild.name} ({ctx.guild.id})",
+            f"Generada: {discord.utils.utcnow().isoformat()}",
+            "-" * 70,
+        ]
+        try:
+            async for message in channel.history(limit=500, oldest_first=True):
+                timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+                body = (message.clean_content or "[sin texto]").replace("\n", " ")[:1800]
+                if message.attachments:
+                    body += " | Adjuntos: " + ", ".join(a.url for a in message.attachments[:5])
+                if message.embeds:
+                    body += f" | Embeds: {len(message.embeds)}"
+                lines.append(f"[{timestamp}] {message.author} ({message.author.id}): {body}")
+        except discord.HTTPException:
+            await send_context(ctx, "No pude leer el historial. El ticket no se eliminó.")
+            return
+
+        payload = "\n".join(lines).encode("utf-8")
+        transcript_file = discord.File(io.BytesIO(payload), filename=f"{channel.name}-transcript.txt")
+        try:
+            await logs_channel.send(
+                content=f"Transcripción del ticket eliminado **{channel.name}** (ID {channel.id}).",
+                file=transcript_file,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude guardar la transcripción en logs. El ticket no se eliminó.")
+            return
+
+        await send_context(ctx, "Transcripción guardada; eliminando el ticket.")
+        await channel.delete(reason=f"Ticket eliminado por {ctx.author} tras guardar transcript")
 
     @ticket.command(name="transcript", description="Genera un registro de texto del ticket.")
     async def transcript(self, ctx: commands.Context) -> None:

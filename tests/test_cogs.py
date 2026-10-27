@@ -49,12 +49,16 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             ticket_group = commands_by_name["ticket"]
             ticket_names = {command.name for command in ticket_group.commands}
             expected_ticket_commands = {
-                "setup", "close", "claim", "unclaim", "reopen", "add", "remove", "transcript",
+                "setup", "close", "claim", "unclaim", "reopen", "add", "remove", "rename",
+                "transfer", "priority", "move", "route", "max-open", "blacklist-add",
+                "blacklist-remove", "note", "list", "stats", "delete", "transcript",
             }
             self.assertTrue(
                 expected_ticket_commands.issubset(ticket_names),
                 f"Faltan subcomandos ticket: {sorted(expected_ticket_commands - ticket_names)}",
             )
+            note_group = next(command for command in ticket_group.commands if command.name == "note")
+            self.assertTrue({"add", "list"}.issubset({command.name for command in note_group.commands}))
 
             shop_group = commands_by_name["shop"]
             shop_names = {command.name for command in shop_group.commands}
