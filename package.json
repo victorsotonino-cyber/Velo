@@ -5,7 +5,7 @@
   "description": "DATASHOP Discord bot built with Node.js and discord.js v14",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node deploy-commands.js && node index.js",
     "deploy": "node deploy-commands.js",
     "check": "node --check index.js && node --check config.js && node --check deploy-commands.js && node --check src/commands/ping.js && node --check src/commands/help.js",
     "test": "node --test tests/*.test.js"
