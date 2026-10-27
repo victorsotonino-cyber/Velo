@@ -80,12 +80,23 @@ require("./ticket-configurator")(client);
 require("./ticket-tool-x-automation")(client);
 require("./gifted-events")(client);
 
+function normalizeCommandOptions(command) {
+  if (!command || !Array.isArray(command.options)) return command;
+  // Discord exige que las opciones obligatorias precedan a las opcionales,
+  // también dentro de subcomandos. Orden estable para no alterar opciones equivalentes.
+  command.options = command.options
+    .map((option, index) => ({ option: normalizeCommandOptions(option), index }))
+    .sort((a, b) => Number(Boolean(b.option.required)) - Number(Boolean(a.option.required)) || a.index - b.index)
+    .map(entry => entry.option);
+  return command;
+}
+
 async function registerCommands() {
   if (!config.clientId || !config.guildId) {
     console.warn("CLIENT_ID/GUILD_ID no configurados; no se registrarán comandos.");
     return;
   }
-  const body = [...client.commands.values()].map(c => c.data.toJSON());
+  const body = [...client.commands.values()].map(c => normalizeCommandOptions(c.data.toJSON()));
   const rest = new REST({ version: "10" }).setToken(config.token);
   await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), { body });
   console.log("Comandos slash registrados:", body.length);
