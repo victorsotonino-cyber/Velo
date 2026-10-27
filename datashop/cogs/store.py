@@ -609,23 +609,34 @@ class Store(commands.Cog):
             if order.get("status") != "pending":
                 await send_context(ctx, "Solo puedes cancelar pedidos pendientes. Para pedidos ya pagados, contacta al personal.")
                 return
-            if not order.get("stock_restored", False):
-                products = _products(ctx)
-                product_id = str(order.get("product_id", ""))
-                product = products.get(product_id)
-                if isinstance(product, dict):
+
+            products_before: dict[str, Any] | None = None
+            products_saved = False
+            try:
+                if not order.get("stock_restored", False):
+                    products = _products(ctx)
+                    products_before = copy.deepcopy(products)
+                    product_id = str(order.get("product_id", ""))
+                    product = products.get(product_id)
+                    if isinstance(product, dict):
+                        product["stock"] = max(0, _safe_int(product.get("stock", 0))) + max(0, _safe_int(order.get("quantity", 1), 1))
+                        products[product_id] = product
+                        set_guild_data("products.json", ctx.guild.id, products)
+                        products_saved = True
+                    order["stock_restored"] = True
+                order["status"] = "cancelled"
+                order["cancelled_at"] = discord.utils.utcnow().isoformat()
+                order["cancelled_by"] = ctx.author.id
+                set_guild_data("orders.json", ctx.guild.id, orders)
+            except RuntimeError:
+                if products_saved and products_before is not None:
                     try:
-                        product["stock"] = max(0, int(product.get("stock", 0))) + int(order.get("quantity", 1))
-                    except (TypeError, ValueError):
-                        await send_context(ctx, "No pude devolver el stock; contacta al personal.")
-                        return
-                    products[product_id] = product
-                    set_guild_data("products.json", ctx.guild.id, products)
-                order["stock_restored"] = True
-            order["status"] = "cancelled"
-            order["cancelled_at"] = discord.utils.utcnow().isoformat()
-            order["cancelled_by"] = ctx.author.id
-            set_guild_data("orders.json", ctx.guild.id, orders)
+                        set_guild_data("products.json", ctx.guild.id, products_before)
+                    except RuntimeError:
+                        log.exception("No se pudo restaurar el inventario tras un fallo cancelando el pedido %s", order_id)
+                log.exception("No se pudo guardar la cancelación del pedido %s", order_id)
+                await send_context(ctx, "No pude guardar la cancelación de forma segura. No vuelvas a intentarlo repetidamente; avisa al personal para revisar el pedido y el stock.")
+                return
         await send_context(ctx, f"✅ Pedido {order.get('id')} cancelado; el stock reservado se ha devuelto.")
 
     @shop.command(name="order-status", description="Actualiza el estado de un pedido tras comprobarlo.")
