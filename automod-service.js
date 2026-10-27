@@ -2,6 +2,7 @@
 
 const { PermissionFlagsBits, EmbedBuilder } = require("discord.js");
 const config = require("./config");
+const { getGuildSettings } = require("./guild-settings");
 
 const bursts = new Map();
 const STATE_TTL_MS = 60000;
@@ -28,9 +29,11 @@ function isExempt(member) {
 }
 
 async function logViolation(guild, user, reason, content) {
-  const channelId = config.channels.logs;
+  const settings = getGuildSettings(guild.id);
+  const channelId = settings.logsChannelId || (guild.id === config.guildId ? config.channels.logs : null);
   if (!channelId) return;
-  const channel = guild.channels.cache.get(channelId);
+  const channel = guild.channels.cache.get(channelId) ||
+    await guild.channels.fetch(channelId).catch(() => null);
   if (!channel || !channel.isTextBased()) return;
 
   const embed = new EmbedBuilder()
@@ -50,7 +53,12 @@ async function logViolation(guild, user, reason, content) {
 }
 
 async function processMessage(message) {
-  if (!config.automod.enabled || !message.guild || message.author.bot || !message.member) return false;
+  if (!message.guild || message.author.bot || !message.member) return false;
+  const guildSettings = getGuildSettings(message.guild.id);
+  const automodEnabled = guildSettings.automodEnabled === null
+    ? config.automod.enabled
+    : guildSettings.automodEnabled;
+  if (!automodEnabled) return false;
   if (isExempt(message.member)) return false;
 
   const now = Date.now();
