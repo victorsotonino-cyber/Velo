@@ -12,6 +12,9 @@ from datashop.storage import get_guild_data, set_guild_data
 
 log = logging.getLogger("datashop.community")
 
+# Existing positive reputation confirmations supplied by the store owner.
+LEGIT_INITIAL_COUNT = 19
+
 
 def _normalize_legit_votes(raw: object) -> dict[str, str]:
     """Keep one valid yes/no vote per numeric Discord user ID."""
@@ -28,7 +31,17 @@ def _legit_yes_count(raw: object) -> int:
     return sum(vote == "yes" for vote in _normalize_legit_votes(raw).values())
 
 
-def _legit_embed(guild: discord.Guild, yes_count: int) -> discord.Embed:
+def _legit_display_count(raw_votes: object, starting_count: object = LEGIT_INITIAL_COUNT) -> int:
+    """Add recorded yes votes to the configured starting reputation count."""
+    try:
+        baseline = int(starting_count)
+    except (TypeError, ValueError, OverflowError):
+        baseline = LEGIT_INITIAL_COUNT
+    baseline = max(0, min(baseline, 1_000_000))
+    return baseline + _legit_yes_count(raw_votes)
+
+
+def _legit_embed(guild: discord.Guild, displayed_count: int) -> discord.Embed:
     embed = discord.Embed(
         title="✦ ¿ES FLUX STORE LEGIT? ✦",
         description=(
@@ -43,7 +56,7 @@ def _legit_embed(guild: discord.Guild, yes_count: int) -> discord.Embed:
         embed.set_thumbnail(url=guild.icon.url)
     embed.add_field(
         name="✅ PERSONAS QUE VERIFICARON QUE SOMOS LEGIT",
-        value=f"**{yes_count}**",
+        value=f"**{displayed_count}**",
         inline=False,
     )
     embed.set_footer(text="FLUX STORE • Las respuestas se pueden actualizar")
@@ -101,6 +114,7 @@ class Community(commands.Cog):
                 continue
             if not isinstance(panels, dict):
                 continue
+            changed = False
             for raw_message_id, row in list(panels.items())[-30:]:
                 try:
                     message_id = int(raw_message_id)
@@ -110,10 +124,29 @@ class Community(commands.Cog):
                 key = (guild.id, message_id)
                 if message_id <= 0 or channel_id <= 0 or key in self._registered_legit_panels:
                     continue
-                if not isinstance(guild.get_channel(channel_id), discord.TextChannel):
+                channel = guild.get_channel(channel_id)
+                if not isinstance(channel, discord.TextChannel):
                     continue
-                self.bot.add_view(LegitVoteView(self, guild.id), message_id=message_id)
+                if "starting_count" not in row:
+                    row["starting_count"] = LEGIT_INITIAL_COUNT
+                    changed = True
+                    try:
+                        message = await channel.fetch_message(message_id)
+                        votes = _normalize_legit_votes(row.get("votes", {}))
+                        await message.edit(
+                            embed=_legit_embed(guild, _legit_display_count(votes, row["starting_count"])),
+                            view=LegitVoteView(self, guild.id),
+                        )
+                    except discord.HTTPException:
+                        log.warning("No se pudo actualizar el panel legit antiguo %s", message_id)
+                view = LegitVoteView(self, guild.id)
+                self.bot.add_view(view, message_id=message_id)
                 self._registered_legit_panels.add(key)
+            if changed:
+                try:
+                    set_guild_data("legit_panels.json", guild.id, panels)
+                except RuntimeError:
+                    log.exception("No se pudo guardar la cifra inicial en los paneles legit del servidor %s", guild.id)
 
     async def record_legit_vote(
         self,
@@ -151,6 +184,13 @@ class Community(commands.Cog):
                 previous_vote = votes.get(str(interaction.user.id))
                 votes[str(interaction.user.id)] = vote
                 panel["votes"] = votes
+                try:
+                    panel["starting_count"] = max(
+                        0,
+                        min(int(panel.get("starting_count", LEGIT_INITIAL_COUNT)), 1_000_000),
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    panel["starting_count"] = LEGIT_INITIAL_COUNT
                 panels[str(message_id)] = panel
                 set_guild_data("legit_panels.json", guild_id, panels)
             except RuntimeError:
@@ -161,7 +201,7 @@ class Community(commands.Cog):
                 )
                 return
 
-        embed = _legit_embed(interaction.guild, _legit_yes_count(votes))
+        embed = _legit_embed(interaction.guild, _legit_display_count(votes, panel["starting_count"]))
         try:
             await interaction.response.edit_message(embed=embed, view=self._view_for_message(guild_id))
         except discord.HTTPException:
@@ -195,7 +235,7 @@ class Community(commands.Cog):
             await send_context(ctx, "Necesitas Gestionar servidor o Administrador para publicar el panel.")
             return
 
-        embed = _legit_embed(ctx.guild, 0)
+        embed = _legit_embed(ctx.guild, LEGIT_INITIAL_COUNT)
         view = LegitVoteView(self, ctx.guild.id)
         try:
             if ctx.interaction:
@@ -215,6 +255,7 @@ class Community(commands.Cog):
                 panels[str(message.id)] = {
                     "channel_id": ctx.channel.id,
                     "created_at": discord.utils.utcnow().isoformat(),
+                    "starting_count": LEGIT_INITIAL_COUNT,
                     "votes": {},
                 }
                 if len(panels) > 30:
