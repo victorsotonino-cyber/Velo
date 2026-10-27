@@ -179,6 +179,7 @@ class TicketPanelView(discord.ui.View):
         emoji="🎫",
         style=discord.ButtonStyle.primary,
         custom_id="datashop:tickets:open",
+        row=1,
     )
     async def open_ticket(
         self,
