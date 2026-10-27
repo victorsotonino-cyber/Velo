@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import io
 import logging
 import re
@@ -82,6 +83,105 @@ TICKET_PRIORITIES = {
     "urgent": ("Urgente", "🔴"),
 }
 
+async def _build_html_transcript(
+    channel: discord.TextChannel,
+    *,
+    limit: int = 1000,
+) -> tuple[bytes, int]:
+    """Build a safe, size-bounded HTML transcript for support staff."""
+    records: list[str] = []
+    estimated_size = 0
+    truncated = False
+    max_transcript_size = 5_500_000
+
+    async for message in channel.history(limit=limit, oldest_first=False):
+        raw_content = message.clean_content or "[sin texto]"
+        was_truncated = len(raw_content) > 1200
+        body = html.escape(raw_content[:1200]).replace("\n", "<br>")
+        if was_truncated:
+            body += "<br><em>[texto truncado para mantener un tamaño seguro]</em>"
+
+        attachment_html: list[str] = []
+        for attachment in message.attachments[:5]:
+            url = str(attachment.url)
+            if not url.startswith("https://"):
+                continue
+            safe_url = html.escape(url, quote=True)
+            safe_name = html.escape(str(attachment.filename)[:200])
+            attachment_html.append(
+                f'<li><a href="{safe_url}" rel="noopener noreferrer">{safe_name}</a></li>'
+            )
+        attachments = (
+            '<ul class="attachments">' + "".join(attachment_html) + "</ul>"
+            if attachment_html else ""
+        )
+
+        embed_html: list[str] = []
+        for embedded in message.embeds[:3]:
+            title = html.escape((embedded.title or "Embed")[:200])
+            description = html.escape((embedded.description or "")[:500]).replace("\n", "<br>")
+            embed_html.append(
+                f'<div class="embedded"><strong>{title}</strong>'
+                f'<div>{description}</div></div>'
+            )
+
+        author = html.escape(str(message.author)[:120])
+        author_id = html.escape(str(message.author.id))
+        timestamp = html.escape(message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"))
+        record = (
+            f'<article class="message"><header><strong>{author}</strong> '
+            f'<span class="muted">ID {author_id} · {timestamp}</span></header>'
+            f'<div class="body">{body}</div>{attachments}{"".join(embed_html)}</article>'
+        )
+        record_size = len(record.encode("utf-8"))
+        if estimated_size + record_size > max_transcript_size:
+            truncated = True
+            break
+        estimated_size += record_size
+        records.append(record)
+
+    records.reverse()
+    note = (
+        '<p class="notice">La transcripción se limitó para respetar el tamaño del archivo; '
+        'puede que no incluya mensajes antiguos.</p>'
+        if truncated else ""
+    )
+    safe_channel = html.escape(channel.name)
+    safe_guild = html.escape(channel.guild.name)
+    generated_at = html.escape(discord.utils.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"))
+    document = f"""<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transcripción · {safe_channel}</title>
+<style>
+:root {{ color-scheme: dark; --accent:#8b5cf6; --bg:#111018; --panel:#1b1925; --muted:#aaa5ba; }}
+* {{ box-sizing:border-box; }}
+body {{ margin:0; padding:24px; background:var(--bg); color:#f5f3ff; font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; }}
+main {{ max-width:1000px; margin:0 auto; }}
+h1 {{ color:#c4b5fd; margin-bottom:6px; }}
+.meta,.muted {{ color:var(--muted); font-size:12px; }}
+.message {{ background:var(--panel); border:1px solid #312b40; border-radius:10px; margin:12px 0; padding:14px 16px; overflow-wrap:anywhere; }}
+.message header {{ display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; margin-bottom:8px; }}
+.body {{ white-space:normal; }}
+.attachments {{ margin:8px 0; padding-left:20px; }}
+a {{ color:#c4b5fd; }}
+.embedded {{ border-left:3px solid var(--accent); padding:8px 12px; margin-top:8px; background:#14121c; }}
+.notice {{ background:#3a2a13; padding:10px; border-radius:8px; }}
+footer {{ margin-top:24px; color:var(--muted); font-size:12px; }}
+</style>
+</head>
+<body><main>
+<h1>Transcripción del ticket</h1>
+<div class="meta">Servidor: {safe_guild} · Canal: {safe_channel} · ID: {channel.id}<br>Generada: {generated_at}</div>
+{note}
+{''.join(records) if records else '<p>No hay mensajes disponibles en el historial.</p>'}
+<footer>Generado por DATASHOP. Los enlaces a adjuntos pertenecen a Discord y pueden requerir permisos de acceso.</footer>
+</main></body></html>"""
+    return document.encode("utf-8"), len(records)
+
+
 
 class TicketRequestModal(discord.ui.Modal):
     def __init__(self, cog: "Tickets", ticket_type: str) -> None:
@@ -151,8 +251,10 @@ class TicketTypeSelect(discord.ui.Select):
 
 
 class TicketRatingView(discord.ui.View):
+    """Persistent rating controls; custom IDs can be restored after a restart."""
+
     def __init__(self, guild_id: int, channel_id: int, owner_id: int) -> None:
-        super().__init__(timeout=86400)
+        super().__init__(timeout=None)
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.owner_id = owner_id
@@ -173,7 +275,10 @@ class TicketRatingView(discord.ui.View):
             ratings = get_guild_data("ticket_ratings.json", self.guild_id, [])
             if not isinstance(ratings, list):
                 ratings = []
-            if any(isinstance(item, dict) and item.get("ticket_id") == self.channel_id for item in ratings):
+            if any(
+                isinstance(item, dict) and str(item.get("ticket_id")) == str(self.channel_id)
+                for item in ratings
+            ):
                 await interaction.response.send_message("Ya registraste una valoración para este ticket.")
                 return
             ratings.append({
@@ -182,7 +287,18 @@ class TicketRatingView(discord.ui.View):
                 "rating": score,
                 "created_at": discord.utils.utcnow().isoformat(),
             })
-            set_guild_data("ticket_ratings.json", self.guild_id, ratings)
+            try:
+                set_guild_data("ticket_ratings.json", self.guild_id, ratings)
+                pending = get_guild_data("pending_ticket_ratings.json", self.guild_id, [])
+                if isinstance(pending, list):
+                    pending = [
+                        row for row in pending
+                        if not (isinstance(row, dict) and str(row.get("ticket_id")) == str(self.channel_id))
+                    ]
+                    set_guild_data("pending_ticket_ratings.json", self.guild_id, pending)
+            except RuntimeError:
+                await interaction.response.send_message("No pude guardar la valoración. Inténtalo más tarde.")
+                return
             await interaction.response.send_message(f"Gracias por tu valoración: {score}/5.")
             try:
                 await interaction.message.edit(view=None)
