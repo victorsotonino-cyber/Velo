@@ -609,6 +609,326 @@ class Store(commands.Cog):
         embed.set_footer(text="No hay cobro automático: el personal verificará el pago manualmente.")
         return embed
 
+    def _load_cart(self, guild_id: int, user_id: int) -> dict[str, Any]:
+        carts = get_guild_data("carts.json", guild_id, {})
+        if not isinstance(carts, dict):
+            return {"items": {}, "checkout_id": ""}
+        cart = carts.get(str(user_id), {})
+        if not isinstance(cart, dict):
+            return {"items": {}, "checkout_id": ""}
+        items = cart.get("items", {})
+        if not isinstance(items, dict):
+            items = {}
+        return {"items": items, "checkout_id": str(cart.get("checkout_id", "") or "")}
+
+    def _cart_orders(self, orders: list[Any], user_id: int, checkout_id: str) -> list[dict[str, Any]]:
+        if not checkout_id:
+            return []
+        return [
+            order for order in orders
+            if isinstance(order, dict)
+            and order.get("buyer_id") == user_id
+            and order.get("cart_checkout_id") == checkout_id
+        ]
+
+    @shop.command(name="cart-add", description="Añade un producto al carrito.")
+    async def cart_add(self, ctx: commands.Context, product_id: str, quantity: int = 1) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        if not 1 <= quantity <= 100:
+            await send_context(ctx, "La cantidad debe ser de 1 a 100 unidades.")
+            return
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            key, product = found
+            stock = _safe_int(product.get("stock", 0), -1)
+            if stock < 1:
+                await send_context(ctx, "Ese producto no tiene stock disponible.")
+                return
+            carts = get_guild_data("carts.json", ctx.guild.id, {})
+            if not isinstance(carts, dict):
+                carts = {}
+            user_key = str(ctx.author.id)
+            cart = carts.get(user_key, {})
+            if not isinstance(cart, dict):
+                cart = {}
+            marker_id = str(cart.get("checkout_id", "") or "")
+            if marker_id:
+                existing_orders = self._cart_orders(_orders(ctx), ctx.author.id, marker_id)
+                if existing_orders:
+                    # Old cart contents have already been checked out; do not resell them.
+                    cart = {"items": {}, "checkout_id": ""}
+                else:
+                    cart["checkout_id"] = ""
+            items = cart.get("items", {})
+            if not isinstance(items, dict):
+                items = {}
+            try:
+                current_quantity = int(items.get(key, 0))
+            except (TypeError, ValueError):
+                current_quantity = 0
+            if current_quantity + quantity > stock:
+                await send_context(ctx, f"Stock disponible: {stock}. Ya tienes {current_quantity} en el carrito.")
+                return
+            if key not in items and len(items) >= 25:
+                await send_context(ctx, "El carrito admite un máximo de 25 productos diferentes.")
+                return
+            items[key] = current_quantity + quantity
+            cart["items"] = items
+            cart["checkout_id"] = ""
+            carts[user_key] = cart
+            set_guild_data("carts.json", ctx.guild.id, carts)
+        await send_context(ctx, f"✅ Añadí **{product.get('name', key)} × {quantity}** al carrito.")
+
+    @shop.command(name="cart-remove", description="Retira productos del carrito.")
+    async def cart_remove(self, ctx: commands.Context, product_id: str, quantity: int | None = None) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        if quantity is not None and quantity < 1:
+            await send_context(ctx, "La cantidad a retirar debe ser positiva.")
+            return
+        async with self._inventory_lock:
+            carts = get_guild_data("carts.json", ctx.guild.id, {})
+            if not isinstance(carts, dict):
+                carts = {}
+            user_key = str(ctx.author.id)
+            cart = carts.get(user_key, {})
+            if not isinstance(cart, dict):
+                await send_context(ctx, "Tu carrito está vacío.")
+                return
+            marker_id = str(cart.get("checkout_id", "") or "")
+            if marker_id and self._cart_orders(_orders(ctx), ctx.author.id, marker_id):
+                carts.pop(user_key, None)
+                set_guild_data("carts.json", ctx.guild.id, carts)
+                await send_context(ctx, "Ese carrito ya se convirtió en pedidos; no modifiqué los pedidos existentes.")
+                return
+            items = cart.get("items", {})
+            if not isinstance(items, dict):
+                items = {}
+            key = product_id.strip().upper()
+            if key not in items:
+                await send_context(ctx, "Ese producto no está en tu carrito.")
+                return
+            try:
+                current_quantity = int(items[key])
+            except (TypeError, ValueError):
+                current_quantity = 0
+            if quantity is None or quantity >= current_quantity:
+                items.pop(key, None)
+            else:
+                items[key] = current_quantity - quantity
+            cart["items"] = items
+            cart["checkout_id"] = ""
+            if items:
+                carts[user_key] = cart
+            else:
+                carts.pop(user_key, None)
+            set_guild_data("carts.json", ctx.guild.id, carts)
+        await send_context(ctx, f"✅ Carrito actualizado para el producto {key}.")
+
+    @shop.command(name="cart-view", description="Muestra los productos de tu carrito.")
+    async def cart_view(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        cart = self._load_cart(ctx.guild.id, ctx.author.id)
+        items = cart.get("items", {})
+        if not isinstance(items, dict) or not items:
+            await send_context(ctx, "Tu carrito está vacío.", ephemeral=ctx.interaction is not None)
+            return
+        products = _products(ctx)
+        lines = []
+        total = 0.0
+        unavailable: list[str] = []
+        for product_id, raw_quantity in list(items.items())[:25]:
+            found = _find_product(products, str(product_id))
+            quantity = _safe_int(raw_quantity, 0)
+            if found is None or quantity < 1:
+                unavailable.append(str(product_id))
+                continue
+            key, product = found
+            price = _safe_money(product.get("price", 0), -1)
+            stock = _safe_int(product.get("stock", 0), -1)
+            if price < 0 or stock < 0:
+                unavailable.append(key)
+                continue
+            line_total = round(price * quantity, 2)
+            total += line_total
+            warning = " ⚠️" if quantity > stock else ""
+            lines.append(
+                f"**{product.get('name', key)}** × {quantity}{warning}\n"
+                f"{price:.2f} {self.bot.settings.currency} c/u · **{line_total:.2f} {self.bot.settings.currency}** · ID {key}"
+            )
+        if unavailable:
+            lines.append("\nNo disponibles o datos inválidos: " + ", ".join(unavailable))
+        embed = discord.Embed(
+            title="🛒 Tu carrito DATASHOP",
+            description="\n\n".join(lines) or "No hay artículos disponibles en el carrito.",
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.add_field(name="Total estimado", value=f"{total:.2f} {self.bot.settings.currency}", inline=False)
+        embed.set_footer(text="El stock se reserva al hacer checkout; el total puede cambiar si el personal edita precios.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="cart-clear", description="Vacía tu carrito.")
+    async def cart_clear(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        async with self._inventory_lock:
+            carts = get_guild_data("carts.json", ctx.guild.id, {})
+            if not isinstance(carts, dict) or str(ctx.author.id) not in carts:
+                await send_context(ctx, "Tu carrito ya está vacío.")
+                return
+            cart = carts.get(str(ctx.author.id), {})
+            if isinstance(cart, dict) and cart.get("checkout_id"):
+                orders = _orders(ctx)
+                if self._cart_orders(orders, ctx.author.id, str(cart["checkout_id"])):
+                    await send_context(ctx, "Este carrito ya se convirtió en pedidos. Comprueba /shop my-orders.")
+                    return
+            carts.pop(str(ctx.author.id), None)
+            set_guild_data("carts.json", ctx.guild.id, carts)
+        await send_context(ctx, "✅ Carrito vacío.")
+
+    @shop.command(name="checkout", description="Crea pedidos para todos los productos de tu carrito.")
+    async def checkout_cart(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        async with self._inventory_lock:
+            carts = get_guild_data("carts.json", ctx.guild.id, {})
+            if not isinstance(carts, dict):
+                carts = {}
+            user_key = str(ctx.author.id)
+            cart = carts.get(user_key, {})
+            if not isinstance(cart, dict):
+                await send_context(ctx, "Tu carrito está vacío.")
+                return
+            items = cart.get("items", {})
+            if not isinstance(items, dict) or not items:
+                await send_context(ctx, "Tu carrito está vacío.")
+                return
+            orders = _orders(ctx)
+            checkout_id = str(cart.get("checkout_id", "") or "")
+            if checkout_id:
+                existing_orders = self._cart_orders(orders, ctx.author.id, checkout_id)
+                if existing_orders:
+                    carts.pop(user_key, None)
+                    try:
+                        set_guild_data("carts.json", ctx.guild.id, carts)
+                    except RuntimeError:
+                        log.exception("No se pudo limpiar el carrito tras recuperar checkout %s", checkout_id)
+                    await send_context(
+                        ctx,
+                        "Este checkout ya estaba registrado; no he creado pedidos duplicados. IDs: "
+                        + ", ".join(str(order.get("id")) for order in existing_orders),
+                        ephemeral=ctx.interaction is not None,
+                    )
+                    return
+                cart["checkout_id"] = ""
+                carts[user_key] = cart
+
+            products = _products(ctx)
+            requested: list[tuple[str, int, dict[str, Any], float]] = []
+            total = 0.0
+            for raw_id, raw_quantity in items.items():
+                found = _find_product(products, str(raw_id))
+                quantity = _safe_int(raw_quantity, 0)
+                if found is None:
+                    await send_context(ctx, f"El producto {raw_id} ya no existe. Retíralo con /shop cart-remove y vuelve a intentar.")
+                    return
+                key, product = found
+                price = _safe_money(product.get("price", -1), -1)
+                stock = _safe_int(product.get("stock", -1), -1)
+                if quantity < 1 or quantity > 100 or price < 0 or stock < quantity:
+                    await send_context(
+                        ctx,
+                        f"No pude completar el carrito: revisa stock/precio de **{product.get('name', key)}**. Disponible: {max(0, stock)}.",
+                    )
+                    return
+                requested.append((key, quantity, product, price))
+                total += price * quantity
+            if not requested:
+                await send_context(ctx, "Tu carrito no contiene artículos válidos.")
+                return
+
+            checkout_id = secrets.token_hex(8).upper()
+            cart["checkout_id"] = checkout_id
+            carts[user_key] = cart
+            products_before = copy.deepcopy(products)
+            orders_before = copy.deepcopy(orders)
+            created_orders: list[dict[str, Any]] = []
+            now = discord.utils.utcnow().isoformat()
+            for key, quantity, product, price in requested:
+                order_id = secrets.token_hex(4).upper()
+                while any(isinstance(row, dict) and str(row.get("id", "")).upper() == order_id for row in orders):
+                    order_id = secrets.token_hex(4).upper()
+                product["stock"] = _safe_int(product.get("stock", 0)) - quantity
+                products[key] = product
+                order = {
+                    "id": order_id,
+                    "cart_checkout_id": checkout_id,
+                    "buyer_id": ctx.author.id,
+                    "buyer": str(ctx.author),
+                    "product_id": key,
+                    "product": str(product.get("name", key)),
+                    "quantity": quantity,
+                    "price_each": round(price, 2),
+                    "total": round(price * quantity, 2),
+                    "status": "pending",
+                    "created_at": now,
+                    "image_url": str(product.get("image_url", ""))[:1000],
+                    "stock_restored": False,
+                }
+                orders.append(order)
+                created_orders.append(order)
+
+            # Persist checkout marker first, so a retry can detect a committed checkout.
+            try:
+                set_guild_data("carts.json", ctx.guild.id, carts)
+                set_guild_data("products.json", ctx.guild.id, products)
+                set_guild_data("orders.json", ctx.guild.id, orders)
+            except RuntimeError:
+                try:
+                    set_guild_data("products.json", ctx.guild.id, products_before)
+                    set_guild_data("orders.json", ctx.guild.id, orders_before)
+                    carts[user_key]["checkout_id"] = ""
+                    set_guild_data("carts.json", ctx.guild.id, carts)
+                except RuntimeError:
+                    log.exception("No se pudo revertir checkout fallido en el servidor %s", ctx.guild.id)
+                await send_context(ctx, "No pude guardar el checkout de forma segura; revisa el carrito y vuelve a intentarlo.")
+                return
+
+            # If clearing fails after order persistence, the marker prevents duplicate orders on retry.
+            carts.pop(user_key, None)
+            try:
+                set_guild_data("carts.json", ctx.guild.id, carts)
+            except RuntimeError:
+                log.exception("Los pedidos se guardaron pero no se pudo limpiar el carrito %s", ctx.author.id)
+
+        methods = _payment_methods(ctx)
+        summary = "\n".join(
+            f"• **{order['product']} × {order['quantity']}** — {float(order['total']):.2f} {self.bot.settings.currency} · Pedido {order['id']}"
+            for order in created_orders[:10]
+        )
+        if len(created_orders) > 10:
+            summary += f"\n…y {len(created_orders) - 10} pedidos más."
+        embed = discord.Embed(
+            title="🧾 Checkout completado · Pago pendiente",
+            description=summary or "Pedidos creados.",
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.add_field(name="Total de carrito", value=f"{total:.2f} {self.bot.settings.currency}", inline=False)
+        embed.add_field(name="Métodos informativos", value=", ".join(methods) if methods else "Consulta al personal.", inline=False)
+        embed.set_footer(text="Los pagos no se procesan automáticamente. Espera instrucciones y confirmación del personal.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
     @shop.command(name="order", description="Crea una solicitud de pedido y reserva stock.")
     async def create_order(self, ctx: commands.Context, product_id: str, quantity: int = 1) -> None:
         if not isinstance(ctx.author, discord.Member):
