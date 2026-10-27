@@ -38,15 +38,39 @@ class DataShopBot(commands.Bot):
             await self.load_extension(extension)
             log.info("Módulo cargado: %s", extension)
 
+        await self.sync_application_commands()
+
+    async def sync_application_commands(self) -> None:
+        """Sync slash commands without letting a bad GUILD_ID crash bot startup."""
         if self.settings.guild_id:
             guild = discord.Object(id=self.settings.guild_id)
-            # Replace guild-scoped commands left by older versions with this tree.
+            # Replace stale guild-scoped commands left by older versions.
             self.tree.copy_global_to(guild=guild)
-            synced = await self.tree.sync(guild=guild)
-            log.info("Comandos slash sincronizados: %s", len(synced))
-        else:
+            try:
+                synced = await self.tree.sync(guild=guild)
+                log.info("Comandos slash sincronizados en servidor %s: %s", guild.id, len(synced))
+                return
+            except discord.HTTPException:
+                log.exception(
+                    "No se pudieron sincronizar comandos en GUILD_ID=%s. "
+                    "Comprueba que sea el ID correcto y que el bot esté invitado a ese servidor "
+                    "con los scopes bot y applications.commands. Intentaré sincronizar globalmente.",
+                    guild.id,
+                )
+
+        try:
             synced = await self.tree.sync()
             log.info("Comandos slash globales sincronizados: %s", len(synced))
+            if self.settings.guild_id:
+                log.warning(
+                    "Arranque continuado con comandos globales porque falló la sincronización por servidor. "
+                    "Los comandos globales pueden tardar en aparecer."
+                )
+        except discord.HTTPException:
+            log.exception(
+                "No se pudieron sincronizar los comandos slash globales. "
+                "DATASHOP seguirá arrancando; los comandos por prefijo permanecen disponibles."
+            )
 
     async def on_ready(self) -> None:
         if self.user:
