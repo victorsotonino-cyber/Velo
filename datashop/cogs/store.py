@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import logging
+import math
 import secrets
 from typing import Any
 
@@ -10,6 +13,8 @@ from discord.ext import commands
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
 
+
+log = logging.getLogger("datashop.store")
 
 VALID_ORDER_STATUSES = {"pending", "paid", "completed", "cancelled"}
 
@@ -51,6 +56,95 @@ def _find_product(products: dict[str, Any], product_id: str) -> tuple[str, dict[
     return key, item
 
 
+def _payment_methods_for_guild(guild_id: int) -> list[str]:
+    settings = get_guild_data("settings.json", guild_id, {})
+    if not isinstance(settings, dict):
+        return []
+    methods = settings.get("payment_methods", [])
+    if not isinstance(methods, list):
+        return []
+    return [str(method) for method in methods if str(method).strip()]
+
+
+class ShopOrderModal(discord.ui.Modal):
+    def __init__(self, cog: "Store", product_id: str) -> None:
+        super().__init__(title="Crear pedido", timeout=300)
+        self.cog = cog
+        self.product_id = product_id
+        self.quantity = discord.ui.TextInput(
+            label="Cantidad",
+            placeholder="1",
+            default="1",
+            min_length=1,
+            max_length=3,
+            required=True,
+        )
+        self.add_item(self.quantity)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este formulario solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        try:
+            quantity = int(str(self.quantity).strip())
+        except ValueError:
+            await interaction.response.send_message("La cantidad debe ser un número entero.", ephemeral=True)
+            return
+        order, error = await self.cog._create_order(interaction.guild, interaction.user, self.product_id, quantity)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+        assert order is not None
+        await interaction.response.send_message(
+            embed=self.cog._order_embed(order, _payment_methods_for_guild(interaction.guild.id)),
+            ephemeral=True,
+        )
+
+
+class ShopProductSelect(discord.ui.Select):
+    def __init__(self, cog: "Store", products: dict[str, Any]) -> None:
+        options: list[discord.SelectOption] = []
+        for product_id, item in products.items():
+            if not isinstance(item, dict):
+                continue
+            try:
+                stock = int(item.get("stock", 0))
+                price = float(item.get("price", 0))
+            except (TypeError, ValueError):
+                continue
+            if stock <= 0:
+                continue
+            name = str(item.get("name", "Producto"))[:100] or "Producto"
+            description = f"{price:.2f} {cog.bot.settings.currency} · Stock {stock}"[:100]
+            options.append(discord.SelectOption(label=name, value=str(product_id)[:100], description=description))
+            if len(options) >= 25:
+                break
+        if not options:
+            options = [discord.SelectOption(label="Sin productos disponibles", value="_none", description="El catálogo está vacío")]
+        super().__init__(
+            placeholder="Selecciona un producto para comprar…",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="datashop:shop:browse-product",
+        )
+        self.cog = cog
+        self.has_products = any(option.value != "_none" for option in options)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        product_id = self.values[0]
+        if product_id == "_none" or not self.has_products:
+            await interaction.response.send_message("Ahora mismo no hay productos con stock disponible.", ephemeral=True)
+            return
+        await interaction.response.send_modal(ShopOrderModal(self.cog, product_id))
+
+
+class ShopBrowseView(discord.ui.View):
+    def __init__(self, cog: "Store", products: dict[str, Any]) -> None:
+        super().__init__(timeout=300)
+        self.add_item(ShopProductSelect(cog, products))
+
+
 class Store(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -90,6 +184,32 @@ class Store(commands.Cog):
                 embed.set_footer(text=f"Mostrando 10 de {len(entries)} productos.")
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
 
+    @shop.command(name="browse", description="Abre un menú interactivo para elegir un producto y crear un pedido.")
+    async def browse_products(self, ctx: commands.Context) -> None:
+        products = _products(ctx)
+        available = [
+            item for item in products.values()
+            if isinstance(item, dict) and isinstance(item.get("stock", 0), int) and item.get("stock", 0) > 0
+        ]
+        if not available:
+            await send_context(ctx, "No hay productos con stock disponible ahora mismo.", ephemeral=ctx.interaction is not None)
+            return
+        embed = discord.Embed(
+            title="🛍️ DATASHOP · Compra interactiva",
+            description=(
+                "Selecciona un producto y completa el formulario de cantidad. "
+                "El pedido quedará pendiente hasta que el equipo verifique el pago."
+            ),
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.set_footer(text=f"Moneda: {self.bot.settings.currency} · No envíes contraseñas ni datos privados.")
+        await send_context(
+            ctx,
+            embed=embed,
+            view=ShopBrowseView(self, products),
+            ephemeral=ctx.interaction is not None,
+        )
+
     @shop.command(name="add", description="Añade un producto al catálogo.")
     async def add_product(
         self,
@@ -106,7 +226,7 @@ class Store(commands.Cog):
         if not name.strip() or len(name) > 80:
             await send_context(ctx, "El nombre debe tener entre 1 y 80 caracteres.")
             return
-        if price < 0 or price > 1_000_000:
+        if not math.isfinite(price) or price < 0 or price > 1_000_000:
             await send_context(ctx, "El precio debe estar entre 0 y 1.000.000.")
             return
         if not 0 <= stock <= 1_000_000:
@@ -262,43 +382,45 @@ class Store(commands.Cog):
         set_guild_data("settings.json", ctx.guild.id, settings)
         await send_context(ctx, f"✅ Método retirado: **{method.strip()}**.")
 
-    @shop.command(name="order", description="Crea una solicitud de pedido y reserva stock.")
-    async def create_order(self, ctx: commands.Context, product_id: str, quantity: int = 1) -> None:
-        if not isinstance(ctx.author, discord.Member):
-            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
-            return
+    async def _create_order(
+        self,
+        guild: discord.Guild,
+        buyer: discord.Member,
+        product_id: str,
+        quantity: int,
+    ) -> tuple[dict[str, Any] | None, str | None]:
         if not 1 <= quantity <= 100:
-            await send_context(ctx, "La cantidad debe ser de 1 a 100 unidades.")
-            return
+            return None, "La cantidad debe ser de 1 a 100 unidades."
         async with self._inventory_lock:
-            products = _products(ctx)
+            products = get_guild_data("products.json", guild.id, {})
+            if not isinstance(products, dict):
+                products = {}
             found = _find_product(products, product_id)
             if found is None:
-                await send_context(ctx, "No existe un producto con ese ID.")
-                return
+                return None, "No existe un producto con ese ID."
             key, item = found
             stock = item.get("stock", 0)
             try:
                 price = float(item.get("price", 0))
+                parsed_stock = int(stock)
             except (TypeError, ValueError):
-                await send_context(ctx, "El precio de este producto no es válido. Pide al personal que lo revise.")
-                return
-            if not isinstance(stock, int) or stock < quantity:
-                await send_context(ctx, f"Stock insuficiente. Disponible: {stock if isinstance(stock, int) else 0}.")
-                return
-            if price < 0 or price > 1_000_000:
-                await send_context(ctx, "El precio de este producto no es válido. Pide al personal que lo revise.")
-                return
+                return None, "El precio o stock de este producto no es válido. Pide al personal que lo revise."
+            if parsed_stock < quantity or parsed_stock < 0:
+                return None, f"Stock insuficiente. Disponible: {parsed_stock}."
+            if not math.isfinite(price) or price < 0 or price > 1_000_000:
+                return None, "El precio de este producto no es válido. Pide al personal que lo revise."
 
-            orders = _orders(ctx)
+            orders = get_guild_data("orders.json", guild.id, [])
+            if not isinstance(orders, list):
+                orders = []
             order_id = secrets.token_hex(4).upper()
-            while any(str(order.get("id", "")) == order_id for order in orders if isinstance(order, dict)):
+            while any(isinstance(row, dict) and str(row.get("id", "")).upper() == order_id for row in orders):
                 order_id = secrets.token_hex(4).upper()
             total = round(price * quantity, 2)
             order = {
                 "id": order_id,
-                "buyer_id": ctx.author.id,
-                "buyer": str(ctx.author),
+                "buyer_id": buyer.id,
+                "buyer": str(buyer),
                 "product_id": key,
                 "product": str(item.get("name", key)),
                 "quantity": quantity,
@@ -308,24 +430,53 @@ class Store(commands.Cog):
                 "created_at": discord.utils.utcnow().isoformat(),
                 "stock_restored": False,
             }
-            item["stock"] = stock - quantity
+            previous_products = copy.deepcopy(products)
+            item["stock"] = parsed_stock - quantity
             products[key] = item
-            set_guild_data("products.json", ctx.guild.id, products)
             orders.append(order)
-            set_guild_data("orders.json", ctx.guild.id, orders)
-        methods = _payment_methods(ctx)
+            try:
+                set_guild_data("products.json", guild.id, products)
+                set_guild_data("orders.json", guild.id, orders)
+            except RuntimeError:
+                try:
+                    # Avoid consuming stock if the order record could not be persisted.
+                    set_guild_data("products.json", guild.id, previous_products)
+                except RuntimeError:
+                    log.exception("Failed to roll back inventory after order persistence failure for guild %s", guild.id)
+                return None, "No pude guardar el pedido de forma segura. No se ha confirmado; vuelve a intentarlo o contacta al personal."
+        return order, None
+
+    def _order_embed(self, order: dict[str, Any], methods: list[str]) -> discord.Embed:
         embed = discord.Embed(
-            title=f"🧾 Pedido {order_id}",
+            title=f"🧾 Pedido {order['id']}",
             description=(
-                f"Producto: **{order['product']}**\nCantidad: **{quantity}**\n"
-                f"Total: **{total:.2f} {self.bot.settings.currency}**\nEstado: **Pendiente de revisión**\n\n"
+                f"Producto: **{order['product']}**\nCantidad: **{order['quantity']}**\n"
+                f"Total: **{float(order['total']):.2f} {self.bot.settings.currency}**\n"
+                "Estado: **Pendiente de revisión**\n\n"
                 "Este pedido no confirma un pago. Espera las instrucciones del personal y no envíes datos privados."
             ),
             color=discord.Color.from_str("#8B5CF6"),
             timestamp=discord.utils.utcnow(),
         )
         embed.add_field(name="Métodos informativos", value=", ".join(methods) if methods else "Consulta al personal.", inline=False)
-        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+        embed.set_footer(text="No hay cobro automático: el personal verificará el pago manualmente.")
+        return embed
+
+    @shop.command(name="order", description="Crea una solicitud de pedido y reserva stock.")
+    async def create_order(self, ctx: commands.Context, product_id: str, quantity: int = 1) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        order, error = await self._create_order(ctx.guild, ctx.author, product_id, quantity)
+        if error:
+            await send_context(ctx, error)
+            return
+        assert order is not None
+        await send_context(
+            ctx,
+            embed=self._order_embed(order, _payment_methods(ctx)),
+            ephemeral=ctx.interaction is not None,
+        )
 
     @shop.command(name="my-orders", description="Consulta tus pedidos recientes.")
     async def my_orders(self, ctx: commands.Context) -> None:

@@ -28,7 +28,7 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - Moderación: /ban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /slowmode, /lock, /unlock y /nick.
 - Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
 - Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript y /ticket delete.
-- Catálogo: /shop list, /shop add, /shop edit, /shop stock y /shop remove.
+- Catálogo: /shop list, /shop browse (menú interactivo), /shop add, /shop edit, /shop stock y /shop remove.
 - Pedidos: /shop order, /shop my-orders, /shop orders, /shop cancel y /shop order-status.
 - Informes: /shop stats y /shop low-stock.
 - Métodos de pago informativos: /shop payment add y /shop payment remove.
@@ -48,7 +48,7 @@ Puedes configurar categoría y rol de soporte desde el comando /ticket setup. Si
 
 ## Tienda y pedidos
 
-El catálogo admite nombre, precio, descripción e inventario. Los pedidos guardan una copia del producto, el total y su estado; el inventario se reserva al crear un pedido y se devuelve si el pedido se cancela. Solo el personal autorizado puede cambiar estados o consultar todos los pedidos.
+El catálogo admite nombre, precio, descripción e inventario. /shop browse abre un menú interactivo con selector de producto y formulario de cantidad; el pedido se crea mediante la misma función validada que /shop order. Los pedidos guardan una copia del producto, el total y su estado; el inventario se reserva al crear un pedido y se devuelve si el pedido se cancela. Solo el personal autorizado puede cambiar estados o consultar todos los pedidos.
 
 Los métodos añadidos mediante /shop payment son texto informativo. **No existe integración con una pasarela de pagos**: el equipo debe verificar los cobros fuera del bot y marcar el pedido como pagado únicamente después de comprobarlos. Los pedidos usan un bloqueo asíncrono para serializar las reservas de inventario dentro del proceso, y los estados siguen el flujo pending → paid → completed o pending → cancelled; los pedidos pagados no se cancelan como si fueran reembolsos. No solicites contraseñas, tokens, números completos de tarjetas ni otros secretos por Discord.
 
