@@ -1318,6 +1318,117 @@ class Tickets(commands.Cog):
         await send_context(ctx, "✅ Temporizador cancelado.")
         await self._log_ticket_event(ctx.guild, "Temporizador de ticket cancelado", ctx.channel, ctx.author)
 
+
+    @ticket.command(name="lock", description="Bloquea temporalmente las respuestas del cliente.")
+    async def lock_ticket(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede bloquear el ticket.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
+            await send_context(ctx, "Este ticket ya está cerrado.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_LOCKED") == "1":
+            await send_context(ctx, "Este ticket ya está bloqueado.")
+            return
+        owner_id = _ticket_owner(ctx.channel)
+        owner = ctx.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await ctx.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        if owner is None:
+            await send_context(ctx, "No pude localizar al cliente para bloquear sus permisos. No se cambió el ticket.")
+            return
+        try:
+            overwrite = ctx.channel.overwrites_for(owner)
+            overwrite.view_channel = True
+            overwrite.send_messages = False
+            overwrite.read_message_history = True
+            await ctx.channel.set_permissions(
+                owner, overwrite=overwrite, reason=f"Ticket bloqueado por {ctx.author}"
+            )
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_LOCKED", "1"),
+                reason=f"Ticket bloqueado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude bloquear el ticket. Comprueba mis permisos.")
+            return
+        await self._log_ticket_event(ctx.guild, "Ticket bloqueado", ctx.channel, ctx.author)
+        await send_context(ctx, "🔒 Ticket bloqueado; el cliente no puede escribir hasta que el personal lo desbloquee.")
+
+    @ticket.command(name="unlock", description="Permite de nuevo que el cliente responda.")
+    async def unlock_ticket(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede desbloquear el ticket.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
+            await send_context(ctx, "Reabre el ticket antes de permitir respuestas.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_LOCKED") != "1":
+            await send_context(ctx, "Este ticket no está bloqueado.")
+            return
+        owner_id = _ticket_owner(ctx.channel)
+        owner = ctx.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await ctx.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        if owner is None:
+            await send_context(ctx, "No pude localizar al cliente para restaurar sus permisos. No se cambió el ticket.")
+            return
+        try:
+            overwrite = ctx.channel.overwrites_for(owner)
+            overwrite.view_channel = True
+            overwrite.send_messages = True
+            overwrite.read_message_history = True
+            await ctx.channel.set_permissions(
+                owner, overwrite=overwrite, reason=f"Ticket desbloqueado por {ctx.author}"
+            )
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_LOCKED", None),
+                reason=f"Ticket desbloqueado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude desbloquear el ticket. Comprueba mis permisos.")
+            return
+        await self._log_ticket_event(ctx.guild, "Ticket desbloqueado", ctx.channel, ctx.author)
+        await send_context(ctx, "🔓 El cliente ya puede responder otra vez.")
+
+    @ticket.command(name="pin", description="Fija el primer mensaje del ticket.")
+    async def pin_ticket(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede fijar mensajes.")
+            return
+        if ctx.guild.me is None or not ctx.guild.me.guild_permissions.manage_messages:
+            await send_context(ctx, "Necesito el permiso Gestionar mensajes para fijar el mensaje.")
+            return
+        try:
+            first_message = None
+            async for message in ctx.channel.history(limit=20, oldest_first=True):
+                first_message = message
+                break
+            if first_message is None:
+                await send_context(ctx, "Este ticket no contiene mensajes para fijar.")
+                return
+            await first_message.pin(reason=f"Mensaje inicial fijado por {ctx.author}")
+        except discord.HTTPException:
+            await send_context(ctx, "No pude fijar el mensaje inicial. Revisa mis permisos.")
+            return
+        await self._log_ticket_event(ctx.guild, "Mensaje inicial fijado", ctx.channel, ctx.author)
+        await send_context(ctx, "📌 Mensaje inicial del ticket fijado.")
+
     @ticket.command(name="client", description="Muestra la ficha del cliente del ticket actual.")
     async def ticket_client(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
