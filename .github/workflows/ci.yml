@@ -1,30 +1,21 @@
-name: FLUX STORE validation
+name: DATASHOP validation
 
 on:
   push:
     branches:
       - main
-      - feat/flux-store-commerce-upgrade
+      - rebuild/datashop-v1
   pull_request:
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install
-      - name: Report dependency vulnerabilities
-        shell: bash
-        run: |
-          npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
-          node -e 'const fs=require("node:fs"); const r=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/npm-audit.json","utf8")); const rows=Object.entries(r.vulnerabilities || {}); if (!rows.length) { console.log("npm audit: no known vulnerabilities."); process.exit(0); } console.log("npm audit: " + rows.length + " vulnerable package(s)."); for (const [name,v] of rows) { const via=(v.via || []).map(x => typeof x === "string" ? x : x.title).filter(Boolean).join("; "); console.log(name + " | severity=" + v.severity + " | direct=" + v.isDirect + " | fixAvailable=" + JSON.stringify(v.fixAvailable) + " | " + via); }'
-      - name: Check JavaScript syntax
-        run: npm run check
-      - name: Run unit tests
-        run: npm test
+          cache: npm
+      - run: npm install
+      - run: npm run check
+      - run: npm test
