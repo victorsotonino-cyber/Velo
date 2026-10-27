@@ -79,6 +79,7 @@ require("./buttons")(client);
 require("./ticket-configurator")(client);
 require("./ticket-tool-x-automation")(client);
 require("./gifted-events")(client);
+require("./unified-events")(client);
 
 function normalizeCommandOptions(command) {
   if (!command || !Array.isArray(command.options)) return command;
