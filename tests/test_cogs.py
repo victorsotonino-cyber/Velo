@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
-from datashop.cogs.tickets import TicketRatingView, _build_html_transcript, _parse_inactivity_minutes, _staff_role_ids
+from datashop.cogs.tickets import TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
 from datashop.cogs.store import _safe_int, _safe_money
 
 
@@ -76,6 +76,17 @@ class StoreInputSafetyTests(unittest.TestCase):
         self.assertEqual(_safe_money("NaN"), 0.0)
         self.assertEqual(_safe_money(float("inf")), 0.0)
         self.assertEqual(_safe_money("12.50"), 12.5)
+
+
+class CannedReplyKeyTests(unittest.TestCase):
+    def test_canned_reply_keys_are_normalized_and_reject_injection(self) -> None:
+        self.assertEqual(_canned_reply_key("  REFUND-STATUS "), "refund-status")
+        self.assertEqual(_canned_reply_key("billing_2"), "billing_2")
+        self.assertIsNone(_canned_reply_key(""))
+        self.assertIsNone(_canned_reply_key("two words"))
+        self.assertIsNone(_canned_reply_key("name/../../secret"))
+        self.assertIsNone(_canned_reply_key("x" * 33))
+        self.assertIsNone(_canned_reply_key(None))
 
 
 class TicketInactivityValidationTests(unittest.TestCase):
@@ -204,7 +215,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             )
             control_group = next(command for command in ticket_group.commands if command.name == "control")
             self.assertTrue(
-                {"lock", "unlock", "pin", "autoclose", "autoclose-off"}.issubset(
+                {"lock", "unlock", "pin", "autoclose", "autoclose-off", "canned-list", "canned-add", "canned-remove", "canned-use"}.issubset(
                     {command.name for command in control_group.commands}
                 )
             )

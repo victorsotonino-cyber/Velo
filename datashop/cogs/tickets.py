@@ -53,6 +53,14 @@ def _parse_inactivity_minutes(raw: object) -> int | None:
     return minutes if 5 <= minutes <= 10080 else None
 
 
+def _canned_reply_key(raw: object) -> str | None:
+    """Normalize a canned-reply name to a small safe ASCII key."""
+    if not isinstance(raw, str):
+        return None
+    key = raw.strip().casefold()
+    return key if re.fullmatch(r"[a-z0-9_-]{1,32}", key) else None
+
+
 def _is_staff(member: discord.Member) -> bool:
     return member.guild_permissions.manage_channels or member.guild_permissions.administrator
 
@@ -1433,7 +1441,117 @@ class Tickets(commands.Cog):
 
     @ticket.group(name="control", description="Bloquea, desbloquea y fija mensajes del ticket.", invoke_without_command=True)
     async def ticket_control(self, ctx: commands.Context) -> None:
-        await send_context(ctx, "Usa ticket control lock, ticket control unlock o ticket control pin.")
+        await send_context(ctx, "Usa ticket control lock/unlock/pin, autoclose/autoclose-off, canned-add, canned-remove, canned-use o canned-list.")
+
+    @ticket_control.command(name="canned-list", description="Lista respuestas predefinidas del soporte.")
+    async def canned(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.guild, discord.Guild) or not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo funciona dentro de un servidor.")
+            return
+        if not self.is_staff(ctx.author, ctx.channel if isinstance(ctx.channel, discord.TextChannel) and _is_ticket(ctx.channel) else None):
+            await send_context(ctx, "Solo el personal puede consultar respuestas predefinidas.")
+            return
+        replies = get_guild_data("ticket_canned_replies.json", ctx.guild.id, {})
+        if not isinstance(replies, dict) or not replies:
+            await send_context(ctx, "No hay respuestas predefinidas. Usa /ticket control canned-add para crear una.")
+            return
+        lines = [
+            f"**{key}** — {str(value.get('response', '')).replace(chr(10), ' ')[:100]}"
+            for key, value in sorted(replies.items())
+            if isinstance(value, dict)
+        ]
+        embed = discord.Embed(
+            title="💬 Respuestas predefinidas",
+            description="\n".join(lines[:25]) or "No hay respuestas válidas.",
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.set_footer(text=f"{len(lines)} respuesta(s) · se usan desde un ticket")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @ticket_control.command(name="canned-add", description="Añade una respuesta predefinida.")
+    async def canned_add(self, ctx: commands.Context, name: str, *, response: str) -> None:
+        if not isinstance(ctx.guild, discord.Guild) or not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo funciona dentro de un servidor.")
+            return
+        if not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal global de soporte puede gestionar respuestas predefinidas.")
+            return
+        key = _canned_reply_key(name)
+        if key is None:
+            await send_context(ctx, "El nombre debe tener de 1 a 32 caracteres ASCII: letras, números, guion o guion bajo.")
+            return
+        response = response.strip()
+        if not response or len(response) > 1800:
+            await send_context(ctx, "La respuesta debe tener entre 1 y 1800 caracteres.")
+            return
+        replies = get_guild_data("ticket_canned_replies.json", ctx.guild.id, {})
+        if not isinstance(replies, dict):
+            replies = {}
+        if key in replies:
+            await send_context(ctx, f"Ya existe una respuesta llamada {key}. Usa otro nombre o elimínala primero.")
+            return
+        if len(replies) >= 50:
+            await send_context(ctx, "El servidor ya tiene 50 respuestas predefinidas. Elimina una antes de añadir más.")
+            return
+        replies[key] = {
+            "response": response,
+            "created_by": ctx.author.id,
+            "created_at": discord.utils.utcnow().isoformat(),
+        }
+        try:
+            set_guild_data("ticket_canned_replies.json", ctx.guild.id, replies)
+        except RuntimeError:
+            await send_context(ctx, "No pude guardar la respuesta. Inténtalo de nuevo más tarde.")
+            return
+        await send_context(ctx, f"✅ Respuesta predefinida {key} guardada.")
+
+    @ticket_control.command(name="canned-remove", description="Elimina una respuesta predefinida.")
+    async def canned_remove(self, ctx: commands.Context, name: str) -> None:
+        if not isinstance(ctx.guild, discord.Guild) or not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo funciona dentro de un servidor.")
+            return
+        if not self.is_staff(ctx.author):
+            await send_context(ctx, "Solo el personal global de soporte puede gestionar respuestas predefinidas.")
+            return
+        key = _canned_reply_key(name)
+        if key is None:
+            await send_context(ctx, "Ese nombre no es válido.")
+            return
+        replies = get_guild_data("ticket_canned_replies.json", ctx.guild.id, {})
+        if not isinstance(replies, dict) or key not in replies:
+            await send_context(ctx, "No encontré esa respuesta predefinida.")
+            return
+        replies.pop(key, None)
+        try:
+            set_guild_data("ticket_canned_replies.json", ctx.guild.id, replies)
+        except RuntimeError:
+            await send_context(ctx, "No pude guardar el cambio. Inténtalo de nuevo más tarde.")
+            return
+        await send_context(ctx, f"🗑️ Respuesta predefinida {key} eliminada.")
+
+    @ticket_control.command(name="canned-use", description="Publica una respuesta predefinida en el ticket actual.")
+    async def canned_use(self, ctx: commands.Context, name: str) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa esta acción dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede usar respuestas predefinidas.")
+            return
+        key = _canned_reply_key(name)
+        if key is None:
+            await send_context(ctx, "Ese nombre no es válido. Consulta /ticket control canned-list.")
+            return
+        replies = get_guild_data("ticket_canned_replies.json", ctx.guild.id, {})
+        item = replies.get(key) if isinstance(replies, dict) else None
+        if not isinstance(item, dict) or not isinstance(item.get("response"), str):
+            await send_context(ctx, "No encontré esa respuesta predefinida.")
+            return
+        response = item["response"].strip()
+        if not response:
+            await send_context(ctx, "La respuesta guardada está vacía. Pide al administrador que la corrija.")
+            return
+        await ctx.send(response[:1800], allowed_mentions=discord.AllowedMentions.none())
+        await self._log_ticket_event(ctx.guild, "Respuesta predefinida usada", ctx.channel, ctx.author, f"Respuesta: {key}")
 
     @ticket_control.command(name="autoclose", description="Configura autocierre por inactividad para este ticket.")
     async def ticket_autoclose(self, ctx: commands.Context, minutes: int) -> None:
