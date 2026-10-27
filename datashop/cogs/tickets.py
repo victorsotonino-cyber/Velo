@@ -44,6 +44,15 @@ def _set_topic_value(channel: discord.TextChannel, key: str, value: str | None) 
     return ";".join(parts)
 
 
+def _parse_inactivity_minutes(raw: object) -> int | None:
+    """Return a safe inactivity window, or None when no valid window is configured."""
+    try:
+        minutes = int(raw) if raw is not None else 0
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return minutes if 5 <= minutes <= 10080 else None
+
+
 def _is_staff(member: discord.Member) -> bool:
     return member.guild_permissions.manage_channels or member.guild_permissions.administrator
 
@@ -451,9 +460,57 @@ class Tickets(commands.Cog):
         self.bot.add_view(CloseTicketView(self))
         if not self.ticket_timer_worker.is_running():
             self.ticket_timer_worker.start()
+        if not self.inactivity_autoclose_worker.is_running():
+            self.inactivity_autoclose_worker.start()
 
     async def cog_unload(self) -> None:
         self.ticket_timer_worker.cancel()
+        self.inactivity_autoclose_worker.cancel()
+
+    @tasks.loop(minutes=5)
+    async def inactivity_autoclose_worker(self) -> None:
+        """Autoclose only tickets for which staff explicitly configured a window."""
+        now = discord.utils.utcnow()
+        for guild in list(self.bot.guilds):
+            bot_member = guild.me
+            if bot_member is None:
+                continue
+            for channel in list(guild.text_channels):
+                if not _is_ticket(channel) or _topic_value(channel, "DATASHOP_CLOSED") == "1":
+                    continue
+                minutes = _parse_inactivity_minutes(
+                    _topic_value(channel, "DATASHOP_AUTOCLOSE_MINUTES")
+                )
+                if minutes is None or channel.last_message_id is None:
+                    continue
+                try:
+                    last_message = await channel.fetch_message(channel.last_message_id)
+                except discord.NotFound:
+                    continue
+                except discord.Forbidden:
+                    log.warning("No hay permiso para comprobar la inactividad del ticket %s", channel.id)
+                    continue
+                except discord.HTTPException:
+                    log.exception("Falló la comprobación de inactividad del ticket %s", channel.id)
+                    continue
+                if now - last_message.created_at < timedelta(minutes=minutes):
+                    continue
+                try:
+                    await self.close_channel(channel, bot_member)
+                    await self._log_ticket_event(
+                        guild,
+                        "Ticket autocerrado por inactividad",
+                        channel,
+                        bot_member,
+                        f"Sin mensajes nuevos durante {minutes} minutos.",
+                    )
+                except discord.HTTPException:
+                    log.exception("No se pudo autocerrar el ticket %s", channel.id)
+                await asyncio.sleep(0.15)
+
+    @inactivity_autoclose_worker.before_loop
+    async def before_inactivity_autoclose(self) -> None:
+        await self.bot.wait_until_ready()
 
     @tasks.loop(minutes=1)
     async def ticket_timer_worker(self) -> None:
@@ -1377,6 +1434,53 @@ class Tickets(commands.Cog):
     @ticket.group(name="control", description="Bloquea, desbloquea y fija mensajes del ticket.", invoke_without_command=True)
     async def ticket_control(self, ctx: commands.Context) -> None:
         await send_context(ctx, "Usa ticket control lock, ticket control unlock o ticket control pin.")
+
+    @ticket_control.command(name="autoclose", description="Configura autocierre por inactividad para este ticket.")
+    async def ticket_autoclose(self, ctx: commands.Context, minutes: int) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede configurar el autocierre.")
+            return
+        if _parse_inactivity_minutes(minutes) is None:
+            await send_context(ctx, "El plazo debe estar entre 5 minutos y 7 días (10080 minutos).")
+            return
+        try:
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_AUTOCLOSE_MINUTES", str(minutes)),
+                reason=f"Autocierre por inactividad configurado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude guardar el autocierre. Comprueba mis permisos.")
+            return
+        await self._log_ticket_event(
+            ctx.guild, "Autocierre configurado", ctx.channel, ctx.author,
+            f"El ticket se cerrará tras {minutes} minutos sin mensajes nuevos.",
+        )
+        await send_context(ctx, f"⏳ Autocierre de este ticket configurado a **{minutes} minutos** desde el último mensaje.")
+
+    @ticket_control.command(name="autoclose-off", description="Desactiva el autocierre por inactividad de este ticket.")
+    async def ticket_autoclose_off(self, ctx: commands.Context) -> None:
+        if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
+            await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
+            return
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
+            await send_context(ctx, "Solo el personal asignado a esta ruta puede cambiar el autocierre.")
+            return
+        if _topic_value(ctx.channel, "DATASHOP_AUTOCLOSE_MINUTES") is None:
+            await send_context(ctx, "Este ticket no tiene autocierre configurado.")
+            return
+        try:
+            await ctx.channel.edit(
+                topic=_set_topic_value(ctx.channel, "DATASHOP_AUTOCLOSE_MINUTES", None),
+                reason=f"Autocierre por inactividad desactivado por {ctx.author}",
+            )
+        except discord.HTTPException:
+            await send_context(ctx, "No pude desactivar el autocierre. Comprueba mis permisos.")
+            return
+        await self._log_ticket_event(ctx.guild, "Autocierre desactivado", ctx.channel, ctx.author)
+        await send_context(ctx, "✅ Autocierre por inactividad desactivado en este ticket.")
 
     @ticket_control.command(name="lock", description="Bloquea temporalmente las respuestas del cliente.")
     async def lock_ticket(self, ctx: commands.Context) -> None:
