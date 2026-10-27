@@ -33,7 +33,7 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - Pedidos: /shop order, /shop my-orders, /shop orders, /shop cancel, /shop order-status y /shop order-expiry.
 - Informes: /shop stats y /shop low-stock.
 - Métodos de pago informativos: /shop payment add y /shop payment remove.
-- Reseñas: /vouch.
+- Reseñas: /shop review (solo pedidos completados del propio cliente), /shop reviews y /vouch (registro de personal).
 - Comunidad: /suggestion, /poll, /afk, /remind, /reminders, /reminder-cancel, /rank y /leaderboard.
 - Sorteos gratuitos: /giveaway start, /giveaway end y /giveaway reroll.
 - Comunicación: /say y /announce.
