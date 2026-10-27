@@ -215,13 +215,9 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             )
             control_group = next(command for command in ticket_group.commands if command.name == "control")
             self.assertTrue(
-                {"lock", "unlock", "pin", "autoclose", "autoclose-off", "canned"}.issubset(
+                {"lock", "unlock", "pin", "autoclose", "autoclose-off", "canned-list", "canned-add", "canned-remove", "canned-use"}.issubset(
                     {command.name for command in control_group.commands}
                 )
-            )
-            canned_group = next(command for command in control_group.commands if command.name == "canned")
-            self.assertTrue(
-                {"add", "remove", "use"}.issubset({command.name for command in canned_group.commands})
             )
             note_group = next(command for command in ticket_group.commands if command.name == "note")
             self.assertTrue({"add", "list"}.issubset({command.name for command in note_group.commands}))
