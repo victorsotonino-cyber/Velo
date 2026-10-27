@@ -128,7 +128,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             commands_by_name = {command.name: command for command in bot.tree.get_commands()}
             expected = {
                 "help", "ping", "serverinfo", "userinfo",
-                "ban", "kick", "timeout", "untimeout", "warn", "warnings", "clear",
+                "ban", "unban", "kick", "timeout", "untimeout", "warn", "warnings", "clear", "purge-user",
                 "slowmode", "lock", "unlock", "nick", "role",
                 "ticket", "shop", "vouch", "suggestion", "poll", "botconfig",
                 "afk", "remind", "reminders", "reminder-cancel", "rank", "leaderboard",
