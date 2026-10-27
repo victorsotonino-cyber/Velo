@@ -24,6 +24,247 @@ def _is_admin(ctx: commands.Context) -> bool:
     )
 
 
+def _is_admin_member(member: discord.Member) -> bool:
+    return member.guild_permissions.manage_guild or member.guild_permissions.administrator
+
+
+def _configuration_panel_embed(bot: commands.Bot, guild: discord.Guild) -> discord.Embed:
+    settings = _get_settings(guild.id)
+    welcome_id = settings.get("welcome_channel_id") or bot.settings.welcome_channel_id
+    logs_id = settings.get("logs_channel_id") or bot.settings.logs_channel_id
+    autorole_id = settings.get("autorole_id") or bot.settings.member_role_id
+    welcome_enabled = bool(welcome_id) and not settings.get("welcome_disabled", False)
+    autorole_enabled = bool(autorole_id) and not settings.get("autorole_disabled", False)
+    automod_enabled = bool(settings.get("automod_enabled", False))
+    embed = discord.Embed(
+        title="⚙️ DATASHOP  •  Panel de administración",
+        description=(
+            "Configura el bot desde los menús de abajo. Solo miembros con **Gestionar servidor** "
+            "o **Administrador** pueden aplicar cambios.\n\n"
+            "Los cambios se guardan por servidor y se aplican sin reiniciar el bot."
+        ),
+        color=discord.Color.from_str("#8B5CF6"),
+        timestamp=discord.utils.utcnow(),
+    )
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    embed.add_field(
+        name="👋 Bienvenidas",
+        value=f"{'🟢 Activas' if welcome_enabled else '🔴 Desactivadas'}\nCanal: {f'<#{welcome_id}>' if welcome_id else 'Sin configurar'}",
+        inline=True,
+    )
+    embed.add_field(
+        name="📋 Registros",
+        value=f"<#{logs_id}>" if logs_id else "Sin configurar",
+        inline=True,
+    )
+    embed.add_field(
+        name="🎭 Autorol",
+        value=f"{'🟢 Activo' if autorole_enabled else '🔴 Desactivado'}\nRol: {f'<@&{autorole_id}>' if autorole_id else 'Sin configurar'}",
+        inline=True,
+    )
+    embed.add_field(
+        name="🛡️ AutoMod",
+        value="🟢 Activo" if automod_enabled else "🔴 Desactivado",
+        inline=True,
+    )
+    embed.add_field(
+        name="🎟️ Tickets",
+        value=(
+            f"Categoría: <#{settings.get('ticket_category_id')}>" if settings.get("ticket_category_id")
+            else "La categoría se creará automáticamente"
+        ),
+        inline=True,
+    )
+    blocked_words = settings.get("automod_blocked_words", [])
+    embed.add_field(
+        name="🚫 Filtro de palabras",
+        value=f"{len(blocked_words) if isinstance(blocked_words, list) else 0} regla(s)",
+        inline=True,
+    )
+    embed.set_footer(text="DATASHOP Admin · Los selectores actualizan la configuración al instante")
+    return embed
+
+
+class ConfigurationPanelView(discord.ui.View):
+    """Short-lived interactive admin panel; callbacks verify permissions server-side."""
+
+    def __init__(self, bot: commands.Bot, guild_id: int) -> None:
+        super().__init__(timeout=600)
+        self.bot = bot
+        self.guild_id = guild_id
+
+        welcome_select = discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            placeholder="Elegir canal de bienvenida",
+            min_values=1,
+            max_values=1,
+            row=0,
+        )
+        welcome_select.callback = self._channel_callback("welcome_channel_id", enable_welcome=True)
+        self.add_item(welcome_select)
+
+        logs_select = discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            placeholder="Elegir canal de registros",
+            min_values=1,
+            max_values=1,
+            row=1,
+        )
+        logs_select.callback = self._channel_callback("logs_channel_id")
+        self.add_item(logs_select)
+
+        role_select = discord.ui.RoleSelect(
+            placeholder="Elegir rol de autorol",
+            min_values=1,
+            max_values=1,
+            row=2,
+        )
+        role_select.callback = self._role_callback()
+        self.add_item(role_select)
+
+        for action, label, emoji, row in (
+            ("welcome", "Alternar bienvenida", "👋", 3),
+            ("autorole", "Alternar autorol", "🎭", 3),
+            ("automod", "Alternar AutoMod", "🛡️", 3),
+        ):
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"datashop:admin-panel:{guild_id}:{action}",
+                row=row,
+            )
+            button.callback = self._toggle_callback(action)
+            self.add_item(button)
+
+    async def _authorize(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("Este panel pertenece a otro servidor.", ephemeral=True)
+            return False
+        if not isinstance(interaction.user, discord.Member) or not _is_admin_member(interaction.user):
+            await interaction.response.send_message("Necesitas Gestionar servidor o Administrador.", ephemeral=True)
+            return False
+        return True
+
+    def _channel_callback(self, setting_key: str, *, enable_welcome: bool = False):
+        async def callback(interaction: discord.Interaction) -> None:
+            if not await self._authorize(interaction):
+                return
+            select = interaction.data
+            values = select.get("values", []) if isinstance(select, dict) else []
+            if not values:
+                await interaction.response.send_message("No seleccionaste un canal.", ephemeral=True)
+                return
+            try:
+                channel_id = int(values[0])
+            except (TypeError, ValueError):
+                await interaction.response.send_message("El canal seleccionado no es válido.", ephemeral=True)
+                return
+            channel = interaction.guild.get_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                await interaction.response.send_message("Selecciona un canal de texto del servidor.", ephemeral=True)
+                return
+            settings = _get_settings(self.guild_id)
+            settings[setting_key] = channel.id
+            if enable_welcome:
+                settings["welcome_disabled"] = False
+            try:
+                set_guild_data("settings.json", self.guild_id, settings)
+            except RuntimeError:
+                await interaction.response.send_message("No pude guardar el cambio. Inténtalo más tarde.", ephemeral=True)
+                return
+            embed = _configuration_panel_embed(self.bot, interaction.guild)
+            await interaction.response.edit_message(embed=embed, view=self)
+
+        return callback
+
+    def _role_callback(self):
+        async def callback(interaction: discord.Interaction) -> None:
+            if not await self._authorize(interaction):
+                return
+            data = interaction.data
+            values = data.get("values", []) if isinstance(data, dict) else []
+            if not values:
+                await interaction.response.send_message("No seleccionaste un rol.", ephemeral=True)
+                return
+            try:
+                role_id = int(values[0])
+            except (TypeError, ValueError):
+                await interaction.response.send_message("El rol seleccionado no es válido.", ephemeral=True)
+                return
+            guild = interaction.guild
+            role = guild.get_role(role_id)
+            me = guild.me
+            if role is None or role.is_default() or role.managed:
+                await interaction.response.send_message("Elige un rol normal, no administrado.", ephemeral=True)
+                return
+            sensitive = (
+                role.permissions.administrator or role.permissions.manage_guild
+                or role.permissions.manage_roles or role.permissions.manage_channels
+                or role.permissions.manage_messages or role.permissions.kick_members
+                or role.permissions.ban_members or role.permissions.moderate_members
+            )
+            if sensitive:
+                await interaction.response.send_message(
+                    "Por seguridad, el autorol no puede tener permisos de administración o moderación.",
+                    ephemeral=True,
+                )
+                return
+            if me is None or not me.guild_permissions.manage_roles or role >= me.top_role:
+                await interaction.response.send_message(
+                    "Mi rol debe estar por encima del rol elegido y necesito Gestionar roles.",
+                    ephemeral=True,
+                )
+                return
+            settings = _get_settings(self.guild_id)
+            settings["autorole_id"] = role.id
+            settings["autorole_disabled"] = False
+            try:
+                set_guild_data("settings.json", self.guild_id, settings)
+            except RuntimeError:
+                await interaction.response.send_message("No pude guardar el cambio. Inténtalo más tarde.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=_configuration_panel_embed(self.bot, guild), view=self)
+
+        return callback
+
+    def _toggle_callback(self, action: str):
+        async def callback(interaction: discord.Interaction) -> None:
+            if not await self._authorize(interaction):
+                return
+            settings = _get_settings(self.guild_id)
+            if action == "welcome":
+                welcome_id = settings.get("welcome_channel_id") or self.bot.settings.welcome_channel_id
+                if not welcome_id:
+                    await interaction.response.send_message(
+                        "Primero selecciona un canal de bienvenida en el menú superior.",
+                        ephemeral=True,
+                    )
+                    return
+                settings["welcome_disabled"] = not bool(settings.get("welcome_disabled", False))
+            elif action == "autorole":
+                role_id = settings.get("autorole_id") or self.bot.settings.member_role_id
+                if not role_id:
+                    await interaction.response.send_message(
+                        "Primero selecciona un rol de autorol en el menú superior.",
+                        ephemeral=True,
+                    )
+                    return
+                settings["autorole_disabled"] = not bool(settings.get("autorole_disabled", False))
+            elif action == "automod":
+                settings["automod_enabled"] = not bool(settings.get("automod_enabled", False))
+            try:
+                set_guild_data("settings.json", self.guild_id, settings)
+            except RuntimeError:
+                await interaction.response.send_message("No pude guardar el cambio. Inténtalo más tarde.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=_configuration_panel_embed(self.bot, interaction.guild), view=self)
+
+        return callback
+
+
+
 class Configuration(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -60,6 +301,15 @@ class Configuration(commands.Cog):
     @commands.guild_only()
     async def botconfig(self, ctx: commands.Context) -> None:
         await self.show_settings(ctx)
+
+    @botconfig.command(name="panel", description="Abre un panel interactivo para configurar DATASHOP.")
+    async def configuration_panel(self, ctx: commands.Context) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador para abrir el panel.")
+            return
+        view = ConfigurationPanelView(self.bot, ctx.guild.id)
+        embed = _configuration_panel_embed(self.bot, ctx.guild)
+        await send_context(ctx, embed=embed, view=view, ephemeral=ctx.interaction is not None)
 
     @botconfig.command(name="show", description="Muestra la configuración del bot.")
     async def show_settings(self, ctx: commands.Context) -> None:

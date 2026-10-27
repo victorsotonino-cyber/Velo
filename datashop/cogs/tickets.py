@@ -348,6 +348,71 @@ class TicketPanelView(discord.ui.View):
         await interaction.response.send_modal(TicketRequestModal(self.cog, "support"))
 
 
+    @discord.ui.button(
+        label="Cómo funciona",
+        emoji="❔",
+        style=discord.ButtonStyle.secondary,
+        custom_id="datashop:tickets:quick-help",
+        row=1,
+    )
+    async def quick_help(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button,
+    ) -> None:
+        embed = discord.Embed(
+            title="💜 Centro de ayuda DATASHOP",
+            description=(
+                "1. Selecciona Soporte, Compras, Reclamación u Otros en el menú.\n"
+                "2. Completa el formulario con el asunto y los detalles.\n"
+                "3. Se abrirá un canal privado para hablar con el equipo.\n"
+                "4. Puedes consultar tus solicitudes con el botón Mis tickets.\n\n"
+                "No compartas contraseñas, tokens, códigos de acceso ni datos completos de tarjetas."
+            ),
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.add_field(
+            name="Qué incluir",
+            value="Describe el problema, el producto relacionado y los pasos que ya probaste. Si hace falta, adjunta capturas sin datos privados.",
+            inline=False,
+        )
+        embed.set_footer(text="DATASHOP · Soporte seguro")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(
+        label="Mis tickets",
+        emoji="📂",
+        style=discord.ButtonStyle.secondary,
+        custom_id="datashop:tickets:my-tickets",
+        row=1,
+    )
+    async def my_tickets(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("Este botón solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        opened = [
+            channel for channel in interaction.guild.text_channels
+            if _ticket_owner(channel) == interaction.user.id
+            and _topic_value(channel, "DATASHOP_CLOSED") != "1"
+        ]
+        opened.sort(key=lambda channel: channel.id)
+        lines = [
+            f"• {channel.mention} · {TICKET_TYPES.get(_topic_value(channel, 'DATASHOP_TYPE') or 'support', TICKET_TYPES['support'])[0]}"
+            for channel in opened[:10]
+        ]
+        embed = discord.Embed(
+            title="📂 Tus tickets abiertos",
+            description="\n".join(lines) or "No tienes tickets abiertos.",
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.set_footer(text=f"Tickets abiertos: {len(opened)} · Mostrando hasta 10")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 class CloseTicketView(discord.ui.View):
     def __init__(self, cog: "Tickets") -> None:
         super().__init__(timeout=None)
@@ -915,14 +980,32 @@ class Tickets(commands.Cog):
         if category is not None or staff_role is not None:
             set_guild_data("settings.json", ctx.guild.id, settings)
         embed = discord.Embed(
-            title="DATASHOP • Centro de soporte",
+            title="🎟️ DATASHOP  •  Centro de soporte",
             description=(
-                "Selecciona una categoría y completa el formulario para abrir un canal privado.\n\n"
-                "🛠️ Soporte · 🛒 Compras · ↩️ Reclamación · 💬 Otros"
+                "Cuéntanos qué necesitas y el equipo te atenderá en un canal privado.\n"
+                "Selecciona una categoría y completa el formulario para comenzar."
             ),
             color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
         )
-        embed.set_footer(text="No envíes contraseñas, tokens ni datos de pago privados.")
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        embed.add_field(
+            name="🧭 Elige el tipo de solicitud",
+            value="🛠️ Soporte · 🛒 Compras · ↩️ Reclamación · 💬 Otros",
+            inline=False,
+        )
+        embed.add_field(
+            name="⚡ Atención organizada",
+            value="Cada solicitud tiene su canal privado, personal asignado, prioridad y registro de actividad.",
+            inline=True,
+        )
+        embed.add_field(
+            name="🔐 Tu privacidad",
+            value="No envíes contraseñas, tokens, códigos de acceso ni datos completos de tarjetas.",
+            inline=True,
+        )
+        embed.set_footer(text="DATASHOP Support · Usa «Cómo funciona» para obtener ayuda y «Mis tickets» para ver tus solicitudes.")
         await send_context(ctx, embed=embed, view=TicketPanelView(self))
 
     @ticket.command(name="close", description="Cierra el ticket actual.")

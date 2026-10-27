@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
-from datashop.cogs.tickets import TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
-from datashop.cogs.store import _safe_int, _safe_money
+from datashop.cogs.tickets import TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _parse_inactivity_minutes, _staff_role_ids
+from datashop.cogs.store import ShopPanelView, _safe_int, _safe_money
 
 
 
@@ -120,6 +120,31 @@ class TicketRouteRoleTests(unittest.TestCase):
         }
         self.assertEqual(_staff_role_ids(settings, None, "refund"), set())
 
+class InteractivePanelTests(unittest.TestCase):
+    def test_shop_panel_is_persistent_and_has_distinct_component_ids(self) -> None:
+        fake_cog = SimpleNamespace(bot=SimpleNamespace(settings=SimpleNamespace(currency="USD")))
+        view = ShopPanelView(
+            fake_cog,
+            guild_id=1234,
+            products={"PRD1": {"name": "Nitro", "price": 9.99, "stock": 4}},
+        )
+        self.assertIsNone(view.timeout)
+        custom_ids = [item.custom_id for item in view.children]
+        self.assertEqual(len(custom_ids), len(set(custom_ids)))
+        self.assertTrue(all(custom_id for custom_id in custom_ids))
+        self.assertEqual(len(view.children), 4)
+        view.stop()
+
+    def test_ticket_panel_is_persistent_and_has_help_shortcuts(self) -> None:
+        view = TicketPanelView(SimpleNamespace())
+        self.assertIsNone(view.timeout)
+        custom_ids = [item.custom_id for item in view.children]
+        self.assertEqual(len(custom_ids), len(set(custom_ids)))
+        self.assertIn("datashop:tickets:quick-help", custom_ids)
+        self.assertIn("datashop:tickets:my-tickets", custom_ids)
+        view.stop()
+
+
 class TicketTranscriptTests(unittest.IsolatedAsyncioTestCase):
     async def test_html_transcript_escapes_untrusted_message_and_guild_names(self) -> None:
         author = SimpleNamespace(id=123456, name="ticket-user")
@@ -226,7 +251,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             shop_names = {command.name for command in shop_group.commands}
             expected_shop_commands = {
                 "list", "add", "edit", "stock", "remove", "image", "payment", "order-expiry",
-                "browse", "cart-add", "cart-remove", "cart-view", "cart-clear", "checkout",
+                "panel", "browse", "cart-add", "cart-remove", "cart-view", "cart-clear", "checkout",
                 "order", "my-orders", "orders", "order-status", "cancel", "stats", "low-stock",
                 "review", "reviews",
             }
@@ -245,7 +270,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
 
             config_group = commands_by_name["botconfig"]
             config_names = {command.name for command in config_group.commands}
-            self.assertTrue({"logs", "automod", "blockword-add", "blockword-remove"}.issubset(config_names))
+            self.assertTrue({"panel", "logs", "automod", "blockword-add", "blockword-remove"}.issubset(config_names))
         finally:
             await bot.close()
 

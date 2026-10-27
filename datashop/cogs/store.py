@@ -33,6 +33,11 @@ def _products(ctx: commands.Context) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _products_for_guild(guild_id: int) -> dict[str, Any]:
+    data = get_guild_data("products.json", guild_id, {})
+    return data if isinstance(data, dict) else {}
+
+
 def _orders(ctx: commands.Context) -> list[dict[str, Any]]:
     data = get_guild_data("orders.json", ctx.guild.id, [])
     return data if isinstance(data, list) else []
@@ -118,7 +123,13 @@ class ShopOrderModal(discord.ui.Modal):
 
 
 class ShopProductSelect(discord.ui.Select):
-    def __init__(self, cog: "Store", products: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        cog: "Store",
+        products: dict[str, Any],
+        *,
+        custom_id: str = "datashop:shop:browse-product",
+    ) -> None:
         options: list[discord.SelectOption] = []
         for product_id, item in products.items():
             if not isinstance(item, dict):
@@ -142,7 +153,7 @@ class ShopProductSelect(discord.ui.Select):
             min_values=1,
             max_values=1,
             options=options,
-            custom_id="datashop:shop:browse-product",
+            custom_id=custom_id,
         )
         self.cog = cog
         self.has_products = any(option.value != "_none" for option in options)
@@ -161,10 +172,188 @@ class ShopBrowseView(discord.ui.View):
         self.add_item(ShopProductSelect(cog, products))
 
 
+def _storefront_embed(guild: discord.Guild, products: dict[str, Any], currency: str) -> discord.Embed:
+    available: list[tuple[str, dict[str, Any], float, int]] = []
+    for product_id, item in products.items():
+        if not isinstance(item, dict):
+            continue
+        price = _safe_money(item.get("price", -1), -1)
+        stock = _safe_int(item.get("stock", -1), -1)
+        if price < 0 or stock <= 0:
+            continue
+        available.append((str(product_id), item, price, stock))
+
+    embed = discord.Embed(
+        title="🛍️ DATASHOP  •  Tienda oficial",
+        description=(
+            "Explora el catálogo, elige un producto y crea tu pedido desde este panel.\n"
+            "Tu solicitud quedará **pendiente de revisión** hasta que el equipo verifique el pago.\n\n"
+            "Selecciona un producto en el menú; los botones inferiores muestran tu carrito y tus pedidos."
+        ),
+        color=discord.Color.from_str("#8B5CF6"),
+        timestamp=discord.utils.utcnow(),
+    )
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    if available:
+        rows: list[str] = []
+        for product_id, item, price, stock in available[:6]:
+            name = str(item.get("name", "Producto"))[:80]
+            description = str(item.get("description", "Sin descripción")).strip()[:90]
+            rows.append(
+                f"**{name}** · {price:.2f} {currency}\n"
+                f"{description or 'Sin descripción'}\nID {product_id} · Stock {stock}"
+            )
+        embed.add_field(name="✨ Productos disponibles", value="\n\n".join(rows)[:1024], inline=False)
+        if len(available) > 6:
+            embed.add_field(
+                name="Catálogo",
+                value=f"Hay {len(available)} productos con stock. Usa el menú para ver las opciones.",
+                inline=False,
+            )
+        image_url = str(available[0][1].get("image_url", "")).strip()
+        parsed_image = urlparse(image_url) if image_url else None
+        if parsed_image and parsed_image.scheme in {"http", "https"} and parsed_image.netloc:
+            embed.set_image(url=image_url)
+    else:
+        embed.add_field(
+            name="Catálogo vacío",
+            value="El equipo todavía no ha publicado productos con stock disponible.",
+            inline=False,
+        )
+    embed.add_field(
+        name="🧾 Cómo comprar",
+        value="1. Elige un producto.\n2. Indica la cantidad.\n3. Espera a que el equipo compruebe el pago.",
+        inline=True,
+    )
+    embed.add_field(
+        name="🔐 Compra segura",
+        value="No envíes contraseñas, tokens ni datos completos de tarjetas. El bot no cobra automáticamente.",
+        inline=True,
+    )
+    embed.set_footer(text=f"DATASHOP · {currency} · Panel interactivo · Pulsa actualizar para refrescar el catálogo")
+    return embed
+
+
+class ShopPanelView(discord.ui.View):
+    """Persistent public shop panel with a per-guild component namespace."""
+
+    def __init__(self, cog: "Store", guild_id: int, products: dict[str, Any]) -> None:
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.add_item(
+            ShopProductSelect(
+                cog,
+                products,
+                custom_id=f"datashop:shop-panel:{guild_id}:product",
+            )
+        )
+        button_specs = (
+            ("cart", "Mi carrito", "🛒", discord.ButtonStyle.secondary),
+            ("orders", "Mis pedidos", "📦", discord.ButtonStyle.secondary),
+            ("refresh", "Actualizar", "↻", discord.ButtonStyle.primary),
+        )
+        for action, label, emoji, style in button_specs:
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=style,
+                custom_id=f"datashop:shop-panel:{guild_id}:{action}",
+                row=1,
+            )
+            button.callback = self._button_callback(action)
+            self.add_item(button)
+
+    def _button_callback(self, action: str):
+        async def callback(interaction: discord.Interaction) -> None:
+            if interaction.guild is None or interaction.guild.id != self.guild_id:
+                await interaction.response.send_message("Este panel no pertenece a este servidor.", ephemeral=True)
+                return
+            if not isinstance(interaction.user, discord.Member):
+                await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
+                return
+
+            if action == "refresh":
+                products = _products_for_guild(self.guild_id)
+                refreshed = ShopPanelView(self.cog, self.guild_id, products)
+                embed = _storefront_embed(interaction.guild, products, self.cog.bot.settings.currency)
+                await interaction.response.edit_message(embed=embed, view=refreshed)
+                return
+
+            if action == "cart":
+                carts = get_guild_data("carts.json", self.guild_id, {})
+                cart = carts.get(str(interaction.user.id), {}) if isinstance(carts, dict) else {}
+                items = cart.get("items", {}) if isinstance(cart, dict) else {}
+                products = _products_for_guild(self.guild_id)
+                lines: list[str] = []
+                total = 0.0
+                unavailable: list[str] = []
+                if isinstance(items, dict):
+                    for product_id, raw_quantity in list(items.items())[:20]:
+                        found = _find_product(products, str(product_id))
+                        quantity = _safe_int(raw_quantity, 0)
+                        if found is None or quantity < 1:
+                            unavailable.append(str(product_id))
+                            continue
+                        key, product = found
+                        price = _safe_money(product.get("price", -1), -1)
+                        stock = _safe_int(product.get("stock", -1), -1)
+                        if price < 0 or stock < 0:
+                            unavailable.append(key)
+                            continue
+                        subtotal = round(price * quantity, 2)
+                        total += subtotal
+                        warning = " (stock insuficiente)" if quantity > stock else ""
+                        lines.append(
+                            f"**{str(product.get('name', key))[:100]}** × {quantity}{warning}\n"
+                            f"{price:.2f} {self.cog.bot.settings.currency} cada uno · "
+                            f"{subtotal:.2f} {self.cog.bot.settings.currency}"
+                        )
+                if unavailable:
+                    lines.append("No disponibles: " + ", ".join(unavailable))
+                embed = discord.Embed(
+                    title="🛒 Tu carrito DATASHOP",
+                    description="\n\n".join(lines) or "Tu carrito está vacío.",
+                    color=discord.Color.from_str("#8B5CF6"),
+                )
+                embed.add_field(
+                    name="Total estimado",
+                    value=f"{total:.2f} {self.cog.bot.settings.currency}",
+                    inline=False,
+                )
+                embed.set_footer(text="El stock se reserva al hacer checkout. Usa /shop checkout para crear el pedido.")
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+
+            if action == "orders":
+                all_orders = get_guild_data("orders.json", self.guild_id, [])
+                user_orders = [
+                    order for order in all_orders
+                    if isinstance(order, dict) and _safe_int(order.get("buyer_id"), 0) == interaction.user.id
+                ] if isinstance(all_orders, list) else []
+                lines = [
+                    f"{order.get('id', '?')} · {str(order.get('product', 'Producto'))[:70]} × "
+                    f"{order.get('quantity', 1)} · {_safe_money(order.get('total'), 0):.2f} "
+                    f"{self.cog.bot.settings.currency} · {str(order.get('status', 'pending'))}"
+                    for order in reversed(user_orders[-10:])
+                ]
+                embed = discord.Embed(
+                    title="📦 Mis pedidos DATASHOP",
+                    description="\n".join(lines) or "Todavía no tienes pedidos registrados.",
+                    color=discord.Color.from_str("#8B5CF6"),
+                )
+                embed.set_footer(text="El estado pagado/completado requiere verificación del personal.")
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        return callback
+
+
 class Store(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._inventory_lock = asyncio.Lock()
+        self._registered_panel_messages: set[int] = set()
 
     async def cog_load(self) -> None:
         if not self.expire_pending_orders.is_running():
@@ -172,6 +361,32 @@ class Store(commands.Cog):
 
     async def cog_unload(self) -> None:
         self.expire_pending_orders.cancel()
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """Restore public shop panels after process restarts."""
+        for guild in list(self.bot.guilds):
+            try:
+                panels = get_guild_data("shop_panels.json", guild.id, {})
+                products = _products_for_guild(guild.id)
+            except RuntimeError:
+                log.exception("No se pudieron restaurar paneles de tienda en %s", guild.id)
+                continue
+            if not isinstance(panels, dict):
+                continue
+            for raw_message_id, row in list(panels.items())[-20:]:
+                try:
+                    message_id = int(raw_message_id)
+                    channel_id = int(row.get("channel_id", 0)) if isinstance(row, dict) else 0
+                except (TypeError, ValueError):
+                    continue
+                if message_id <= 0 or channel_id <= 0 or message_id in self._registered_panel_messages:
+                    continue
+                if not isinstance(guild.get_channel(channel_id), discord.TextChannel):
+                    continue
+                view = ShopPanelView(self, guild.id, products)
+                self.bot.add_view(view, message_id=message_id)
+                self._registered_panel_messages.add(message_id)
 
     @tasks.loop(minutes=1)
     async def expire_pending_orders(self) -> None:
@@ -298,6 +513,49 @@ class Store(commands.Cog):
             if len(entries) > 10:
                 embed.set_footer(text=f"Mostrando 10 de {len(entries)} productos.")
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="panel", description="Publica un panel visual e interactivo de tienda en este canal.")
+    async def publish_shop_panel(self, ctx: commands.Context) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador para publicar el panel público de tienda.")
+            return
+        products = _products(ctx)
+        view = ShopPanelView(self, ctx.guild.id, products)
+        embed = _storefront_embed(ctx.guild, products, self.bot.settings.currency)
+        try:
+            if ctx.interaction:
+                await ctx.interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+                message = await ctx.interaction.original_response()
+            else:
+                message = await ctx.send(embed=embed, view=view)
+        except discord.HTTPException:
+            await send_context(ctx, "No pude publicar el panel. Comprueba mis permisos para enviar embeds y componentes.")
+            return
+
+        panels = get_guild_data("shop_panels.json", ctx.guild.id, {})
+        if not isinstance(panels, dict):
+            panels = {}
+        panels[str(message.id)] = {
+            "channel_id": ctx.channel.id,
+            "created_at": discord.utils.utcnow().isoformat(),
+        }
+        if len(panels) > 20:
+            ordered = sorted(
+                panels.items(),
+                key=lambda pair: str(pair[1].get("created_at", "")) if isinstance(pair[1], dict) else "",
+            )
+            panels = dict(ordered[-20:])
+        try:
+            set_guild_data("shop_panels.json", ctx.guild.id, panels)
+        except RuntimeError:
+            log.exception("El panel se publicó, pero no se pudo guardar su registro de persistencia")
+        self.bot.add_view(view, message_id=message.id)
+        self._registered_panel_messages.add(message.id)
+        await send_context(
+            ctx,
+            f"✅ Panel público de tienda publicado en {ctx.channel.mention}. Sus componentes se restaurarán tras reiniciar.",
+            ephemeral=ctx.interaction is not None,
+        )
 
     @shop.command(name="browse", description="Abre un menú interactivo para elegir un producto y crear un pedido.")
     async def browse_products(self, ctx: commands.Context) -> None:
