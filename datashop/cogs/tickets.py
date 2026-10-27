@@ -723,6 +723,11 @@ class Tickets(commands.Cog):
     async def close_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
         owner = channel.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await channel.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
         if owner:
             await channel.set_permissions(owner, view_channel=False, send_messages=False)
         topic = _set_topic_value(channel, "DATASHOP_CLOSED", "1")
@@ -731,18 +736,44 @@ class Tickets(commands.Cog):
         await channel.send(f"🔒 Ticket cerrado por {member.mention}.")
         await self._log_ticket_event(channel.guild, "Ticket cerrado", channel, member)
         if owner:
+            rating_view = TicketRatingView(channel.guild.id, channel.id, owner.id)
+            key = (channel.guild.id, channel.id)
+            if key not in self._registered_rating_keys:
+                self.bot.add_view(rating_view)
+                self._registered_rating_keys.add(key)
+            try:
+                pending = get_guild_data("pending_ticket_ratings.json", channel.guild.id, [])
+                if not isinstance(pending, list):
+                    pending = []
+                if not any(
+                    isinstance(row, dict) and str(row.get("ticket_id")) == str(channel.id)
+                    for row in pending
+                ):
+                    pending.append({
+                        "ticket_id": channel.id,
+                        "owner_id": owner.id,
+                        "created_at": discord.utils.utcnow().isoformat(),
+                    })
+                    set_guild_data("pending_ticket_ratings.json", channel.guild.id, pending)
+            except RuntimeError:
+                log.exception("Se cerró el ticket %s, pero no se pudo guardar la valoración pendiente", channel.id)
             try:
                 await owner.send(
                     f"Tu ticket **{channel.name}** en **{channel.guild.name}** se ha cerrado. "
                     "Valora la atención del 1 al 5:",
-                    view=TicketRatingView(channel.guild.id, channel.id, owner.id),
+                    view=rating_view,
                 )
             except discord.HTTPException:
-                pass
+                log.info("No se pudo enviar por DM la valoración del ticket %s", channel.id)
 
     async def reopen_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
         owner = channel.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await channel.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
         if owner:
             await channel.set_permissions(
                 owner,
