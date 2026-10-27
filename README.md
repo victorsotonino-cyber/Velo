@@ -33,7 +33,9 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - Informes: /shop stats y /shop low-stock.
 - Métodos de pago informativos: /shop payment add y /shop payment remove.
 - Reseñas: /vouch.
-- Comunidad: /suggestion y /poll.
+- Comunidad: /suggestion, /poll, /afk, /remind, /reminders, /reminder-cancel, /rank y /leaderboard.
+- Sorteos gratuitos: /giveaway start, /giveaway end y /giveaway reroll.
+- Comunicación: /say y /announce.
 - Configuración: /botconfig show, /botconfig welcome, /botconfig welcome-off, /botconfig logs, /botconfig autorole, /botconfig autorole-off, /botconfig automod, /botconfig blockword-add y /botconfig blockword-remove.
 
 Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
@@ -55,6 +57,8 @@ Los métodos añadidos mediante /shop payment son texto informativo. **No existe
 Configura un canal con /botconfig logs para registrar entradas y salidas de miembros, cambios de apodo y roles, mensajes editados o eliminados y acciones de AutoMod. El registro no permite recuperar mensajes eliminados completos a menos que el evento entregue el contenido al bot.
 
 Activa el filtro con /botconfig automod true. El filtro puede eliminar invitaciones de Discord, mensajes que coincidan con frases configuradas y flood repetitivo. Añade y quita frases con /botconfig blockword-add y /botconfig blockword-remove. La detección de flood usa una regla básica y puede necesitar ajustes según el ritmo de tu comunidad.
+
+El módulo de participación añade estado AFK por servidor, recordatorios persistentes, experiencia con cooldown, ranking de niveles y sorteos gratuitos que recuperan su fecha final al reiniciar el proceso. Los sorteos no requieren compra para participar.
 
 ## Configuración y alojamiento
 
