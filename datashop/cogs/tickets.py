@@ -46,6 +46,28 @@ def _is_staff(member: discord.Member) -> bool:
     return member.guild_permissions.manage_channels or member.guild_permissions.administrator
 
 
+def _staff_role_ids(
+    settings: dict[str, Any],
+    default_role_id: int | None,
+    ticket_type: str | None = None,
+) -> set[int]:
+    """Return global and, for a specific ticket type, its routed staff role IDs."""
+    candidates: list[Any] = [settings.get("staff_role_id"), default_role_id]
+    routes = settings.get("ticket_types", {})
+    route = routes.get(ticket_type, {}) if ticket_type and isinstance(routes, dict) else {}
+    if isinstance(route, dict):
+        candidates.append(route.get("staff_role_id"))
+    role_ids: set[int] = set()
+    for candidate in candidates:
+        try:
+            parsed = int(candidate) if candidate else None
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed and parsed > 0:
+            role_ids.add(parsed)
+    return role_ids
+
+
 TICKET_TYPES = {
     "support": ("Soporte", "🛠️"),
     "purchase": ("Compras", "🛒"),
@@ -218,7 +240,7 @@ class CloseTicketView(discord.ui.View):
         if owner_id is None:
             await interaction.response.send_message("Este canal no parece ser un ticket de DATASHOP.", ephemeral=True)
             return
-        if not self.cog.is_staff(interaction.user) and interaction.user.id != owner_id:
+        if not self.cog.is_staff(interaction.user, interaction.channel if isinstance(interaction.channel, discord.TextChannel) else None) and interaction.user.id != owner_id:
             await interaction.response.send_message("Solo el creador del ticket o el personal puede cerrarlo.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -241,7 +263,7 @@ class CloseTicketView(discord.ui.View):
         if not isinstance(channel, discord.TextChannel) or not _ticket_owner(channel):
             await interaction.response.send_message("Este canal no es un ticket de DATASHOP.", ephemeral=True)
             return
-        if not self.cog.is_staff(interaction.user):
+        if not self.cog.is_staff(interaction.user, channel):
             await interaction.response.send_message("Solo el personal configurado puede reclamar tickets.", ephemeral=True)
             return
         if _topic_value(channel, "DATASHOP_CLOSED") == "1":
@@ -273,7 +295,7 @@ class CloseTicketView(discord.ui.View):
         if not isinstance(channel, discord.TextChannel) or not _ticket_owner(channel):
             await interaction.response.send_message("Este canal no es un ticket de DATASHOP.", ephemeral=True)
             return
-        if not self.cog.is_staff(interaction.user):
+        if not self.cog.is_staff(interaction.user, channel):
             await interaction.response.send_message("Solo el personal puede reabrir tickets desde el botón.", ephemeral=True)
             return
         if _topic_value(channel, "DATASHOP_CLOSED") != "1":
@@ -310,16 +332,23 @@ class Tickets(commands.Cog):
         self.bot.add_view(TicketPanelView(self))
         self.bot.add_view(CloseTicketView(self))
 
-    def is_staff(self, member: discord.Member) -> bool:
+    def is_staff(
+        self,
+        member: discord.Member,
+        channel: discord.TextChannel | None = None,
+    ) -> bool:
         if _is_staff(member):
             return True
         settings = _get_settings(member.guild.id)
-        role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
-        try:
-            parsed_role_id = int(role_id) if role_id else None
-        except (TypeError, ValueError):
-            parsed_role_id = None
-        return bool(parsed_role_id and any(role.id == parsed_role_id for role in member.roles))
+        ticket_type = None
+        if channel is not None and _is_ticket(channel):
+            ticket_type = _topic_value(channel, "DATASHOP_TYPE") or "support"
+        role_ids = _staff_role_ids(
+            settings,
+            self.bot.settings.staff_role_id,
+            ticket_type,
+        )
+        return any(role.id in role_ids for role in member.roles)
 
     async def _log_ticket_event(
         self,
@@ -567,7 +596,7 @@ class Tickets(commands.Cog):
             await send_context(ctx, "Este canal no parece ser un ticket de DATASHOP.")
             return
         author = ctx.author if isinstance(ctx.author, discord.Member) else None
-        if author is None or (not self.is_staff(author) and author.id != owner_id):
+        if author is None or (not self.is_staff(author, ctx.channel if isinstance(ctx.channel, discord.TextChannel) else None) and author.id != owner_id):
             await send_context(ctx, "Solo el creador del ticket o el personal puede cerrarlo.")
             return
         if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
@@ -582,7 +611,7 @@ class Tickets(commands.Cog):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
         author = ctx.author if isinstance(ctx.author, discord.Member) else None
-        if author is None or not self.is_staff(author):
+        if author is None or not self.is_staff(author, ctx.channel):
             await send_context(ctx, "Solo el personal configurado puede reclamar tickets.")
             return
         if _topic_value(ctx.channel, "DATASHOP_CLOSED") == "1":
@@ -601,7 +630,7 @@ class Tickets(commands.Cog):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
         author = ctx.author if isinstance(ctx.author, discord.Member) else None
-        if author is None or not self.is_staff(author):
+        if author is None or not self.is_staff(author, ctx.channel):
             await send_context(ctx, "Solo el personal configurado puede liberar tickets.")
             return
         current = _topic_value(ctx.channel, "DATASHOP_CLAIMED_BY")
@@ -624,7 +653,7 @@ class Tickets(commands.Cog):
         if owner_id is None or author is None:
             await send_context(ctx, "Este canal no parece ser un ticket de DATASHOP.")
             return
-        if not self.is_staff(author) and author.id != owner_id:
+        if not self.is_staff(author, ctx.channel) and author.id != owner_id:
             await send_context(ctx, "Solo el creador del ticket o el personal puede reabrirlo.")
             return
         if _topic_value(ctx.channel, "DATASHOP_CLOSED") != "1":
@@ -638,7 +667,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel if isinstance(ctx.channel, discord.TextChannel) else None):
             await send_context(ctx, "Solo el personal puede añadir miembros al ticket.")
             return
         await ctx.channel.set_permissions(
@@ -655,7 +684,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede retirar miembros del ticket.")
             return
         if member.id == _ticket_owner(ctx.channel):
@@ -738,7 +767,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede renombrar tickets.")
             return
         safe_name = "".join(ch.lower() if ch.isalnum() else "-" for ch in name)
@@ -753,7 +782,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede transferir tickets.")
             return
         if member.bot or member.id == _ticket_owner(ctx.channel):
@@ -776,7 +805,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede cambiar prioridades.")
             return
         key = priority.strip().casefold()
@@ -792,7 +821,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede mover tickets.")
             return
         await ctx.channel.edit(category=category, reason=f"Ticket movido por {ctx.author}")
@@ -807,7 +836,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede escribir notas internas.")
             return
         data = get_guild_data("ticket_notes.json", ctx.guild.id, {})
@@ -831,7 +860,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede leer notas internas.")
             return
         data = get_guild_data("ticket_notes.json", ctx.guild.id, {})
@@ -896,7 +925,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede eliminar tickets.")
             return
         if _topic_value(ctx.channel, "DATASHOP_CLOSED") != "1":
@@ -953,7 +982,7 @@ class Tickets(commands.Cog):
         if not isinstance(ctx.channel, discord.TextChannel) or not self._valid_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
-        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author):
+        if not isinstance(ctx.author, discord.Member) or not self.is_staff(ctx.author, ctx.channel):
             await send_context(ctx, "Solo el personal puede generar transcripciones.")
             return
         lines: list[str] = []

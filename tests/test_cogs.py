@@ -5,7 +5,29 @@ from pathlib import Path
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
+from datashop.cogs.tickets import _staff_role_ids
 
+
+
+class TicketRouteRoleTests(unittest.TestCase):
+    def test_current_route_staff_role_is_authorized_without_leaking_other_routes(self) -> None:
+        settings = {
+            "staff_role_id": "200",
+            "ticket_types": {
+                "support": {"staff_role_id": "300"},
+                "purchase": {"staff_role_id": "400"},
+            },
+        }
+        purchase_roles = _staff_role_ids(settings, 100, "purchase")
+        self.assertEqual(purchase_roles, {100, 200, 400})
+        self.assertNotIn(300, purchase_roles)
+
+    def test_invalid_and_missing_role_ids_are_ignored(self) -> None:
+        settings = {
+            "staff_role_id": "not-an-id",
+            "ticket_types": {"refund": {"staff_role_id": None}},
+        }
+        self.assertEqual(_staff_role_ids(settings, None, "refund"), set())
 
 class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_cogs_load_and_expose_expected_slash_commands(self) -> None:
