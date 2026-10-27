@@ -183,6 +183,81 @@ class CloseTicketView(discord.ui.View):
         await interaction.followup.send("Ticket cerrado.", ephemeral=True)
 
 
+    @discord.ui.button(
+        label="Reclamar",
+        emoji="🙋",
+        style=discord.ButtonStyle.secondary,
+        custom_id="datashop:tickets:claim",
+        row=0,
+    )
+    async def claim_ticket_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este botón solo funciona en un servidor.", ephemeral=True)
+            return
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not _ticket_owner(channel):
+            await interaction.response.send_message("Este canal no es un ticket de DATASHOP.", ephemeral=True)
+            return
+        if not self.cog.is_staff(interaction.user):
+            await interaction.response.send_message("Solo el personal configurado puede reclamar tickets.", ephemeral=True)
+            return
+        if _topic_value(channel, "DATASHOP_CLOSED") == "1":
+            await interaction.response.send_message("Reabre el ticket antes de reclamarlo.", ephemeral=True)
+            return
+        current = _topic_value(channel, "DATASHOP_CLAIMED_BY")
+        if current and current != str(interaction.user.id):
+            await interaction.response.send_message(f"Ya está reclamado por <@{current}>.", ephemeral=True)
+            return
+        try:
+            await channel.edit(topic=_set_topic_value(channel, "DATASHOP_CLAIMED_BY", str(interaction.user.id)))
+        except discord.HTTPException:
+            await interaction.response.send_message("No pude reclamarlo; comprueba mis permisos.", ephemeral=True)
+            return
+        await interaction.response.send_message("✅ Ticket reclamado.", ephemeral=True)
+
+    @discord.ui.button(
+        label="Reabrir",
+        emoji="🔓",
+        style=discord.ButtonStyle.success,
+        custom_id="datashop:tickets:reopen",
+        row=1,
+    )
+    async def reopen_ticket_button(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este botón solo funciona en un servidor.", ephemeral=True)
+            return
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not _ticket_owner(channel):
+            await interaction.response.send_message("Este canal no es un ticket de DATASHOP.", ephemeral=True)
+            return
+        if not self.cog.is_staff(interaction.user):
+            await interaction.response.send_message("Solo el personal puede reabrir tickets desde el botón.", ephemeral=True)
+            return
+        if _topic_value(channel, "DATASHOP_CLOSED") != "1":
+            await interaction.response.send_message("Este ticket ya está abierto.", ephemeral=True)
+            return
+        owner_id = _ticket_owner(channel)
+        owner = channel.guild.get_member(owner_id) if owner_id else None
+        if owner is None and owner_id:
+            try:
+                owner = await channel.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
+        try:
+            if owner:
+                await channel.set_permissions(
+                    owner, view_channel=True, send_messages=True, read_message_history=True,
+                    attach_files=True, embed_links=True,
+                )
+            topic = _set_topic_value(channel, "DATASHOP_CLOSED", "0")
+            await channel.edit(name=re.sub(r"^cerrado-", "", channel.name)[:100], topic=topic)
+            await channel.send(f"🔓 Ticket reabierto por {interaction.user.mention}.")
+        except discord.HTTPException:
+            await interaction.response.send_message("No pude reabrir el ticket; revisa mis permisos.", ephemeral=True)
+            return
+        await interaction.response.send_message("✅ Ticket reabierto.", ephemeral=True)
+
+
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
