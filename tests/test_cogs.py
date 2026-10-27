@@ -2,11 +2,63 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
 from datashop.cogs.tickets import _staff_role_ids
 
+
+
+class CommandSyncFallbackTests(unittest.IsolatedAsyncioTestCase):
+    def _settings(self, guild_id: int | None) -> Settings:
+        return Settings(
+            token="test-token",
+            prefix="!",
+            guild_id=guild_id,
+            port=10000,
+            data_dir=Path("./data"),
+            welcome_channel_id=None,
+            logs_channel_id=None,
+            ticket_category_id=None,
+            staff_role_id=None,
+            member_role_id=None,
+            currency="USD",
+        )
+
+    async def test_forbidden_guild_sync_falls_back_to_global_commands(self) -> None:
+        bot = DataShopBot(self._settings(123456789))
+        forbidden = discord.Forbidden(
+            SimpleNamespace(status=403, reason="Forbidden"),
+            {"message": "Missing Access", "code": 50001},
+        )
+        try:
+            with patch.object(bot.tree, "copy_global_to") as copy_global_to, patch.object(
+                bot.tree, "sync", new_callable=AsyncMock
+            ) as sync:
+                sync.side_effect = [forbidden, []]
+                await bot.sync_application_commands()
+                copy_global_to.assert_called_once()
+                self.assertEqual(sync.await_count, 2)
+                self.assertIn("guild", sync.await_args_list[0].kwargs)
+                self.assertEqual(sync.await_args_list[1].kwargs, {})
+        finally:
+            await bot.close()
+
+    async def test_global_sync_failure_is_logged_and_does_not_abort_setup(self) -> None:
+        bot = DataShopBot(self._settings(None))
+        failure = discord.HTTPException(
+            SimpleNamespace(status=500, reason="Server Error"),
+            {"message": "Temporary failure", "code": 0},
+        )
+        try:
+            with patch.object(bot.tree, "sync", new_callable=AsyncMock) as sync:
+                sync.side_effect = failure
+                await bot.sync_application_commands()
+                sync.assert_awaited_once_with()
+        finally:
+            await bot.close()
 
 
 class TicketRouteRoleTests(unittest.TestCase):
