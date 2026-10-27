@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
 import re
@@ -302,6 +303,7 @@ class CloseTicketView(discord.ui.View):
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
 
     async def cog_load(self) -> None:
         self.bot.add_view(TicketPanelView(self))
@@ -312,7 +314,11 @@ class Tickets(commands.Cog):
             return True
         settings = _get_settings(member.guild.id)
         role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
-        return bool(role_id and any(role.id == int(role_id) for role in member.roles))
+        try:
+            parsed_role_id = int(role_id) if role_id else None
+        except (TypeError, ValueError):
+            parsed_role_id = None
+        return bool(parsed_role_id and any(role.id == parsed_role_id for role in member.roles))
 
     async def _log_ticket_event(
         self,
@@ -357,6 +363,22 @@ class Tickets(commands.Cog):
         ticket_type: str = "support",
         subject: str = "Consulta de soporte",
         details: str = "Sin detalles adicionales",
+    ) -> discord.TextChannel | None:
+        key = (guild.id, member.id)
+        lock = self._creation_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            return await self._create_ticket_locked(
+                guild, member, ticket_type=ticket_type, subject=subject, details=details
+            )
+
+    async def _create_ticket_locked(
+        self,
+        guild: discord.Guild,
+        member: discord.Member,
+        *,
+        ticket_type: str,
+        subject: str,
+        details: str,
     ) -> discord.TextChannel | None:
         settings = _get_settings(guild.id)
         blacklist = get_guild_data("ticket_blacklist.json", guild.id, {})
@@ -819,7 +841,14 @@ class Tickets(commands.Cog):
             if isinstance(item, dict)
         ]
         embed = discord.Embed(title="🔒 Notas internas", description="\n".join(lines) or "No hay notas.", color=discord.Color.from_str("#8B5CF6"))
-        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+        if ctx.interaction is not None:
+            await send_context(ctx, embed=embed, ephemeral=True)
+        else:
+            try:
+                await ctx.author.send(embed=embed)
+                await send_context(ctx, "Te envié las notas internas por mensaje privado.")
+            except discord.HTTPException:
+                await send_context(ctx, "No pude enviarte las notas por privado; comprueba si tienes los mensajes privados desactivados.")
 
     @ticket.command(name="list", description="Lista los tickets abiertos.")
     async def list_tickets(self, ctx: commands.Context, member: discord.Member | None = None) -> None:
