@@ -15,6 +15,15 @@ from datashop.storage import get_guild_data, set_guild_data
 
 log = logging.getLogger("datashop.tickets")
 
+# Default staff role requested for this DATASHOP ticket setup.
+DEFAULT_STAFF_ROLE_ID = 1562619905780486230
+
+EMOJI_SHOP_CART = "<a:shop_cart_a:1561518116826255441>"
+EMOJI_QUESTION = "<a:emoji_19:1550144965404004502>"
+EMOJI_REPORT = "<:emoji_138:1561921833203142757>"
+EMOJI_REWARD = "<:emoji_20:1550146329915949077>"
+EMOJI_WORKERS = "<a:emoji_140:1561925621578469450>"
+
 
 def _get_settings(guild_id: int) -> dict:
     value = get_guild_data("settings.json", guild_id, {})
@@ -71,7 +80,11 @@ def _staff_role_ids(
     ticket_type: str | None = None,
 ) -> set[int]:
     """Return global and, for a specific ticket type, its routed staff role IDs."""
-    candidates: list[Any] = [settings.get("staff_role_id"), default_role_id]
+    candidates: list[Any] = [
+        settings.get("staff_role_id"),
+        default_role_id,
+        DEFAULT_STAFF_ROLE_ID,
+    ]
     routes = settings.get("ticket_types", {})
     route = routes.get(ticket_type, {}) if ticket_type and isinstance(routes, dict) else {}
     if isinstance(route, dict):
@@ -88,11 +101,17 @@ def _staff_role_ids(
 
 
 TICKET_TYPES = {
-    "support": ("Soporte", "🛠️"),
-    "purchase": ("Compras", "🛒"),
-    "refund": ("Reclamación", "↩️"),
-    "other": ("Otros", "💬"),
+    # The first five are the public options shown in the redesigned panel.
+    "purchase": ("Comprar un artículo", EMOJI_SHOP_CART),
+    "support": ("Hacer una consulta", EMOJI_QUESTION),
+    "report": ("Reportar un problema", EMOJI_REPORT),
+    "reward": ("Recibir una recompensa", EMOJI_REWARD),
+    "workers": ("Postular a Workers", EMOJI_WORKERS),
+    # Legacy ticket values stay recognized so existing routes/tickets keep working.
+    "refund": ("Reclamación", EMOJI_REPORT),
+    "other": ("Otros", EMOJI_QUESTION),
 }
+PUBLIC_TICKET_TYPE_KEYS = ("purchase", "support", "report", "reward", "workers")
 TICKET_PRIORITIES = {
     "low": ("Baja", "🟢"),
     "normal": ("Normal", "🟡"),
@@ -250,8 +269,13 @@ class TicketRequestModal(discord.ui.Modal):
 class TicketTypeSelect(discord.ui.Select):
     def __init__(self, cog: "Tickets") -> None:
         options = [
-            discord.SelectOption(label=label, value=key, emoji=emoji, description=f"Abrir un ticket de {label.lower()}")
-            for key, (label, emoji) in TICKET_TYPES.items()
+            discord.SelectOption(
+                label=TICKET_TYPES[key][0],
+                value=key,
+                emoji=TICKET_TYPES[key][1],
+                description=f"Abrir un ticket: {TICKET_TYPES[key][0].lower()}",
+            )
+            for key in PUBLIC_TICKET_TYPE_KEYS
         ]
         super().__init__(
             placeholder="Selecciona el tipo de ticket…",
@@ -806,8 +830,24 @@ class Tickets(commands.Cog):
             route = {}
         category_id = route.get("category_id") or settings.get("ticket_category_id") or self.bot.settings.ticket_category_id
         category = guild.get_channel(int(category_id)) if category_id else None
-        support_role_id = route.get("staff_role_id") or settings.get("staff_role_id") or self.bot.settings.staff_role_id
-        support_role = guild.get_role(int(support_role_id)) if support_role_id else None
+
+        # The global staff role always keeps access, even when a category has its own routed role.
+        global_staff_role_id = (
+            settings.get("staff_role_id")
+            or self.bot.settings.staff_role_id
+            or DEFAULT_STAFF_ROLE_ID
+        )
+        routed_staff_role_id = route.get("staff_role_id")
+        support_roles: list[discord.Role] = []
+        for raw_role_id in (global_staff_role_id, routed_staff_role_id):
+            try:
+                parsed_role_id = int(raw_role_id) if raw_role_id else None
+            except (TypeError, ValueError):
+                parsed_role_id = None
+            staff_role_obj = guild.get_role(parsed_role_id) if parsed_role_id else None
+            if staff_role_obj is not None and all(role.id != staff_role_obj.id for role in support_roles):
+                support_roles.append(staff_role_obj)
+        support_role = support_roles[0] if support_roles else None
 
         overwrites: dict[discord.abc.Snowflake, discord.PermissionOverwrite] = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -828,8 +868,8 @@ class Tickets(commands.Cog):
                 manage_messages=True,
                 attach_files=True,
             )
-        if support_role:
-            overwrites[support_role] = discord.PermissionOverwrite(
+        for staff_role_obj in support_roles:
+            overwrites[staff_role_obj] = discord.PermissionOverwrite(
                 view_channel=True,
                 send_messages=True,
                 read_message_history=True,
@@ -865,11 +905,12 @@ class Tickets(commands.Cog):
         )
         embed.set_footer(text=f"Ticket ID: {channel.id} • Prioridad: normal")
         try:
+            role_mentions = " ".join(role.mention for role in support_roles)
             await channel.send(
-                content=support_role.mention if support_role else None,
+                content=role_mentions or None,
                 embed=embed,
                 view=CloseTicketView(self),
-                allowed_mentions=discord.AllowedMentions(roles=bool(support_role), users=False),
+                allowed_mentions=discord.AllowedMentions(roles=bool(support_roles), users=False),
             )
         except discord.HTTPException:
             log.exception("No se pudo inicializar el ticket %s", channel.id)
@@ -975,37 +1016,39 @@ class Tickets(commands.Cog):
         settings = _get_settings(ctx.guild.id)
         if category is not None:
             settings["ticket_category_id"] = category.id
-        if staff_role is not None:
-            settings["staff_role_id"] = staff_role.id
-        if category is not None or staff_role is not None:
-            set_guild_data("settings.json", ctx.guild.id, settings)
+        # Always apply the requested staff role unless a role was explicitly selected with the command.
+        settings["staff_role_id"] = staff_role.id if staff_role is not None else DEFAULT_STAFF_ROLE_ID
+        set_guild_data("settings.json", ctx.guild.id, settings)
+
         embed = discord.Embed(
-            title="🎟️ DATASHOP  •  Centro de soporte",
+            title=f"{EMOJI_REPORT} 「 Centro de Soporte 」 {EMOJI_REPORT}",
             description=(
-                "Cuéntanos qué necesitas y el equipo te atenderá en un canal privado.\n"
-                "Selecciona una categoría y completa el formulario para comenzar."
+                "✨ Usa los apartados según lo que necesites:\n\n"
+                f"» Para comprar un artículo, presiona {EMOJI_SHOP_CART}\n"
+                f"» Para hacer una consulta, presiona {EMOJI_QUESTION}\n"
+                f"» Para reportar un problema, presiona {EMOJI_REPORT}\n"
+                f"» Para recibir tu recompensa, presiona {EMOJI_REWARD}\n"
+                f"» Para postular a Workers, presiona {EMOJI_WORKERS}\n\n"
+                "💗 **Normas:**\n"
+                "• El mal uso de este sistema puede provocar sanciones.\n"
+                "• Abre tickets solo por motivos válidos."
             ),
-            color=discord.Color.from_str("#8B5CF6"),
+            color=discord.Color.from_str("#00E5C0"),
             timestamp=discord.utils.utcnow(),
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.add_field(
-            name="🧭 Elige el tipo de solicitud",
-            value="🛠️ Soporte · 🛒 Compras · ↩️ Reclamación · 💬 Otros",
+            name="Personal de soporte",
+            value=f"<@&{settings['staff_role_id']}>",
             inline=False,
         )
         embed.add_field(
-            name="⚡ Atención organizada",
-            value="Cada solicitud tiene su canal privado, personal asignado, prioridad y registro de actividad.",
-            inline=True,
+            name="📌 Recordatorio",
+            value="Recuerda ser claro y respetuoso en tu mensaje. No compartas contraseñas, tokens ni datos completos de tarjetas.",
+            inline=False,
         )
-        embed.add_field(
-            name="🔐 Tu privacidad",
-            value="No envíes contraseñas, tokens, códigos de acceso ni datos completos de tarjetas.",
-            inline=True,
-        )
-        embed.set_footer(text="DATASHOP Support · Usa «Cómo funciona» para obtener ayuda y «Mis tickets» para ver tus solicitudes.")
+        embed.set_footer(text="Selecciona el tipo de ticket en el menú desplegable para continuar.")
         await send_context(ctx, embed=embed, view=TicketPanelView(self))
 
     @ticket.command(name="close", description="Cierra el ticket actual.")
