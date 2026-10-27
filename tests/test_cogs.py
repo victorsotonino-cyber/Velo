@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 from datashop.bot import DataShopBot
 from datashop.config import Settings
 from datashop.cogs.tickets import DEFAULT_STAFF_ROLE_ID, PUBLIC_TICKET_TYPE_KEYS, TICKET_TYPES, Tickets, TicketPanelView, TicketRatingView, _build_html_transcript, _canned_reply_key, _is_ticket, _parse_inactivity_minutes, _staff_role_ids
-from datashop.cogs.community import LegitVoteView, _legit_yes_count, _normalize_legit_votes
+from datashop.cogs.community import LEGIT_INITIAL_COUNT, LegitVoteView, _legit_display_count, _legit_yes_count, _normalize_legit_votes
 from datashop.cogs.store import ShopPanelView, _safe_int, _safe_money
 
 
@@ -90,6 +90,13 @@ class LegitVotingTests(unittest.TestCase):
         })
         self.assertEqual(votes, {"123": "yes", "456": "no", "987": "yes"})
         self.assertEqual(_legit_yes_count(votes), 2)
+
+    def test_legit_display_starts_at_nineteen_and_tracks_new_yes_votes(self) -> None:
+        self.assertEqual(LEGIT_INITIAL_COUNT, 19)
+        self.assertEqual(_legit_display_count({}), 19)
+        self.assertEqual(_legit_display_count({"123": "yes"}), 20)
+        self.assertEqual(_legit_display_count({"123": "no"}), 19)
+        self.assertEqual(_legit_display_count({"123": "yes", "456": "yes", "789": "no"}), 21)
 
     def test_legit_panel_view_is_persistent_with_yes_no_buttons(self) -> None:
         view = LegitVoteView(SimpleNamespace(), guild_id=123456)
