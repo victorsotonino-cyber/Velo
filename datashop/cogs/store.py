@@ -55,6 +55,20 @@ def _find_product(products: dict[str, Any], product_id: str) -> tuple[str, dict[
         return None
     return key, item
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _safe_money(value: Any, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return parsed if math.isfinite(parsed) else default
+
 
 def _payment_methods_for_guild(guild_id: int) -> list[str]:
     settings = get_guild_data("settings.json", guild_id, {})
@@ -531,12 +545,12 @@ class Store(commands.Cog):
         paid_orders = [item for item in orders if item.get("status") in {"paid", "completed"}]
         pending = [item for item in orders if item.get("status") == "pending"]
         completed = [item for item in orders if item.get("status") == "completed"]
-        try:
-            revenue = sum(max(0.0, float(item.get("total", 0))) for item in paid_orders)
-        except (TypeError, ValueError):
-            revenue = 0.0
-        sold_units = sum(max(0, int(item.get("quantity", 0))) for item in paid_orders if str(item.get("quantity", "")).isdigit())
-        out_of_stock = sum(1 for item in products.values() if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= 0)
+        revenue = sum(max(0.0, _safe_money(item.get("total", 0))) for item in paid_orders)
+        sold_units = sum(max(0, _safe_int(item.get("quantity", 0))) for item in paid_orders)
+        out_of_stock = sum(
+            1 for item in products.values()
+            if isinstance(item, dict) and _safe_int(item.get("stock", 0)) <= 0
+        )
         embed = discord.Embed(title="📈 DATASHOP · Estadísticas de tienda", color=discord.Color.from_str("#8B5CF6"))
         embed.add_field(name="Ventas verificadas", value=f"{revenue:.2f} {self.bot.settings.currency}", inline=True)
         embed.add_field(name="Unidades vendidas", value=str(sold_units), inline=True)
@@ -559,11 +573,11 @@ class Store(commands.Cog):
         products = _products(ctx)
         low = [
             (key, item) for key, item in products.items()
-            if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= threshold
+            if isinstance(item, dict) and _safe_int(item.get("stock", 0)) <= threshold
         ]
-        low.sort(key=lambda pair: int(pair[1].get("stock", 0) or 0))
+        low.sort(key=lambda pair: _safe_int(pair[1].get("stock", 0)))
         lines = [
-            f"**{item.get('name', key)}** · ID {key} · stock {int(item.get('stock', 0) or 0)}"
+            f"**{item.get('name', key)}** · ID {key} · stock {_safe_int(item.get('stock', 0))}"
             for key, item in low[:20]
         ]
         embed = discord.Embed(
@@ -595,23 +609,34 @@ class Store(commands.Cog):
             if order.get("status") != "pending":
                 await send_context(ctx, "Solo puedes cancelar pedidos pendientes. Para pedidos ya pagados, contacta al personal.")
                 return
-            if not order.get("stock_restored", False):
-                products = _products(ctx)
-                product_id = str(order.get("product_id", ""))
-                product = products.get(product_id)
-                if isinstance(product, dict):
+
+            products_before: dict[str, Any] | None = None
+            products_saved = False
+            try:
+                if not order.get("stock_restored", False):
+                    products = _products(ctx)
+                    products_before = copy.deepcopy(products)
+                    product_id = str(order.get("product_id", ""))
+                    product = products.get(product_id)
+                    if isinstance(product, dict):
+                        product["stock"] = max(0, _safe_int(product.get("stock", 0))) + max(0, _safe_int(order.get("quantity", 1), 1))
+                        products[product_id] = product
+                        set_guild_data("products.json", ctx.guild.id, products)
+                        products_saved = True
+                    order["stock_restored"] = True
+                order["status"] = "cancelled"
+                order["cancelled_at"] = discord.utils.utcnow().isoformat()
+                order["cancelled_by"] = ctx.author.id
+                set_guild_data("orders.json", ctx.guild.id, orders)
+            except RuntimeError:
+                if products_saved and products_before is not None:
                     try:
-                        product["stock"] = max(0, int(product.get("stock", 0))) + int(order.get("quantity", 1))
-                    except (TypeError, ValueError):
-                        await send_context(ctx, "No pude devolver el stock; contacta al personal.")
-                        return
-                    products[product_id] = product
-                    set_guild_data("products.json", ctx.guild.id, products)
-                order["stock_restored"] = True
-            order["status"] = "cancelled"
-            order["cancelled_at"] = discord.utils.utcnow().isoformat()
-            order["cancelled_by"] = ctx.author.id
-            set_guild_data("orders.json", ctx.guild.id, orders)
+                        set_guild_data("products.json", ctx.guild.id, products_before)
+                    except RuntimeError:
+                        log.exception("No se pudo restaurar el inventario tras un fallo cancelando el pedido %s", order_id)
+                log.exception("No se pudo guardar la cancelación del pedido %s", order_id)
+                await send_context(ctx, "No pude guardar la cancelación de forma segura. No vuelvas a intentarlo repetidamente; avisa al personal para revisar el pedido y el stock.")
+                return
         await send_context(ctx, f"✅ Pedido {order.get('id')} cancelado; el stock reservado se ha devuelto.")
 
     @shop.command(name="order-status", description="Actualiza el estado de un pedido tras comprobarlo.")
@@ -625,7 +650,10 @@ class Store(commands.Cog):
             return
         async with self._inventory_lock:
             orders = _orders(ctx)
-            order = next((item for item in orders if isinstance(item, dict) and str(item.get("id", "")).upper() == order_id.strip().upper()), None)
+            order = next(
+                (item for item in orders if isinstance(item, dict) and str(item.get("id", "")).upper() == order_id.strip().upper()),
+                None,
+            )
             if order is None:
                 await send_context(ctx, "No encontré ese pedido.")
                 return
@@ -647,23 +675,35 @@ class Store(commands.Cog):
                     "Un pedido pagado requiere un proceso de reembolso aparte.",
                 )
                 return
-            if status == "cancelled" and not order.get("stock_restored", False):
-                products = _products(ctx)
-                product_id = str(order.get("product_id", ""))
-                item = products.get(product_id)
-                if isinstance(item, dict):
-                    try:
-                        item["stock"] = max(0, int(item.get("stock", 0))) + int(order.get("quantity", 1))
+
+            products_before: dict[str, Any] | None = None
+            products_saved = False
+            try:
+                if status == "cancelled" and not order.get("stock_restored", False):
+                    products = _products(ctx)
+                    products_before = copy.deepcopy(products)
+                    product_id = str(order.get("product_id", ""))
+                    item = products.get(product_id)
+                    if isinstance(item, dict):
+                        item["stock"] = max(0, _safe_int(item.get("stock", 0))) + max(0, _safe_int(order.get("quantity", 1), 1))
                         products[product_id] = item
                         set_guild_data("products.json", ctx.guild.id, products)
-                    except (TypeError, ValueError):
-                        await send_context(ctx, "No pude devolver el stock automáticamente; revisa el inventario.")
-                        return
-                order["stock_restored"] = True
-            order["status"] = status
-            order["updated_at"] = discord.utils.utcnow().isoformat()
-            order["updated_by"] = ctx.author.id
-            set_guild_data("orders.json", ctx.guild.id, orders)
+                        products_saved = True
+                    order["stock_restored"] = True
+                order["status"] = status
+                order["updated_at"] = discord.utils.utcnow().isoformat()
+                order["updated_by"] = ctx.author.id
+                set_guild_data("orders.json", ctx.guild.id, orders)
+            except RuntimeError:
+                if products_saved and products_before is not None:
+                    try:
+                        set_guild_data("products.json", ctx.guild.id, products_before)
+                    except RuntimeError:
+                        log.exception("No se pudo restaurar el inventario tras fallar el estado del pedido %s", order_id)
+                log.exception("No se pudo guardar la actualización del pedido %s", order_id)
+                await send_context(ctx, "No pude guardar el cambio de estado de forma segura. Avisa al personal para revisar el pedido y el stock.")
+                return
+
         labels = {
             "pending": "pendiente",
             "paid": "pago verificado manualmente",
