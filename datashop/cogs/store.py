@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import secrets
 from typing import Any
 
@@ -53,6 +54,7 @@ def _find_product(products: dict[str, Any], product_id: str) -> tuple[str, dict[
 class Store(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self._inventory_lock = asyncio.Lock()
 
     @commands.hybrid_group(name="shop", description="Consulta y administra el catálogo y los pedidos.", invoke_without_command=True)
     @commands.guild_only()
@@ -110,17 +112,18 @@ class Store(commands.Cog):
         if not 0 <= stock <= 1_000_000:
             await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
             return
-        products = _products(ctx)
-        product_id = secrets.token_hex(3).upper()
-        while product_id in products:
+        async with self._inventory_lock:
+            products = _products(ctx)
             product_id = secrets.token_hex(3).upper()
-        products[product_id] = {
-            "name": name.strip(),
-            "price": round(price, 2),
-            "stock": stock,
-            "description": description.strip()[:500] or "Sin descripción",
-        }
-        set_guild_data("products.json", ctx.guild.id, products)
+            while product_id in products:
+                product_id = secrets.token_hex(3).upper()
+            products[product_id] = {
+                "name": name.strip(),
+                "price": round(price, 2),
+                "stock": stock,
+                "description": description.strip()[:500] or "Sin descripción",
+            }
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(
             ctx,
             f"✅ Producto añadido: {name.strip()} — {price:.2f} {self.bot.settings.currency}. ID: {product_id}",
@@ -140,39 +143,40 @@ class Store(commands.Cog):
         if not _is_staff(ctx):
             await send_context(ctx, "Necesitas Gestionar servidor o Administrador para editar productos.")
             return
-        products = _products(ctx)
-        found = _find_product(products, product_id)
-        if found is None:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        if name is not None and (not name.strip() or len(name) > 80):
-            await send_context(ctx, "El nombre debe tener entre 1 y 80 caracteres.")
-            return
-        if price is not None and not 0 <= price <= 1_000_000:
-            await send_context(ctx, "El precio debe estar entre 0 y 1.000.000.")
-            return
-        if stock is not None and not 0 <= stock <= 1_000_000:
-            await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
-            return
-        key, item = found
-        changes: list[str] = []
-        if name is not None:
-            item["name"] = name.strip()
-            changes.append("nombre")
-        if price is not None:
-            item["price"] = round(price, 2)
-            changes.append("precio")
-        if stock is not None:
-            item["stock"] = stock
-            changes.append("stock")
-        if description is not None:
-            item["description"] = description.strip()[:500] or "Sin descripción"
-            changes.append("descripción")
-        if not changes:
-            await send_context(ctx, "Indica al menos un campo para cambiar: nombre, precio, stock o descripción.")
-            return
-        products[key] = item
-        set_guild_data("products.json", ctx.guild.id, products)
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            if name is not None and (not name.strip() or len(name) > 80):
+                await send_context(ctx, "El nombre debe tener entre 1 y 80 caracteres.")
+                return
+            if price is not None and not 0 <= price <= 1_000_000:
+                await send_context(ctx, "El precio debe estar entre 0 y 1.000.000.")
+                return
+            if stock is not None and not 0 <= stock <= 1_000_000:
+                await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
+                return
+            key, item = found
+            changes: list[str] = []
+            if name is not None:
+                item["name"] = name.strip()
+                changes.append("nombre")
+            if price is not None:
+                item["price"] = round(price, 2)
+                changes.append("precio")
+            if stock is not None:
+                item["stock"] = stock
+                changes.append("stock")
+            if description is not None:
+                item["description"] = description.strip()[:500] or "Sin descripción"
+                changes.append("descripción")
+            if not changes:
+                await send_context(ctx, "Indica al menos un campo para cambiar: nombre, precio, stock o descripción.")
+                return
+            products[key] = item
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"✅ Producto **{item.get('name', key)}** actualizado: {', '.join(changes)}.")
 
     @shop.command(name="stock", description="Establece el stock disponible de un producto.")
@@ -183,15 +187,16 @@ class Store(commands.Cog):
         if not 0 <= quantity <= 1_000_000:
             await send_context(ctx, "El stock debe estar entre 0 y 1.000.000.")
             return
-        products = _products(ctx)
-        found = _find_product(products, product_id)
-        if found is None:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        key, item = found
-        item["stock"] = quantity
-        products[key] = item
-        set_guild_data("products.json", ctx.guild.id, products)
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            key, item = found
+            item["stock"] = quantity
+            products[key] = item
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"✅ Stock de **{item.get('name', key)}** establecido en {quantity}.")
 
     @shop.command(name="remove", description="Elimina un producto del catálogo usando su ID.")
@@ -199,13 +204,14 @@ class Store(commands.Cog):
         if not _is_staff(ctx):
             await send_context(ctx, "Necesitas Gestionar servidor o Administrador para eliminar productos.")
             return
-        products = _products(ctx)
-        key = product_id.strip().upper()
-        if key not in products:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        removed = products.pop(key)
-        set_guild_data("products.json", ctx.guild.id, products)
+        async with self._inventory_lock:
+            products = _products(ctx)
+            key = product_id.strip().upper()
+            if key not in products:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            removed = products.pop(key)
+            set_guild_data("products.json", ctx.guild.id, products)
         await send_context(ctx, f"🗑️ Producto eliminado: {removed.get('name', key)}.")
 
     @shop.group(name="payment", description="Configura métodos de pago informativos.", invoke_without_command=True)
@@ -264,48 +270,49 @@ class Store(commands.Cog):
         if not 1 <= quantity <= 100:
             await send_context(ctx, "La cantidad debe ser de 1 a 100 unidades.")
             return
-        products = _products(ctx)
-        found = _find_product(products, product_id)
-        if found is None:
-            await send_context(ctx, "No existe un producto con ese ID.")
-            return
-        key, item = found
-        stock = item.get("stock", 0)
-        try:
-            price = float(item.get("price", 0))
-        except (TypeError, ValueError):
-            await send_context(ctx, "El precio de este producto no es válido. Pide al personal que lo revise.")
-            return
-        if not isinstance(stock, int) or stock < quantity:
-            await send_context(ctx, f"Stock insuficiente. Disponible: {stock if isinstance(stock, int) else 0}.")
-            return
-        if price < 0 or price > 1_000_000:
-            await send_context(ctx, "El precio de este producto no es válido. Pide al personal que lo revise.")
-            return
+        async with self._inventory_lock:
+            products = _products(ctx)
+            found = _find_product(products, product_id)
+            if found is None:
+                await send_context(ctx, "No existe un producto con ese ID.")
+                return
+            key, item = found
+            stock = item.get("stock", 0)
+            try:
+                price = float(item.get("price", 0))
+            except (TypeError, ValueError):
+                await send_context(ctx, "El precio de este producto no es válido. Pide al personal que lo revise.")
+                return
+            if not isinstance(stock, int) or stock < quantity:
+                await send_context(ctx, f"Stock insuficiente. Disponible: {stock if isinstance(stock, int) else 0}.")
+                return
+            if price < 0 or price > 1_000_000:
+                await send_context(ctx, "El precio de este producto no es válido. Pide al personal que lo revise.")
+                return
 
-        orders = _orders(ctx)
-        order_id = secrets.token_hex(4).upper()
-        while any(str(order.get("id", "")) == order_id for order in orders if isinstance(order, dict)):
+            orders = _orders(ctx)
             order_id = secrets.token_hex(4).upper()
-        total = round(price * quantity, 2)
-        order = {
-            "id": order_id,
-            "buyer_id": ctx.author.id,
-            "buyer": str(ctx.author),
-            "product_id": key,
-            "product": str(item.get("name", key)),
-            "quantity": quantity,
-            "price_each": round(price, 2),
-            "total": total,
-            "status": "pending",
-            "created_at": discord.utils.utcnow().isoformat(),
-            "stock_restored": False,
-        }
-        item["stock"] = stock - quantity
-        products[key] = item
-        set_guild_data("products.json", ctx.guild.id, products)
-        orders.append(order)
-        set_guild_data("orders.json", ctx.guild.id, orders)
+            while any(str(order.get("id", "")) == order_id for order in orders if isinstance(order, dict)):
+                order_id = secrets.token_hex(4).upper()
+            total = round(price * quantity, 2)
+            order = {
+                "id": order_id,
+                "buyer_id": ctx.author.id,
+                "buyer": str(ctx.author),
+                "product_id": key,
+                "product": str(item.get("name", key)),
+                "quantity": quantity,
+                "price_each": round(price, 2),
+                "total": total,
+                "status": "pending",
+                "created_at": discord.utils.utcnow().isoformat(),
+                "stock_restored": False,
+            }
+            item["stock"] = stock - quantity
+            products[key] = item
+            set_guild_data("products.json", ctx.guild.id, products)
+            orders.append(order)
+            set_guild_data("orders.json", ctx.guild.id, orders)
         methods = _payment_methods(ctx)
         embed = discord.Embed(
             title=f"🧾 Pedido {order_id}",
@@ -363,6 +370,99 @@ class Store(commands.Cog):
         embed.set_footer(text="No se muestran más de 15 pedidos en esta vista.")
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
 
+    @shop.command(name="stats", description="Muestra ventas, pedidos e inventario.")
+    async def store_stats(self, ctx: commands.Context) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Solo el personal puede consultar las estadísticas de la tienda.")
+            return
+        products = _products(ctx)
+        orders = [item for item in _orders(ctx) if isinstance(item, dict)]
+        paid_orders = [item for item in orders if item.get("status") in {"paid", "completed"}]
+        pending = [item for item in orders if item.get("status") == "pending"]
+        completed = [item for item in orders if item.get("status") == "completed"]
+        try:
+            revenue = sum(max(0.0, float(item.get("total", 0))) for item in paid_orders)
+        except (TypeError, ValueError):
+            revenue = 0.0
+        sold_units = sum(max(0, int(item.get("quantity", 0))) for item in paid_orders if str(item.get("quantity", "")).isdigit())
+        out_of_stock = sum(1 for item in products.values() if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= 0)
+        embed = discord.Embed(title="📈 DATASHOP · Estadísticas de tienda", color=discord.Color.from_str("#8B5CF6"))
+        embed.add_field(name="Ventas verificadas", value=f"{revenue:.2f} {self.bot.settings.currency}", inline=True)
+        embed.add_field(name="Unidades vendidas", value=str(sold_units), inline=True)
+        embed.add_field(name="Pedidos completados", value=str(len(completed)), inline=True)
+        embed.add_field(name="Pedidos pendientes", value=str(len(pending)), inline=True)
+        embed.add_field(name="Pedidos totales", value=str(len(orders)), inline=True)
+        embed.add_field(name="Productos", value=str(len(products)), inline=True)
+        embed.add_field(name="Sin stock", value=str(out_of_stock), inline=True)
+        embed.set_footer(text="El ingreso solo suma pedidos marcados como pago verificado o completado.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="low-stock", description="Lista productos con stock bajo.")
+    async def low_stock(self, ctx: commands.Context, threshold: int = 5) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Solo el personal puede consultar el inventario bajo.")
+            return
+        if not 0 <= threshold <= 1000:
+            await send_context(ctx, "El umbral debe estar entre 0 y 1000.")
+            return
+        products = _products(ctx)
+        low = [
+            (key, item) for key, item in products.items()
+            if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= threshold
+        ]
+        low.sort(key=lambda pair: int(pair[1].get("stock", 0) or 0))
+        lines = [
+            f"**{item.get('name', key)}** · ID {key} · stock {int(item.get('stock', 0) or 0)}"
+            for key, item in low[:20]
+        ]
+        embed = discord.Embed(
+            title=f"📦 Stock bajo (≤ {threshold})",
+            description="\n".join(lines) or "No hay productos dentro de este umbral.",
+            color=discord.Color.orange(),
+        )
+        if len(low) > 20:
+            embed.set_footer(text=f"Mostrando 20 de {len(low)} productos.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="cancel", description="Cancela uno de tus pedidos pendientes y devuelve su stock.")
+    async def cancel_order(self, ctx: commands.Context, order_id: str) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        async with self._inventory_lock:
+            orders = _orders(ctx)
+            order = next(
+                (item for item in orders if isinstance(item, dict) and str(item.get("id", "")).upper() == order_id.strip().upper()),
+                None,
+            )
+            if order is None:
+                await send_context(ctx, "No encontré ese pedido.")
+                return
+            if order.get("buyer_id") != ctx.author.id:
+                await send_context(ctx, "Solo puedes cancelar tus propios pedidos.")
+                return
+            if order.get("status") != "pending":
+                await send_context(ctx, "Solo puedes cancelar pedidos pendientes. Para pedidos ya pagados, contacta al personal.")
+                return
+            if not order.get("stock_restored", False):
+                products = _products(ctx)
+                product_id = str(order.get("product_id", ""))
+                product = products.get(product_id)
+                if isinstance(product, dict):
+                    try:
+                        product["stock"] = max(0, int(product.get("stock", 0))) + int(order.get("quantity", 1))
+                    except (TypeError, ValueError):
+                        await send_context(ctx, "No pude devolver el stock; contacta al personal.")
+                        return
+                    products[product_id] = product
+                    set_guild_data("products.json", ctx.guild.id, products)
+                order["stock_restored"] = True
+            order["status"] = "cancelled"
+            order["cancelled_at"] = discord.utils.utcnow().isoformat()
+            order["cancelled_by"] = ctx.author.id
+            set_guild_data("orders.json", ctx.guild.id, orders)
+        await send_context(ctx, f"✅ Pedido {order.get('id')} cancelado; el stock reservado se ha devuelto.")
+
     @shop.command(name="order-status", description="Actualiza el estado de un pedido tras comprobarlo.")
     async def set_order_status(self, ctx: commands.Context, order_id: str, status: str) -> None:
         if not _is_staff(ctx):
@@ -372,32 +472,47 @@ class Store(commands.Cog):
         if status not in VALID_ORDER_STATUSES:
             await send_context(ctx, "Estados válidos: pending, paid, completed o cancelled.")
             return
-        orders = _orders(ctx)
-        order = next((item for item in orders if isinstance(item, dict) and str(item.get("id", "")).upper() == order_id.strip().upper()), None)
-        if order is None:
-            await send_context(ctx, "No encontré ese pedido.")
-            return
-        old_status = str(order.get("status", "pending"))
-        if old_status in {"completed", "cancelled"}:
-            await send_context(ctx, "Los pedidos completados o cancelados son finales; crea otro pedido si hace falta.")
-            return
-        if status == "cancelled" and not order.get("stock_restored", False):
-            products = _products(ctx)
-            product_id = str(order.get("product_id", ""))
-            item = products.get(product_id)
-            if isinstance(item, dict):
-                try:
-                    item["stock"] = max(0, int(item.get("stock", 0))) + int(order.get("quantity", 1))
-                    products[product_id] = item
-                    set_guild_data("products.json", ctx.guild.id, products)
-                except (TypeError, ValueError):
-                    await send_context(ctx, "No pude devolver el stock automáticamente; revisa el inventario.")
-                    return
-            order["stock_restored"] = True
-        order["status"] = status
-        order["updated_at"] = discord.utils.utcnow().isoformat()
-        order["updated_by"] = ctx.author.id
-        set_guild_data("orders.json", ctx.guild.id, orders)
+        async with self._inventory_lock:
+            orders = _orders(ctx)
+            order = next((item for item in orders if isinstance(item, dict) and str(item.get("id", "")).upper() == order_id.strip().upper()), None)
+            if order is None:
+                await send_context(ctx, "No encontré ese pedido.")
+                return
+            old_status = str(order.get("status", "pending"))
+            allowed_transitions = {
+                "pending": {"paid", "cancelled"},
+                "paid": {"completed"},
+                "completed": set(),
+                "cancelled": set(),
+            }
+            if status == old_status:
+                await send_context(ctx, f"El pedido ya está en estado {status}.")
+                return
+            if status not in allowed_transitions.get(old_status, set()):
+                await send_context(
+                    ctx,
+                    f"Transición no permitida: {old_status} -> {status}. "
+                    "Flujo admitido: pending -> paid -> completed; pending -> cancelled. "
+                    "Un pedido pagado requiere un proceso de reembolso aparte.",
+                )
+                return
+            if status == "cancelled" and not order.get("stock_restored", False):
+                products = _products(ctx)
+                product_id = str(order.get("product_id", ""))
+                item = products.get(product_id)
+                if isinstance(item, dict):
+                    try:
+                        item["stock"] = max(0, int(item.get("stock", 0))) + int(order.get("quantity", 1))
+                        products[product_id] = item
+                        set_guild_data("products.json", ctx.guild.id, products)
+                    except (TypeError, ValueError):
+                        await send_context(ctx, "No pude devolver el stock automáticamente; revisa el inventario.")
+                        return
+                order["stock_restored"] = True
+            order["status"] = status
+            order["updated_at"] = discord.utils.utcnow().isoformat()
+            order["updated_by"] = ctx.author.id
+            set_guild_data("orders.json", ctx.guild.id, orders)
         labels = {
             "pending": "pendiente",
             "paid": "pago verificado manualmente",

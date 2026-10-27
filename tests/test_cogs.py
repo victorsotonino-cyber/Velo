@@ -64,7 +64,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             shop_names = {command.name for command in shop_group.commands}
             expected_shop_commands = {
                 "list", "add", "edit", "stock", "remove", "payment",
-                "order", "my-orders", "orders", "order-status",
+                "order", "my-orders", "orders", "order-status", "cancel", "stats", "low-stock",
             }
             self.assertTrue(
                 expected_shop_commands.issubset(shop_names),
