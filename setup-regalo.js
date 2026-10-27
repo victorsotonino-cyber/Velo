@@ -52,7 +52,7 @@ module.exports = {
     if (sub === "logs") {
       const channel = i.options.getChannel("canal", true);
       const row = { channelId: channel.id, configuredAt: new Date().toISOString() };
-      const file = "data/noyvz-guild-config.json";
+      const file = "noyvz-guild-config.json";
       const all = readJSON(file, {});
       all[i.guildId] = { ...(all[i.guildId] || {}), logsChannelId: row.channelId };
       writeJSON(file, all);
