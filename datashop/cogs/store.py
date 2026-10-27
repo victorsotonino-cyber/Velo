@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import secrets
 from typing import Any
 
@@ -99,7 +100,7 @@ class ShopOrderModal(discord.ui.Modal):
 class ShopProductSelect(discord.ui.Select):
     def __init__(self, cog: "Store", products: dict[str, Any]) -> None:
         options: list[discord.SelectOption] = []
-        for product_id, item in list(products.items())[:25]:
+        for product_id, item in products.items():
             if not isinstance(item, dict):
                 continue
             try:
@@ -112,6 +113,8 @@ class ShopProductSelect(discord.ui.Select):
             name = str(item.get("name", "Producto"))[:100] or "Producto"
             description = f"{price:.2f} {cog.bot.settings.currency} · Stock {stock}"[:100]
             options.append(discord.SelectOption(label=name, value=str(product_id)[:100], description=description))
+            if len(options) >= 25:
+                break
         if not options:
             options = [discord.SelectOption(label="Sin productos disponibles", value="_none", description="El catálogo está vacío")]
         super().__init__(
@@ -219,7 +222,7 @@ class Store(commands.Cog):
         if not name.strip() or len(name) > 80:
             await send_context(ctx, "El nombre debe tener entre 1 y 80 caracteres.")
             return
-        if price < 0 or price > 1_000_000:
+        if not math.isfinite(price) or price < 0 or price > 1_000_000:
             await send_context(ctx, "El precio debe estar entre 0 y 1.000.000.")
             return
         if not 0 <= stock <= 1_000_000:
