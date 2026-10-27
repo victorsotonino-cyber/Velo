@@ -25,14 +25,15 @@ No subas .env a GitHub, no insertes tokens en archivos y no compartas el token p
 Los comandos híbridos funcionan como comandos slash y con el prefijo configurado, que por defecto es !.
 
 - General: /help, /ping, /serverinfo, /userinfo.
-- Moderación: /ban, /kick, /timeout, /untimeout, /warn, /warnings y /clear.
+- Moderación: /ban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /slowmode, /lock, /unlock y /nick.
+- Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
 - Tickets: /ticket setup, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove y /ticket transcript.
 - Catálogo: /shop list, /shop add, /shop edit, /shop stock y /shop remove.
 - Pedidos: /shop order, /shop my-orders, /shop orders y /shop order-status.
 - Métodos de pago informativos: /shop payment add y /shop payment remove.
 - Reseñas: /vouch.
 - Comunidad: /suggestion y /poll.
-- Configuración: /botconfig show, /botconfig welcome, /botconfig welcome-off, /botconfig logs, /botconfig autorole, /botconfig autorole-off y /botconfig automod.
+- Configuración: /botconfig show, /botconfig welcome, /botconfig welcome-off, /botconfig logs, /botconfig autorole, /botconfig autorole-off, /botconfig automod, /botconfig blockword-add y /botconfig blockword-remove.
 
 Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
 
@@ -47,6 +48,12 @@ Puedes configurar categoría y rol de soporte desde el comando /ticket setup. Si
 El catálogo admite nombre, precio, descripción e inventario. Los pedidos guardan una copia del producto, el total y su estado; el inventario se reserva al crear un pedido y se devuelve si el pedido se cancela. Solo el personal autorizado puede cambiar estados o consultar todos los pedidos.
 
 Los métodos añadidos mediante /shop payment son texto informativo. **No existe integración con una pasarela de pagos**: el equipo debe verificar los cobros fuera del bot y marcar el pedido como pagado únicamente después de comprobarlos. No solicites contraseñas, tokens, números completos de tarjetas ni otros secretos por Discord.
+
+## Registro y AutoMod
+
+Configura un canal con /botconfig logs para registrar entradas y salidas de miembros, cambios de apodo y roles, mensajes editados o eliminados y acciones de AutoMod. El registro no permite recuperar mensajes eliminados completos a menos que el evento entregue el contenido al bot.
+
+Activa el filtro con /botconfig automod true. El filtro puede eliminar invitaciones de Discord, mensajes que coincidan con frases configuradas y flood repetitivo. Añade y quita frases con /botconfig blockword-add y /botconfig blockword-remove. La detección de flood usa una regla básica y puede necesitar ajustes según el ritmo de tu comunidad.
 
 ## Configuración y alojamiento
 
@@ -63,5 +70,5 @@ El servidor HTTP integrado expone /health. Para conservar productos, pedidos, ad
 
 - La información se guarda en archivos JSON por servidor.
 - No se procesan pagos reales ni se verifican automáticamente transferencias.
-- AutoMod solo bloquea invitaciones de Discord cuando se activa desde /botconfig automod; todavía no sustituye un sistema completo anti-spam o anti-raid.
+- El AutoMod del bot no sustituye las funciones nativas de seguridad de Discord ni un sistema completo anti-raid.
 - Los comandos de moderación dependen de los permisos de Discord y de la jerarquía de roles.

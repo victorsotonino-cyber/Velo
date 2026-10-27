@@ -38,6 +38,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
             expected = {
                 "help", "ping", "serverinfo", "userinfo",
                 "ban", "kick", "timeout", "untimeout", "warn", "warnings", "clear",
+                "slowmode", "lock", "unlock", "nick", "role",
                 "ticket", "shop", "vouch", "suggestion", "poll", "botconfig",
             }
             self.assertTrue(
@@ -66,8 +67,14 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 f"Faltan subcomandos shop: {sorted(expected_shop_commands - shop_names)}",
             )
             payment_group = next(command for command in shop_group.commands if command.name == "payment")
-            payment_names = {command.name for command in payment_group.commands}
-            self.assertTrue({"add", "remove"}.issubset(payment_names))
+            self.assertTrue({"add", "remove"}.issubset({command.name for command in payment_group.commands}))
+
+            role_group = commands_by_name["role"]
+            self.assertTrue({"add", "remove"}.issubset({command.name for command in role_group.commands}))
+
+            config_group = commands_by_name["botconfig"]
+            config_names = {command.name for command in config_group.commands}
+            self.assertTrue({"logs", "automod", "blockword-add", "blockword-remove"}.issubset(config_names))
         finally:
             await bot.close()
 
