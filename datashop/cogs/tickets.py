@@ -630,7 +630,7 @@ class Tickets(commands.Cog):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
             return
         author = ctx.author if isinstance(ctx.author, discord.Member) else None
-        if author is None or not self.is_staff(author):
+        if author is None or not self.is_staff(author, ctx.channel):
             await send_context(ctx, "Solo el personal configurado puede liberar tickets.")
             return
         current = _topic_value(ctx.channel, "DATASHOP_CLAIMED_BY")
