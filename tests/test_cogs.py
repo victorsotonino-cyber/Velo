@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 from datashop.bot import DataShopBot
 from datashop.config import Settings
 from datashop.cogs.tickets import _staff_role_ids
+from datashop.cogs.store import _safe_int, _safe_money
 
 
 
@@ -61,6 +62,19 @@ class CommandSyncFallbackTests(unittest.IsolatedAsyncioTestCase):
                 sync.assert_awaited_once_with()
         finally:
             await bot.close()
+
+
+class StoreInputSafetyTests(unittest.TestCase):
+    def test_invalid_stock_values_fall_back_safely(self) -> None:
+        self.assertEqual(_safe_int(None), 0)
+        self.assertEqual(_safe_int("broken"), 0)
+        self.assertEqual(_safe_int("7"), 7)
+
+    def test_non_finite_money_values_are_not_counted_as_revenue(self) -> None:
+        self.assertEqual(_safe_money("not-money"), 0.0)
+        self.assertEqual(_safe_money("NaN"), 0.0)
+        self.assertEqual(_safe_money(float("inf")), 0.0)
+        self.assertEqual(_safe_money("12.50"), 12.5)
 
 
 class TicketRouteRoleTests(unittest.TestCase):
