@@ -27,8 +27,9 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - General: /help, /ping, /serverinfo, /userinfo.
 - Moderación: /ban, /unban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /purge-user, /slowmode, /lock, /unlock y /nick. Las acciones principales también se registran en el canal configurado con /botconfig logs.
 - Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
-- Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket control lock/unlock/pin/autoclose/autoclose-off/canned-list/canned-add/canned-remove/canned-use, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript, /ticket delete, /ticket timer, /ticket stoptimer, /ticket client y /ticket remember.
-- Catálogo: /shop list, /shop browse (menú interactivo), /shop add, /shop edit, /shop image, /shop stock y /shop remove.
+- Tickets: /ticket setup (panel público con selector, ayuda y Mis tickets), /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket control lock/unlock/pin/autoclose/autoclose-off/canned-list/canned-add/canned-remove/canned-use, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript, /ticket delete, /ticket timer, /ticket stoptimer, /ticket client y /ticket remember.
+- Panel visual público de tienda: /shop panel (selector de producto, catálogo destacado, Mi carrito, Mis pedidos y Actualizar; se restaura tras reinicios cuando se conserva el almacenamiento de datos).
+- Catálogo: /shop list, /shop browse (menú interactivo efímero), /shop add, /shop edit, /shop image, /shop stock y /shop remove.
 - Carrito: /shop cart-add, /shop cart-remove, /shop cart-view, /shop cart-clear y /shop checkout (varios productos por checkout).
 - Pedidos: /shop order, /shop my-orders, /shop orders, /shop cancel, /shop order-status y /shop order-expiry.
 - Informes: /shop stats y /shop low-stock.
@@ -37,9 +38,17 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - Comunidad: /suggestion, /poll, /afk, /remind, /reminders, /reminder-cancel, /rank y /leaderboard.
 - Sorteos gratuitos: /giveaway start, /giveaway end y /giveaway reroll.
 - Comunicación: /say y /announce.
-- Configuración: /botconfig show, /botconfig welcome, /botconfig welcome-off, /botconfig logs, /botconfig autorole, /botconfig autorole-off, /botconfig automod, /botconfig blockword-add y /botconfig blockword-remove.
+- Panel interactivo de administración: /botconfig panel (canales de bienvenida/logs, rol de autorol y botones para alternar bienvenida, autorol y AutoMod).
+- Configuración por comandos: /botconfig show, /botconfig welcome, /botconfig welcome-off, /botconfig logs, /botconfig autorole, /botconfig autorole-off, /botconfig automod, /botconfig blockword-add y /botconfig blockword-remove.
 
 Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
+
+## Paneles visuales
+
+- Publica un panel público de tienda en el canal actual con /shop panel. Incluye productos destacados, selector para comprar, vista privada del carrito, vista privada de pedidos y botón para actualizar el catálogo.
+- Abre /botconfig panel para configurar canales y rol con selectores de Discord y alternar AutoMod, bienvenida y autorol. El panel de administración es efímero y solo aplica cambios a administradores.
+- El panel /ticket setup presenta las categorías, un formulario modal, un botón de ayuda rápida y el resumen de tickets abiertos del usuario.
+- Los paneles persistentes de tienda se recuperan en el arranque mediante los IDs guardados en shop_panels.json; el directorio DATASHOP_DATA_DIR debe mantenerse en almacenamiento persistente del hosting para sobrevivir a reemplazos de contenedor.
 
 ## Sistema de tickets
 
