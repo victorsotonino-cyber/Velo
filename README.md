@@ -27,7 +27,7 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - General: /help, /ping, /serverinfo, /userinfo.
 - Moderación: /ban, /unban, /kick, /timeout, /untimeout, /warn, /warnings, /clear, /purge-user, /slowmode, /lock, /unlock y /nick. Las acciones principales también se registran en el canal configurado con /botconfig logs.
 - Roles: /role add y /role remove; se bloquean roles con permisos sensibles y se comprueba la jerarquía.
-- Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket priority, /ticket move, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript y /ticket delete.
+- Tickets: /ticket setup, /ticket route, /ticket max-open, /ticket close, /ticket claim, /ticket unclaim, /ticket reopen, /ticket add, /ticket remove, /ticket rename, /ticket transfer, /ticket client, /ticket priority, /ticket move, /ticket timer, /ticket stoptimer, /ticket remember, /ticket note add/list, /ticket blacklist-add/remove, /ticket list, /ticket stats, /ticket transcript y /ticket delete.
 - Catálogo: /shop list, /shop browse (menú interactivo), /shop add, /shop edit, /shop image, /shop stock y /shop remove.
 - Carrito: /shop cart-add, /shop cart-remove, /shop cart-view, /shop cart-clear y /shop checkout (varios productos por checkout).
 - Pedidos: /shop order, /shop my-orders, /shop orders, /shop cancel, /shop order-status y /shop order-expiry.
@@ -43,7 +43,7 @@ Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
 
 ## Sistema de tickets
 
-El panel persistente permite seleccionar Soporte, Compras, Reclamación u Otros y completar un formulario de asunto y descripción. Cada usuario tiene un límite configurable de tickets abiertos, hay lista de bloqueo, rutas de categoría/rol por tipo, prioridades, reclamaciones, transferencia, notas internas privadas, valoraciones por DM y transcripciones. La eliminación requiere guardar primero una transcripción en el canal de logs.
+El panel persistente permite seleccionar Soporte, Compras, Reclamación u Otros y completar un formulario de asunto y descripción. Cada usuario tiene un límite configurable de tickets abiertos, hay lista de bloqueo, rutas de categoría/rol por tipo, prioridades, reclamaciones, transferencia, notas internas privadas, recordatorios al cliente con cooldown, temporizadores de autocierre configurados por el equipo, valoración por DM recuperable tras reinicios y transcripciones HTML con escape de texto y límite de tamaño. La eliminación requiere guardar primero una transcripción en el canal de logs. Si no se configura /ticket timer, el autocierre no se activa.
 
 Puedes configurar categoría y rol de soporte desde el comando /ticket setup. Si no se indica categoría, el bot crea una categoría de tickets cuando haga falta. Los permisos efectivos también dependen de los permisos y la jerarquía de roles del bot en Discord.
 
