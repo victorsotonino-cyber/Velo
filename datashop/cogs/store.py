@@ -557,6 +557,49 @@ class Store(commands.Cog):
             ephemeral=ctx.interaction is not None,
         )
 
+    @shop.command(name="panel", description="Publica un panel visual e interactivo de tienda en este canal.")
+    async def publish_shop_panel(self, ctx: commands.Context) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador para publicar el panel público de tienda.")
+            return
+        products = _products(ctx)
+        view = ShopPanelView(self, ctx.guild.id, products)
+        embed = _storefront_embed(ctx.guild, products, self.bot.settings.currency)
+        try:
+            if ctx.interaction:
+                await ctx.interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+                message = await ctx.interaction.original_response()
+            else:
+                message = await ctx.send(embed=embed, view=view)
+        except discord.HTTPException:
+            await send_context(ctx, "No pude publicar el panel. Comprueba mis permisos para enviar embeds y componentes.")
+            return
+
+        panels = get_guild_data("shop_panels.json", ctx.guild.id, {})
+        if not isinstance(panels, dict):
+            panels = {}
+        panels[str(message.id)] = {
+            "channel_id": ctx.channel.id,
+            "created_at": discord.utils.utcnow().isoformat(),
+        }
+        if len(panels) > 20:
+            ordered = sorted(
+                panels.items(),
+                key=lambda pair: str(pair[1].get("created_at", "")) if isinstance(pair[1], dict) else "",
+            )
+            panels = dict(ordered[-20:])
+        try:
+            set_guild_data("shop_panels.json", ctx.guild.id, panels)
+        except RuntimeError:
+            log.exception("El panel se publicó, pero no se pudo guardar su registro de persistencia")
+        self.bot.add_view(view, message_id=message.id)
+        self._registered_panel_messages.add(message.id)
+        await send_context(
+            ctx,
+            f"✅ Panel público de tienda publicado en {ctx.channel.mention}. Sus componentes se restaurarán tras reiniciar.",
+            ephemeral=ctx.interaction is not None,
+        )
+
     @shop.command(name="browse", description="Abre un menú interactivo para elegir un producto y crear un pedido.")
     async def browse_products(self, ctx: commands.Context) -> None:
         products = _products(ctx)
