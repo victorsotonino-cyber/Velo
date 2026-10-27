@@ -370,6 +370,99 @@ class Store(commands.Cog):
         embed.set_footer(text="No se muestran más de 15 pedidos en esta vista.")
         await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
 
+    @shop.command(name="stats", description="Muestra ventas, pedidos e inventario.")
+    async def store_stats(self, ctx: commands.Context) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Solo el personal puede consultar las estadísticas de la tienda.")
+            return
+        products = _products(ctx)
+        orders = [item for item in _orders(ctx) if isinstance(item, dict)]
+        paid_orders = [item for item in orders if item.get("status") in {"paid", "completed"}]
+        pending = [item for item in orders if item.get("status") == "pending"]
+        completed = [item for item in orders if item.get("status") == "completed"]
+        try:
+            revenue = sum(max(0.0, float(item.get("total", 0))) for item in paid_orders)
+        except (TypeError, ValueError):
+            revenue = 0.0
+        sold_units = sum(max(0, int(item.get("quantity", 0))) for item in paid_orders if str(item.get("quantity", "")).isdigit())
+        out_of_stock = sum(1 for item in products.values() if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= 0)
+        embed = discord.Embed(title="📈 DATASHOP · Estadísticas de tienda", color=discord.Color.from_str("#8B5CF6"))
+        embed.add_field(name="Ventas verificadas", value=f"{revenue:.2f} {self.bot.settings.currency}", inline=True)
+        embed.add_field(name="Unidades vendidas", value=str(sold_units), inline=True)
+        embed.add_field(name="Pedidos completados", value=str(len(completed)), inline=True)
+        embed.add_field(name="Pedidos pendientes", value=str(len(pending)), inline=True)
+        embed.add_field(name="Pedidos totales", value=str(len(orders)), inline=True)
+        embed.add_field(name="Productos", value=str(len(products)), inline=True)
+        embed.add_field(name="Sin stock", value=str(out_of_stock), inline=True)
+        embed.set_footer(text="El ingreso solo suma pedidos marcados como pago verificado o completado.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="low-stock", description="Lista productos con stock bajo.")
+    async def low_stock(self, ctx: commands.Context, threshold: int = 5) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Solo el personal puede consultar el inventario bajo.")
+            return
+        if not 0 <= threshold <= 1000:
+            await send_context(ctx, "El umbral debe estar entre 0 y 1000.")
+            return
+        products = _products(ctx)
+        low = [
+            (key, item) for key, item in products.items()
+            if isinstance(item, dict) and int(item.get("stock", 0) or 0) <= threshold
+        ]
+        low.sort(key=lambda pair: int(pair[1].get("stock", 0) or 0))
+        lines = [
+            f"**{item.get('name', key)}** · ID {key} · stock {int(item.get('stock', 0) or 0)}"
+            for key, item in low[:20]
+        ]
+        embed = discord.Embed(
+            title=f"📦 Stock bajo (≤ {threshold})",
+            description="\n".join(lines) or "No hay productos dentro de este umbral.",
+            color=discord.Color.orange(),
+        )
+        if len(low) > 20:
+            embed.set_footer(text=f"Mostrando 20 de {len(low)} productos.")
+        await send_context(ctx, embed=embed, ephemeral=ctx.interaction is not None)
+
+    @shop.command(name="cancel", description="Cancela uno de tus pedidos pendientes y devuelve su stock.")
+    async def cancel_order(self, ctx: commands.Context, order_id: str) -> None:
+        if not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo se puede usar dentro de un servidor.")
+            return
+        async with self._inventory_lock:
+            orders = _orders(ctx)
+            order = next(
+                (item for item in orders if isinstance(item, dict) and str(item.get("id", "")).upper() == order_id.strip().upper()),
+                None,
+            )
+            if order is None:
+                await send_context(ctx, "No encontré ese pedido.")
+                return
+            if order.get("buyer_id") != ctx.author.id:
+                await send_context(ctx, "Solo puedes cancelar tus propios pedidos.")
+                return
+            if order.get("status") != "pending":
+                await send_context(ctx, "Solo puedes cancelar pedidos pendientes. Para pedidos ya pagados, contacta al personal.")
+                return
+            if not order.get("stock_restored", False):
+                products = _products(ctx)
+                product_id = str(order.get("product_id", ""))
+                product = products.get(product_id)
+                if isinstance(product, dict):
+                    try:
+                        product["stock"] = max(0, int(product.get("stock", 0))) + int(order.get("quantity", 1))
+                    except (TypeError, ValueError):
+                        await send_context(ctx, "No pude devolver el stock; contacta al personal.")
+                        return
+                    products[product_id] = product
+                    set_guild_data("products.json", ctx.guild.id, products)
+                order["stock_restored"] = True
+            order["status"] = "cancelled"
+            order["cancelled_at"] = discord.utils.utcnow().isoformat()
+            order["cancelled_by"] = ctx.author.id
+            set_guild_data("orders.json", ctx.guild.id, orders)
+        await send_context(ctx, f"✅ Pedido {order.get('id')} cancelado; el stock reservado se ha devuelto.")
+
     @shop.command(name="order-status", description="Actualiza el estado de un pedido tras comprobarlo.")
     async def set_order_status(self, ctx: commands.Context, order_id: str, status: str) -> None:
         if not _is_staff(ctx):
