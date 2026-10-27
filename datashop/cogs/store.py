@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import logging
 import math
 import secrets
 from typing import Any
@@ -11,6 +13,8 @@ from discord.ext import commands
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
 
+
+log = logging.getLogger("datashop.store")
 
 VALID_ORDER_STATUSES = {"pending", "paid", "completed", "cancelled"}
 
@@ -403,7 +407,7 @@ class Store(commands.Cog):
                 return None, "El precio o stock de este producto no es válido. Pide al personal que lo revise."
             if parsed_stock < quantity or parsed_stock < 0:
                 return None, f"Stock insuficiente. Disponible: {parsed_stock}."
-            if price < 0 or price > 1_000_000:
+            if not math.isfinite(price) or price < 0 or price > 1_000_000:
                 return None, "El precio de este producto no es válido. Pide al personal que lo revise."
 
             orders = get_guild_data("orders.json", guild.id, [])
@@ -426,11 +430,20 @@ class Store(commands.Cog):
                 "created_at": discord.utils.utcnow().isoformat(),
                 "stock_restored": False,
             }
+            previous_products = copy.deepcopy(products)
             item["stock"] = parsed_stock - quantity
             products[key] = item
-            set_guild_data("products.json", guild.id, products)
             orders.append(order)
-            set_guild_data("orders.json", guild.id, orders)
+            try:
+                set_guild_data("products.json", guild.id, products)
+                set_guild_data("orders.json", guild.id, orders)
+            except RuntimeError:
+                try:
+                    # Avoid consuming stock if the order record could not be persisted.
+                    set_guild_data("products.json", guild.id, previous_products)
+                except RuntimeError:
+                    log.exception("Failed to roll back inventory after order persistence failure for guild %s", guild.id)
+                return None, "No pude guardar el pedido de forma segura. No se ha confirmado; vuelve a intentarlo o contacta al personal."
         return order, None
 
     def _order_embed(self, order: dict[str, Any], methods: list[str]) -> discord.Embed:
