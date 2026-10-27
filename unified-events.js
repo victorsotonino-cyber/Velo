@@ -19,6 +19,11 @@ async function resolveTextChannel(guild, channelId) {
   return channel && channel.isTextBased() ? channel : null;
 }
 
+function configuredWelcomeChannelId(guild, settings) {
+  if (settings.welcomeDisabled) return null;
+  return settings.welcomeChannelId || (guild.id === config.guildId ? config.channels.welcome : null);
+}
+
 async function sendAudit(guild, title, description, color) {
   if (!guild) return false;
   const settings = getGuildSettings(guild.id);
@@ -91,7 +96,7 @@ module.exports = function registerUnifiedEvents(client) {
         }
       }
 
-      const welcomeChannel = await resolveTextChannel(member.guild, settings.welcomeChannelId);
+      const welcomeChannel = await resolveTextChannel(member.guild, configuredWelcomeChannelId(member.guild, settings));
       if (welcomeChannel) {
         const permissions = welcomeChannel.permissionsFor(member.guild.members.me);
         if (permissions?.has(PermissionFlagsBits.ViewChannel) &&
@@ -125,7 +130,7 @@ module.exports = function registerUnifiedEvents(client) {
   client.on(Events.GuildMemberRemove, async member => {
     try {
       const settings = getGuildSettings(member.guild.id);
-      const welcomeChannel = await resolveTextChannel(member.guild, settings.welcomeChannelId);
+      const welcomeChannel = await resolveTextChannel(member.guild, configuredWelcomeChannelId(member.guild, settings));
       if (welcomeChannel) {
         const permissions = welcomeChannel.permissionsFor(member.guild.members.me);
         if (permissions?.has(PermissionFlagsBits.SendMessages) && permissions?.has(PermissionFlagsBits.EmbedLinks)) {
