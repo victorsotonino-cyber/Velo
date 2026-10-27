@@ -35,6 +35,7 @@ Los comandos híbridos funcionan como comandos slash y con el prefijo configurad
 - Informes: /shop stats y /shop low-stock.
 - Métodos de pago informativos: /shop payment add y /shop payment remove.
 - Reseñas: /shop review (solo pedidos completados del propio cliente), /shop reviews y /vouch (registro de personal).
+- Reputación de la tienda: /legit publica un panel «¿ES FLUX STORE LEGIT?» con botones Sí/No, contador de confirmaciones positivas y votos editables; el registro se guarda por servidor y se restaura tras reinicios.
 - Comunidad: /suggestion, /poll, /afk, /remind, /reminders, /reminder-cancel, /rank y /leaderboard.
 - Sorteos gratuitos: /giveaway start, /giveaway end y /giveaway reroll.
 - Comunicación: /say y /announce.
@@ -49,6 +50,10 @@ Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
 - Abre /botconfig panel para configurar canales y rol con selectores de Discord y alternar AutoMod, bienvenida y autorol. El panel de administración es efímero y solo aplica cambios a administradores.
 - El panel /ticket setup imita el formato del Centro de Soporte de la referencia: selector para Comprar un artículo, Hacer una consulta, Reportar un problema, Recibir una recompensa y Postular a Workers; usa los cinco emojis personalizados dados y asigna el rol global de staff <@&1562619905780486230> por defecto. Incluye formulario modal, ayuda rápida y resumen de tickets abiertos.
 - Los paneles persistentes de tienda se recuperan en el arranque mediante los IDs guardados en shop_panels.json; el directorio DATASHOP_DATA_DIR debe mantenerse en almacenamiento persistente del hosting para sobrevivir a reemplazos de contenedor.
+
+## Panel de reputación
+
+- Panel de reputación: usa `/legit` para publicar el panel de legitimidad. Cada miembro puede cambiar su voto; solo se cuenta su respuesta actual, y el contador refleja cuántas personas han votado «Sí». El bot necesita almacenamiento persistente para conservar el registro entre despliegues.
 
 ## Sistema de tickets
 
