@@ -1,36 +1,30 @@
 require("dotenv").config();
+const fs = require("node:fs");
+const path = require("node:path");
 const { REST, Routes } = require("discord.js");
-const fs = require("fs");
-const path = require("path");
-const token = process.env.DISCORD_TOKEN, clientId = process.env.CLIENT_ID, guildId = process.env.GUILD_ID;
-if (!token || !clientId || !guildId) throw new Error("Faltan variables de entorno.");
+
+const { DISCORD_TOKEN, CLIENT_ID, GUILD_ID } = process.env;
+if (!DISCORD_TOKEN || !CLIENT_ID || !GUILD_ID) {
+  console.error("Faltan DISCORD_TOKEN, CLIENT_ID o GUILD_ID en las variables de entorno.");
+  process.exit(1);
+}
+
+const commandsPath = path.join(__dirname, "src", "commands");
 const commands = [];
 const seen = new Set();
+for (const file of fs.readdirSync(commandsPath).filter(name => name.endsWith(".js"))) {
+  const command = require(path.join(commandsPath, file));
+  if (!command.data?.toJSON) continue;
+  const json = command.data.toJSON();
+  if (seen.has(json.name)) throw new Error(`Comando duplicado: ${json.name}`);
+  seen.add(json.name);
+  commands.push(json);
+}
 
-function normalizeCommandOptions(command) {
-  if (!command || !Array.isArray(command.options)) return command;
-  command.options = command.options
-    .map((option, index) => ({ option: normalizeCommandOptions(option), index }))
-    .sort((a, b) => Number(Boolean(b.option.required)) - Number(Boolean(a.option.required)) || a.index - b.index)
-    .map(entry => entry.option);
-  return command;
-}
-for (const file of fs.readdirSync(__dirname).filter(f => f.endsWith(".js") && !["index.js","config.js","deploy-commands.js","buttons.js"].includes(f))) {
-  const c = require(path.join(__dirname,file));
-  const entries = Array.isArray(c.setupCommands) ? c.setupCommands : (c.data ? [c.data] : []);
-  for (const entry of entries) {
-    if (!entry || typeof entry.toJSON !== "function") continue;
-    const command = normalizeCommandOptions(entry.toJSON());
-    if (seen.has(command.name)) {
-      console.error("Comando duplicado omitido:", command.name, "en", file);
-      continue;
-    }
-    seen.add(command.name);
-    commands.push(command);
-  }
-}
-(async () => {
-  const rest = new REST({ version: "10" }).setToken(token);
-  await rest.put(Routes.applicationGuildCommands(clientId,guildId), { body: commands });
-  console.log("Comandos registrados.");
-})();
+const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
+  .then(() => console.log(`DATASHOP: ${commands.length} comandos slash registrados.`))
+  .catch(error => {
+    console.error("No se pudieron registrar los comandos de DATASHOP:", error);
+    process.exitCode = 1;
+  });
