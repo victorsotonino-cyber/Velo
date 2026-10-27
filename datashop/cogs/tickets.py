@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 
 import discord
@@ -8,6 +9,8 @@ from discord.ext import commands
 
 from datashop.respond import send_context
 from datashop.storage import get_guild_data, set_guild_data
+
+log = logging.getLogger("datashop.tickets")
 
 
 def _get_settings(guild_id: int) -> dict:
@@ -199,6 +202,10 @@ class Tickets(commands.Cog):
         self,
         guild: discord.Guild,
         member: discord.Member,
+        *,
+        ticket_type: str = "support",
+        subject: str = "Consulta de soporte",
+        details: str = "Sin detalles adicionales",
     ) -> discord.TextChannel | None:
         settings = _get_settings(guild.id)
         blacklist = get_guild_data("ticket_blacklist.json", guild.id, {})
@@ -216,7 +223,7 @@ class Tickets(commands.Cog):
         if len(existing) >= max_open:
             return None
 
-        ticket_type = str(settings.get("default_ticket_type", "support"))
+        ticket_type = ticket_type if ticket_type in TICKET_TYPES else "support"
         routes = settings.get("ticket_types", {})
         route = routes.get(ticket_type, {}) if isinstance(routes, dict) else {}
         if not isinstance(route, dict):
@@ -260,24 +267,27 @@ class Tickets(commands.Cog):
             settings["ticket_category_id"] = category.id
             set_guild_data("settings.json", guild.id, settings)
 
+        label, emoji = TICKET_TYPES[ticket_type]
         safe_name = "".join(ch.lower() if ch.isalnum() else "-" for ch in member.display_name)
-        safe_name = "-".join(part for part in safe_name.split("-") if part)[:35] or "cliente"
+        safe_name = "-".join(part for part in safe_name.split("-") if part)[:25] or "cliente"
         channel = await guild.create_text_channel(
-            name=f"ticket-{safe_name}"[:90],
+            name=f"ticket-{ticket_type}-{safe_name}"[:90],
             category=category,
             overwrites=overwrites,
-            topic=f"DATASHOP_OWNER={member.id};DATASHOP_CLOSED=0",
-            reason=f"Ticket abierto por {member} ({member.id})",
+            topic=f"DATASHOP_OWNER={member.id};DATASHOP_CLOSED=0;DATASHOP_TYPE={ticket_type};DATASHOP_PRIORITY=normal",
+            reason=f"Ticket de {label} abierto por {member} ({member.id})",
         )
         embed = discord.Embed(
-            title="🎫 DATASHOP • Ticket abierto",
+            title=f"{emoji} DATASHOP • {label}",
             description=(
-                f"Hola {member.mention}. Describe tu consulta con el mayor detalle posible.\n\n"
-                "El equipo de soporte te atenderá aquí. No publiques contraseñas ni tokens."
+                f"Cliente: {member.mention}\nAsunto: **{subject.strip()[:100]}**\n\n"
+                f"{details.strip()[:1200]}\n\n"
+                "El equipo de soporte atenderá esta solicitud aquí. No publiques contraseñas, tokens ni datos de pago privados."
             ),
             color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
         )
-        embed.set_footer(text="Usa los botones y comandos del ticket para gestionarlo.")
+        embed.set_footer(text=f"Ticket ID: {channel.id} • Prioridad: normal")
         await channel.send(
             content=support_role.mention if support_role else None,
             embed=embed,
@@ -345,8 +355,8 @@ class Tickets(commands.Cog):
         embed = discord.Embed(
             title="DATASHOP • Centro de soporte",
             description=(
-                "Pulsa el botón para abrir un canal privado con el equipo de soporte.\n\n"
-                "El sistema permite reclamar, cerrar, reabrir y añadir participantes al ticket."
+                "Selecciona una categoría y completa el formulario para abrir un canal privado.\n\n"
+                "🛠️ Soporte · 🛒 Compras · ↩️ Reclamación · 💬 Otros"
             ),
             color=discord.Color.from_str("#8B5CF6"),
         )
