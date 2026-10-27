@@ -1374,7 +1374,11 @@ class Tickets(commands.Cog):
         except discord.HTTPException:
             await send_context(ctx, "Publiqué el recordatorio, pero Discord no permitió fijarlo. Revisa el permiso Administrar mensajes.")
 
-    @ticket.command(name="lock", description="Bloquea temporalmente las respuestas del cliente.")
+    @ticket.group(name="control", description="Bloquea, desbloquea y fija mensajes del ticket.", invoke_without_command=True)
+    async def ticket_control(self, ctx: commands.Context) -> None:
+        await send_context(ctx, "Usa ticket control lock, ticket control unlock o ticket control pin.")
+
+    @ticket_control.command(name="lock", description="Bloquea temporalmente las respuestas del cliente.")
     async def lock_ticket(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
@@ -1416,7 +1420,7 @@ class Tickets(commands.Cog):
         await self._log_ticket_event(ctx.guild, "Ticket bloqueado", ctx.channel, ctx.author)
         await send_context(ctx, "🔒 Ticket bloqueado; el cliente no puede escribir hasta que el personal lo desbloquee.")
 
-    @ticket.command(name="unlock", description="Permite de nuevo que el cliente responda.")
+    @ticket_control.command(name="unlock", description="Permite de nuevo que el cliente responda.")
     async def unlock_ticket(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
@@ -1458,7 +1462,7 @@ class Tickets(commands.Cog):
         await self._log_ticket_event(ctx.guild, "Ticket desbloqueado", ctx.channel, ctx.author)
         await send_context(ctx, "🔓 El cliente ya puede responder otra vez.")
 
-    @ticket.command(name="pin", description="Fija el primer mensaje del ticket.")
+    @ticket_control.command(name="pin", description="Fija el primer mensaje del ticket.")
     async def pin_ticket(self, ctx: commands.Context) -> None:
         if not isinstance(ctx.channel, discord.TextChannel) or not _is_ticket(ctx.channel):
             await send_context(ctx, "Usa este comando dentro de un ticket de DATASHOP.")
