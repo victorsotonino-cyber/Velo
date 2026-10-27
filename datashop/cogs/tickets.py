@@ -129,17 +129,30 @@ class Tickets(commands.Cog):
         guild: discord.Guild,
         member: discord.Member,
     ) -> discord.TextChannel | None:
+        settings = _get_settings(guild.id)
+        blacklist = get_guild_data("ticket_blacklist.json", guild.id, {})
+        if isinstance(blacklist, dict) and str(member.id) in blacklist:
+            return None
+
+        try:
+            max_open = max(1, min(5, int(settings.get("max_open_tickets", 1))))
+        except (TypeError, ValueError):
+            max_open = 1
         existing = [
             channel for channel in guild.text_channels
             if _ticket_owner(channel) == member.id and _topic_value(channel, "DATASHOP_CLOSED") != "1"
         ]
-        if existing:
+        if len(existing) >= max_open:
             return None
 
-        settings = _get_settings(guild.id)
-        category_id = settings.get("ticket_category_id") or self.bot.settings.ticket_category_id
+        ticket_type = str(settings.get("default_ticket_type", "support"))
+        routes = settings.get("ticket_types", {})
+        route = routes.get(ticket_type, {}) if isinstance(routes, dict) else {}
+        if not isinstance(route, dict):
+            route = {}
+        category_id = route.get("category_id") or settings.get("ticket_category_id") or self.bot.settings.ticket_category_id
         category = guild.get_channel(int(category_id)) if category_id else None
-        support_role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
+        support_role_id = route.get("staff_role_id") or settings.get("staff_role_id") or self.bot.settings.staff_role_id
         support_role = guild.get_role(int(support_role_id)) if support_role_id else None
 
         overwrites: dict[discord.abc.Snowflake, discord.PermissionOverwrite] = {
