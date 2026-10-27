@@ -444,6 +444,7 @@ class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._creation_locks: dict[tuple[int, int], asyncio.Lock] = {}
+        self._registered_rating_keys: set[tuple[int, int]] = {}
 
     async def cog_load(self) -> None:
         self.bot.add_view(TicketPanelView(self))
@@ -515,6 +516,64 @@ class Tickets(commands.Cog):
             changed = True
         if changed:
             set_guild_data("ticket_timers.json", guild.id, timers)
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """Restore outstanding persistent rating views when guild caches are ready."""
+        for guild in list(self.bot.guilds):
+            try:
+                pending = get_guild_data("pending_ticket_ratings.json", guild.id, [])
+                if not isinstance(pending, list):
+                    pending = []
+                ratings = get_guild_data("ticket_ratings.json", guild.id, [])
+            except RuntimeError:
+                log.exception("No se pudieron recuperar valoraciones de tickets del servidor %s", guild.id)
+                continue
+            rated = {
+                str(row.get("ticket_id"))
+                for row in ratings
+                if isinstance(row, dict) and row.get("ticket_id") is not None
+            } if isinstance(ratings, list) else set()
+            known = {
+                str(row.get("ticket_id"))
+                for row in pending
+                if isinstance(row, dict) and row.get("ticket_id") is not None
+            }
+            changed = False
+            # Keep rating IDs for closed tickets that existed before restart-safe views.
+            for channel in guild.text_channels:
+                owner_id = _ticket_owner(channel)
+                if owner_id is None or _topic_value(channel, "DATASHOP_CLOSED") != "1":
+                    continue
+                if str(channel.id) in rated or str(channel.id) in known:
+                    continue
+                pending.append({
+                    "ticket_id": channel.id,
+                    "owner_id": owner_id,
+                    "created_at": discord.utils.utcnow().isoformat(),
+                })
+                known.add(str(channel.id))
+                changed = True
+            filtered = [
+                row for row in pending
+                if isinstance(row, dict) and str(row.get("ticket_id")) not in rated
+            ]
+            if changed or len(filtered) != len(pending):
+                try:
+                    set_guild_data("pending_ticket_ratings.json", guild.id, filtered)
+                except RuntimeError:
+                    log.exception("No se pudieron guardar valoraciones pendientes del servidor %s", guild.id)
+            for row in filtered:
+                try:
+                    channel_id = int(row.get("ticket_id", 0))
+                    owner_id = int(row.get("owner_id", 0))
+                except (TypeError, ValueError):
+                    continue
+                key = (guild.id, channel_id)
+                if channel_id <= 0 or owner_id <= 0 or key in self._registered_rating_keys:
+                    continue
+                self.bot.add_view(TicketRatingView(guild.id, channel_id, owner_id))
+                self._registered_rating_keys.add(key)
 
     def is_staff(
         self,
@@ -695,6 +754,11 @@ class Tickets(commands.Cog):
     async def close_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
         owner = channel.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await channel.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
         if owner:
             await channel.set_permissions(owner, view_channel=False, send_messages=False)
         topic = _set_topic_value(channel, "DATASHOP_CLOSED", "1")
@@ -703,23 +767,49 @@ class Tickets(commands.Cog):
         await channel.send(f"🔒 Ticket cerrado por {member.mention}.")
         await self._log_ticket_event(channel.guild, "Ticket cerrado", channel, member)
         if owner:
+            rating_view = TicketRatingView(channel.guild.id, channel.id, owner.id)
+            key = (channel.guild.id, channel.id)
+            if key not in self._registered_rating_keys:
+                self.bot.add_view(rating_view)
+                self._registered_rating_keys.add(key)
+            try:
+                pending = get_guild_data("pending_ticket_ratings.json", channel.guild.id, [])
+                if not isinstance(pending, list):
+                    pending = []
+                if not any(
+                    isinstance(row, dict) and str(row.get("ticket_id")) == str(channel.id)
+                    for row in pending
+                ):
+                    pending.append({
+                        "ticket_id": channel.id,
+                        "owner_id": owner.id,
+                        "created_at": discord.utils.utcnow().isoformat(),
+                    })
+                    set_guild_data("pending_ticket_ratings.json", channel.guild.id, pending)
+            except RuntimeError:
+                log.exception("Se cerró el ticket %s, pero no se pudo guardar la valoración pendiente", channel.id)
             try:
                 await owner.send(
                     f"Tu ticket **{channel.name}** en **{channel.guild.name}** se ha cerrado. "
                     "Valora la atención del 1 al 5:",
-                    view=TicketRatingView(channel.guild.id, channel.id, owner.id),
+                    view=rating_view,
                 )
             except discord.HTTPException:
-                pass
+                log.info("No se pudo enviar por DM la valoración del ticket %s", channel.id)
 
     async def reopen_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
         owner = channel.guild.get_member(owner_id) if owner_id else None
+        if owner_id and owner is None:
+            try:
+                owner = await channel.guild.fetch_member(owner_id)
+            except discord.HTTPException:
+                owner = None
         if owner:
             await channel.set_permissions(
                 owner,
                 view_channel=True,
-                send_messages=True,
+                send_messages=_topic_value(channel, "DATASHOP_LOCKED") != "1",
                 read_message_history=True,
                 attach_files=True,
                 embed_links=True,
