@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 
 import discord
 from pathlib import Path
@@ -9,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from datashop.bot import DataShopBot
 from datashop.config import Settings
-from datashop.cogs.tickets import _staff_role_ids
+from datashop.cogs.tickets import TicketRatingView, _build_html_transcript, _staff_role_ids
 from datashop.cogs.store import _safe_int, _safe_money
 
 
@@ -97,6 +98,44 @@ class TicketRouteRoleTests(unittest.TestCase):
         }
         self.assertEqual(_staff_role_ids(settings, None, "refund"), set())
 
+class TicketTranscriptTests(unittest.IsolatedAsyncioTestCase):
+    async def test_html_transcript_escapes_user_content(self) -> None:
+        author = SimpleNamespace(id=123456, __str__=lambda self: "ticket-user")
+        message = SimpleNamespace(
+            clean_content='<script>alert("x")</script><img src=x onerror=alert(1)>',
+            author=author,
+            created_at=datetime(2026, 10, 27, tzinfo=timezone.utc),
+            attachments=[],
+            embeds=[],
+        )
+
+        class FakeChannel:
+            name = "ticket-test"
+            guild = SimpleNamespace(name='<Guild "unsafe">')
+
+            def history(self, *, limit: int, oldest_first: bool):
+                async def generate():
+                    yield message
+                return generate()
+
+        payload, message_count = await _build_html_transcript(FakeChannel(), limit=10)
+        document = payload.decode("utf-8")
+        self.assertEqual(message_count, 1)
+        self.assertNotIn('<script>alert("x")</script>', document)
+        self.assertNotIn('<img src=x onerror=alert(1)>', document)
+        self.assertIn("&lt;script&gt;", document)
+        self.assertIn("&lt;Guild &quot;unsafe&quot;&gt;", document)
+
+    def test_rating_view_is_persistent_and_has_unique_custom_ids(self) -> None:
+        view = TicketRatingView(guild_id=1, channel_id=2, owner_id=3)
+        self.assertIsNone(view.timeout)
+        custom_ids = [item.custom_id for item in view.children]
+        self.assertEqual(len(custom_ids), 5)
+        self.assertEqual(len(set(custom_ids)), 5)
+        self.assertTrue(all("datashop:ticket-rating:2:" in item for item in custom_ids))
+        view.stop()
+
+
 class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_cogs_load_and_expose_expected_slash_commands(self) -> None:
         settings = Settings(
@@ -145,6 +184,7 @@ class CommandRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "setup", "close", "claim", "unclaim", "reopen", "add", "remove", "rename",
                 "transfer", "priority", "move", "route", "max-open", "blacklist-add",
                 "blacklist-remove", "note", "list", "stats", "delete", "transcript",
+                "client", "timer", "stoptimer", "remember",
             }
             self.assertTrue(
                 expected_ticket_commands.issubset(ticket_names),
