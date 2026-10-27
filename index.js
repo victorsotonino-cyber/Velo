@@ -751,59 +751,7 @@ client.on(Events.MessageCreate, async message => {
   }
 });
 
-client.on(Events.GuildMemberAdd, async member => {
-  // Autorol de FLUX STORE: el ID se configura de forma privada mediante MEMBER_ROLE_ID en .env.
-  if (config.roles.member) {
-    try {
-      await member.roles.add(config.roles.member, "Autorol automático de FLUX STORE");
-      console.log("Autorol asignado a " + member.user.tag + " en " + member.guild.name);
-    } catch (error) {
-      console.error("No se pudo asignar el autorol a " + member.user.tag + ":", error?.message || error);
-    }
-  }
-  // Fetch the configured channel instead of relying only on cache.
-  const welcomeChannelId = config.channels.welcome || "1562615450834178179";
-  const ch = await member.guild.channels.fetch(welcomeChannelId).catch(error => {
-    console.error("No se pudo encontrar el canal de bienvenida " + welcomeChannelId + ":", error?.message || error);
-    return null;
-  });
-  if (ch?.isTextBased()) {
-    const embed = new EmbedBuilder()
-      .setColor(0xFFFFFF)
-      .setAuthor({ name: "𝐅𝐋𝐔𝐗 𝐒𝐓𝐎𝐑𝐄" })
-      .setTitle("Welcome to FLUX STORE")
-      .setDescription([
-        "• • " + (config.channels.terms ? "<#" + config.channels.terms + ">" : "**Canal no configurado**") + " **TERMINOS**",
-        "• • " + (config.channels.paymentMethods ? "<#" + config.channels.paymentMethods + ">" : "**Canal no configurado**") + " **METODOS**",
-        "• • " + (config.channels.ticketInfo ? "<#" + config.channels.ticketInfo + ">" : "**Canal no configurado**") + " **TICKETS**"
-      ].join("\n"))
-      .setThumbnail(member.displayAvatarURL({ size: 256 }))
-      .setFooter({ text: "#" + member.guild.memberCount });
-
-    const botMember = member.guild.members.me;
-    const permissions = botMember ? ch.permissionsFor(botMember) : null;
-    if (!permissions?.has(PermissionFlagsBits.ViewChannel) ||
-        !permissions?.has(PermissionFlagsBits.SendMessages) ||
-        !permissions?.has(PermissionFlagsBits.EmbedLinks)) {
-      console.error("El bot necesita Ver canal, Enviar mensajes e Insertar enlaces en el canal de bienvenida " + welcomeChannelId + ".");
-    } else {
-      await ch.send({
-        content: member.toString() + " ingresó al servidor!",
-        embeds: [embed],
-        allowedMentions: { users: [member.id] }
-      }).catch(error => console.error("No se pudo enviar la bienvenida:", error));
-    }
-  } else {
-    console.error("El canal de bienvenida " + welcomeChannelId + " no existe en este servidor o no admite mensajes de texto.");
-  }
-  await storeService.refreshCounters(member.guild);
-});
-
-client.on(Events.GuildMemberRemove, async member => {
-  const ch = member.guild.channels.cache.get(config.channels.welcome);
-  if (ch?.isTextBased()) await ch.send(emoji(member.guild, "info", "👋") + " **" + (member.user?.tag || "Un miembro") + "** ha salido de Flux Store.").catch(() => {});
-  await storeService.refreshCounters(member.guild);
-});
+// Los eventos de entrada/salida y los contadores se gestionan en unified-events.js.
 
 process.on("unhandledRejection", error => console.error("Unhandled rejection:", error));
 process.on("uncaughtException", error => console.error("Uncaught exception:", error));
