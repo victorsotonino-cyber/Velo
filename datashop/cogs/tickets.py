@@ -314,6 +314,41 @@ class Tickets(commands.Cog):
         role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
         return bool(role_id and any(role.id == int(role_id) for role in member.roles))
 
+    async def _log_ticket_event(
+        self,
+        guild: discord.Guild,
+        action: str,
+        channel: discord.TextChannel,
+        actor: discord.Member | None = None,
+        extra: str = "",
+    ) -> None:
+        settings = _get_settings(guild.id)
+        channel_id = settings.get("logs_channel_id") or self.bot.settings.logs_channel_id
+        try:
+            log_channel = guild.get_channel(int(channel_id)) if channel_id else None
+        except (TypeError, ValueError):
+            log_channel = None
+        if not isinstance(log_channel, discord.TextChannel):
+            return
+        owner_id = _ticket_owner(channel)
+        description = f"Canal: {channel.mention} (ID {channel.id})"
+        if owner_id:
+            description += f"\nCliente: <@{owner_id}>"
+        if actor:
+            description += f"\nAcción de: {actor.mention}"
+        if extra:
+            description += f"\n{extra[:500]}"
+        embed = discord.Embed(
+            title=action[:250],
+            description=description[:3800],
+            color=discord.Color.from_str("#8B5CF6"),
+            timestamp=discord.utils.utcnow(),
+        )
+        try:
+            await log_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            log.exception("No se pudo publicar un log de ticket en %s", guild.id)
+
     async def create_ticket(
         self,
         guild: discord.Guild,
@@ -404,12 +439,21 @@ class Tickets(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
         embed.set_footer(text=f"Ticket ID: {channel.id} • Prioridad: normal")
-        await channel.send(
-            content=support_role.mention if support_role else None,
-            embed=embed,
-            view=CloseTicketView(self),
-            allowed_mentions=discord.AllowedMentions(roles=bool(support_role), users=False),
-        )
+        try:
+            await channel.send(
+                content=support_role.mention if support_role else None,
+                embed=embed,
+                view=CloseTicketView(self),
+                allowed_mentions=discord.AllowedMentions(roles=bool(support_role), users=False),
+            )
+        except discord.HTTPException:
+            log.exception("No se pudo inicializar el ticket %s", channel.id)
+            try:
+                await channel.delete(reason="No se pudo enviar el panel inicial del ticket")
+            except discord.HTTPException:
+                pass
+            return None
+        await self._log_ticket_event(guild, "Ticket creado", channel, member, f"Tipo: {label}")
         return channel
 
     async def close_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
@@ -421,6 +465,7 @@ class Tickets(commands.Cog):
         new_name = channel.name if channel.name.startswith("cerrado-") else f"cerrado-{channel.name}"
         await channel.edit(name=new_name[:100], topic=topic)
         await channel.send(f"🔒 Ticket cerrado por {member.mention}.")
+        await self._log_ticket_event(channel.guild, "Ticket cerrado", channel, member)
         if owner:
             try:
                 await owner.send(
@@ -447,6 +492,7 @@ class Tickets(commands.Cog):
         new_name = re.sub(r"^cerrado-", "", channel.name)
         await channel.edit(name=new_name[:100], topic=topic)
         await channel.send(f"🔓 Ticket reabierto por {member.mention}.")
+        await self._log_ticket_event(channel.guild, "Ticket reabierto", channel, member)
 
     def _valid_ticket(self, channel: discord.TextChannel) -> bool:
         return _ticket_owner(channel) is not None
