@@ -53,7 +53,7 @@ Ejemplos con prefijo: !ping, !ticket claim, !shop list y !shop my-orders.
 
 ## Panel de reputación
 
-- Panel de reputación: usa `/legit` para publicar el panel de legitimidad. Cada miembro puede cambiar su voto; solo se cuenta su respuesta actual, y el contador refleja cuántas personas han votado «Sí». El bot necesita almacenamiento persistente para conservar el registro entre despliegues.
+- Panel de reputación: usa `/legit` para publicar el panel de legitimidad. El contador comienza en 19 confirmaciones iniciales y aumenta con cada nuevo voto «Sí»; cada miembro puede cambiar su voto y solo se cuenta su respuesta actual. Los paneles antiguos sin cifra inicial se actualizan a 19 al restaurarse. El bot necesita almacenamiento persistente para conservar el registro entre despliegues.
 
 ## Sistema de tickets
 
