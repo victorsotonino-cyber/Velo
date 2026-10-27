@@ -1,130 +1,28 @@
-# FLUX STORE Bot
+# DATASHOP Discord Bot
 
-Bot de Discord desarrollado con Node.js y discord.js v14. Tiene comandos slash y comandos con prefijo, paneles de tickets, sorteos, postulaciones, moderación y herramientas para la tienda.
+Base limpia para DATASHOP, desarrollada con Node.js 20+ y discord.js v14. El bot separa los comandos de la lógica principal y mantiene los secretos fuera del repositorio.
 
 ## Requisitos
-
 - Node.js 20 o superior.
-- Un bot creado en Discord Developer Portal.
-- Los intents que utiliza el bot habilitados en el portal, incluido **Server Members Intent** para bienvenida y autorol, y **Message Content Intent** para comandos con prefijo y AutoMod.
-- Permisos adecuados en el servidor: gestionar canales, roles, mensajes y timeout, según las funciones que vayas a habilitar.
+- Aplicación y bot creados en Discord Developer Portal.
+- Variables de entorno `DISCORD_TOKEN`, `CLIENT_ID` y `GUILD_ID`.
+- Activar Message Content Intent y Server Members Intent solo si las funciones instaladas los necesitan.
 
-## Instalación
+## Configuración
+1. Copia `.env.example` a `.env` localmente o configura las variables directamente en tu hosting.
+2. No subas `.env`, no pegues el token en chats y no guardes secretos en el código.
+3. Instala dependencias con `npm install`.
+4. Valida el código con `npm run check`.
+5. Registra comandos con `npm run deploy`.
+6. Inicia el bot con `npm start`.
 
-1. Clona o descarga este repositorio.
-2. Ejecuta \`npm install\`.
-3. Copia \`.env.example\` a \`.env\` y revisa todas las variables.
-4. No subas \`.env\` ni pegues el token en chats. Configura las mismas variables como secretos en el hosting.
-5. Ejecuta \`npm run check\` y \`npm test\`.
-6. Registra los comandos con \`npm run deploy\`.
-7. Inicia el bot con \`npm start\`.
+## Comandos base
+- `/ping`: latencia del bot.
+- `/help`: ayuda inicial.
+- `!ping` y `!help`: alternativas por prefijo.
 
-## Variables de entorno
+## Seguridad y datos
+La rama `backup/pre-datashop-rebuild-2026-10-27` conserva el estado anterior del código. Los secretos y variables del hosting son externos a GitHub y deben conservarse en la configuración del servicio. Los datos de negocio no deben borrarse hasta exportarlos y verificarlos.
 
-Los IDs de servidor, roles, canales y emojis se leen de las variables de entorno. Configura `FLUX_STORE_DATA_DIR` para elegir el directorio persistente; `VELO_DATA_DIR` se mantiene como alternativa compatible con despliegues existentes. Revisa las variables de \`.env.example\`, incluidas las de bienvenida, términos, métodos de pago, ticket, logs, sugerencias, reseñas y los cinco emojis del panel.
-
-El almacenamiento actual usa archivos JSON dentro de \`data/\`. En un hosting que borre el disco al reiniciar, los carritos, pedidos, reseñas, sugerencias, vouches y sorteos pueden perderse. Usa almacenamiento persistente o migra a PostgreSQL/SQLite antes de depender de los datos para operaciones comerciales importantes.
-
-## Funciones de FLUX STORE
-
-### Catálogo, carrito y stock
-- \`/tienda catalogo\`: consulta el catálogo.
-- \`/tienda agregar\`: añade producto, precio, descripción y stock opcional.
-- \`/tienda editar\`: actualiza precio o descripción.
-- \`/tienda stock\`: configura unidades disponibles; \`0\` marca agotado.
-- \`/tienda disponibilidad\`: pausa o activa un producto.
-- \`/carrito agregar\`, \`/carrito ver\`, \`/carrito quitar\`, \`/carrito vaciar\`.
-
-### Panel profesional y moderación de tickets
-- `f!ticket setup`: abre la consola de administración de tickets (solo administradores o el rol administrador configurado).
-- La consola muestra el estado de puesta en marcha y permite elegir canal público, roles de soporte y categoría de Discord antes de publicar el panel.
-- El panel público utiliza un diseño de atención profesional con pasos de apertura, indicación de privacidad y el selector de categorías.
-- En **Ajustes avanzados → Apariencia del panel y tickets** puedes editar título, descripción, color hexadecimal, pie, texto del selector, miniatura y banner HTTPS.
-- El diseño público se puede publicar como **menú desplegable** (hasta 25 categorías) o **botones por categoría** (hasta 5 categorías).
-- Cada categoría tiene nombre visible, descripción del selector, título del embed, emoji personalizado/Unicode y color propio; otro formulario permite personalizar el mensaje inicial que aparece dentro del ticket usando `{user}`, `{name}`, `{emoji}` y `{type}`.
-- El botón **Gestionar categorías** permite crear categorías nuevas (ID interno, nombre, descripción, emoji y color), editar su apariencia y mensaje inicial, activar/desactivar categorías predeterminadas y eliminar categorías personalizadas con confirmación. Los tickets ya abiertos no se borran al eliminar la opción del panel.
-- **Vista previa** muestra el embed real de forma efímera sin controles activos, para no abrir tickets por accidente. El panel no se publica si todas las categorías están desactivadas.
-- También puedes elegir el formato de los nombres de canales nuevos. Al volver a publicar en el mismo canal, el bot intenta editar el panel guardado en vez de crear uno duplicado; si el mensaje fue borrado o cambiaste de canal, publica uno nuevo.
-- Las imágenes admiten únicamente URL HTTPS. Los cambios del panel público se aplican al pulsar **Publicar panel**; la apariencia y el mensaje de cada ticket se aplican a los tickets nuevos.
-- En **Ajustes avanzados → Moderación de tickets** puedes configurar el límite de tickets por miembro, el autocierre y las horas de recordatorio al equipo.
-- Los recordatorios se envían cuando el último mensaje humano del ticket es del cliente y no hay respuesta posterior del equipo. El autocierre sigue desactivado por defecto.
-- \`/carrito confirmar\`: crea el pedido, calcula el total desde el catálogo y reserva el stock configurado.
-
-Los productos antiguos sin propiedad \`stock\` siguen teniendo stock ilimitado por compatibilidad. Configura su stock con \`/tienda stock\` para habilitar el control de inventario. El precio debe contener una única cantidad numérica, por ejemplo \`7.50 USD\`; los importes escritos como rangos no se aceptan para el checkout.
-
-### Pedidos y ventas
-- \`/pedido crear\`: registra una solicitud para un producto del catálogo; el precio escrito debe coincidir con el precio oficial.
-- \`/pedido mis-compras\`: muestra el historial del cliente.
-- \`/pedido historial\`: historial de un cliente para personal autorizado.
-- \`/pedido estado\`: avanza el estado del pedido; solo se puede completar tras verificar el pago o comenzar el procesamiento.
-- \`/ventas\`: contador histórico de ventas.
-- \`/estadisticas-tienda\`: pedidos registrados, completados, pendientes, cancelados, catálogo e ingresos estimados de pedidos completados.
-
-Los pagos no se verifican automáticamente. Elegir un método no significa que el pedido esté pagado; el personal autorizado debe comprobar el pago antes de avanzar al estado correspondiente. Al cancelar un pedido con stock reservado, el bot intenta liberar esas unidades.
-
-### Nuevos comandos de utilidad, comunidad y administración
-- /botinfo y /uptime: estadísticas técnicas, memoria del proceso, latencia y tiempo activo.
-- /membercount: total del servidor, miembros en caché, bots y boosts.
-- /roleinfo y /channelinfo: detalles de roles, permisos, canales, temas y modo lento.
-- /timestamp: convierte segundos Unix a las etiquetas de fecha y hora de Discord.
-- /banner, /servericon y /emojistats: banner de perfil disponible, icono del servidor y resumen de emojis.
-- /emoji-search: busca emojis personalizados por nombre y muestra los emojis coincidentes.
-- /boosters: estadísticas de boosts y lista de miembros visibles en la caché.
-- /diagnostico: diagnóstico privado de la configuración de ticket, canales, roles y permisos; nunca muestra el token.
-- /arreglar-servidor: revisa canales base ausentes, roles con permiso Administrador y canales sensibles visibles para @everyone. Con `accion: Crear canales base faltantes`, crea únicamente los canales públicos que falten; no borra, mueve ni renombra canales ni modifica roles existentes.
-- Los mismos comandos de utilidad también se han añadido como alias con prefijo \`!\` cuando corresponde.
-- /poll: publica una encuesta con entre 2 y 5 opciones y reacciones numeradas; necesita Añadir reacciones en el canal.
-- /purge: elimina mensajes recientes; puede limitarse a un usuario y omite mensajes demasiado antiguos para borrado masivo.
-- /nickname: cambia o elimina el apodo de un miembro con comprobación de jerarquía.
-- /rolemanager add y /rolemanager remove: asigna o retira roles solo si el bot y el moderador están por encima del rol objetivo; no permite roles gestionados ni autoasignación.
-- /permcheck: diagnostica los permisos efectivos del bot en un canal específico.
-- /ticketstats: muestra tickets abiertos por tipo para el equipo autorizado.
-- /embed y /topic: publica embeds personalizados o cambia el tema del canal para personal autorizado.
-- /warnings ver y /warnings limpiar: consulta y administra advertencias persistentes por servidor y miembro.
-- /anuncio ahora restringe la publicación a administración o al staff autorizado, evitando que cualquier miembro inunde el servidor de anuncios.
-
-Las advertencias se guardan en flux-store-warnings.json usando el directorio de datos configurado para el bot. En un hosting con disco efímero, configura almacenamiento persistente para evitar perder el historial tras reinicios. Los contadores de miembros/bots que usan caché se identifican como aproximados; el total de miembros procede del dato del servidor.
-
-### Comunidad y confianza
-- \`/resena publicar\`: permite valorar un pedido completado que pertenezca al autor; una reseña por pedido.
-- \`/resena ver\`: consulta reseñas verificadas.
-- \`/sugerencia enviar\`: publica una propuesta con botones para votar.
-- \`/sugerencia listar\`: muestra propuestas recientes.
-- \`/userinfo\`: muestra información pública de un miembro.
-- \`/help\` y \`!help\`: ayuda disponible.
-
-### Tickets y postulaciones
-- \`/ticket-panel\` publica el panel.
-- \`/ticket-edit\` administra la configuración.
-- Los tickets incluyen reclamación, bloqueo/desbloqueo, cierre y transcripción, con los emojis personalizados configurados en el entorno.
-- Las postulaciones incluyen preguntas configurables y un canal privado por solicitud.
-
-### AutoMod
-AutoMod puede bloquear invitaciones de Discord, exceso de menciones, mensajes repetidos y ráfagas de mensajes. Las variables \`AUTOMOD_*\` permiten ajustar su comportamiento. Es una capa básica, no sustituye las herramientas de AutoMod nativas de Discord ni la revisión del personal.
-
-## Diagnóstico del panel de tickets
-
-Si el panel no se publica, primero selecciona un canal de texto, una categoría de Discord y al menos un rol de soporte que siga existiendo. El configurador comprueba además los permisos del bot antes de publicar: en el canal público necesita ver el canal, enviar mensajes, insertar enlaces y leer el historial para actualizar el panel existente; en la categoría privada necesita ver el canal y gestionar canales para poder crear tickets.
-
-Los errores se diferencian para que no todos aparezcan como “revisa los permisos”: el código de Discord \`50013\` indica permisos insuficientes, \`50001\` indica que falta acceso al recurso y \`50035\` suele indicar que Discord rechazó el formato enviado. En el segundo caso, revisa los logs del hosting y la longitud de los campos o los emojis configurados. Los títulos de los formularios se limitan automáticamente al máximo admitido por Discord.
-
-## Ayuda y comprobaciones
-
-- \`npm run check\`: comprueba sintaxis de los archivos JavaScript principales.
-- \`npm test\`: ejecuta pruebas unitarias del servicio comercial.
-- \`npm run deploy\`: registra los comandos de la aplicación para \`GUILD_ID\`.
-- \`npm start\`: inicia el bot.
-
-Antes de usar el sistema con clientes reales, prueba en un servidor de pruebas: producto con stock 1, segundo intento de compra, cancelación de pedido y una reseña de pedido no completado.
-
-
-### Automatización de tickets (FLUX STORE)
-- El módulo `ticket-tool-x-automation.js` añade aviso de inactividad con botón para cancelar, cierre por inactividad configurable y transcript HTML con entrega a logs/DM según `ticket-config.json`.
-- Para activar el autocierre, configura en `ticket-config.json` el objeto de tu servidor (`guildId`) con `autoCloseEnabled: true`, `autoCloseHours: 24`, `transcriptMode: "channel"` (o `"dm"` / `"both"`) y `logChannelId` o `transcriptChannelId`. Los datos del ticket deben conservar el formato de tema `VeloTicket:<userId>:<tipo>:<staffId opcional>`.
-- Este módulo es una implementación propia basada en patrones habituales de bots de tickets. El repositorio [MinusTech/Ticket-Tool-X-](https://github.com/MinusTech/Ticket-Tool-X-) se usa como referencia de funcionalidades (transcripts, aviso/cancelación y autocierre); no se copia su archivo fuente íntegro.
-
-
-## Verificación de miembros
-
-- `/verificacion-panel canal rol_verificado` publica un panel con captcha aritmético y asignación automática del rol tras verificar.
-- El bot necesita `Gestionar roles`, y el rol de verificado debe estar por debajo del rol más alto del bot.
+## Próxima fase
+Añadir por módulos: tienda y catálogo, carrito y pedidos, tickets, pagos configurables, reseñas, moderación, logs y paneles de administración. Cada sistema debe tener permisos, validación y pruebas antes de activarse.
