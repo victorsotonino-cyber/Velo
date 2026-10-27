@@ -3,8 +3,10 @@
 const { readJSON, writeJSON } = require("./storage");
 
 const FILE = "guild-settings.json";
+let cachedSettings = null;
 const DEFAULTS = Object.freeze({
   welcomeChannelId: null,
+  welcomeDisabled: false,
   logsChannelId: null,
   autoroleId: null,
   automodEnabled: null,
@@ -13,8 +15,10 @@ const DEFAULTS = Object.freeze({
 const ALLOWED_KEYS = new Set(Object.keys(DEFAULTS));
 
 function readAll() {
+  if (cachedSettings) return cachedSettings;
   const value = readJSON(FILE, {});
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  cachedSettings = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return cachedSettings;
 }
 
 function getGuildSettings(guildId) {
@@ -55,8 +59,8 @@ function updateGuildSettings(guildId, patch) {
       continue;
     }
 
-    if (name === "auditEnabled") {
-      if (typeof value !== "boolean") throw new TypeError("auditEnabled debe ser booleano.");
+    if (name === "welcomeDisabled" || name === "auditEnabled") {
+      if (typeof value !== "boolean") throw new TypeError(name + " debe ser booleano.");
       current[name] = value;
     }
   }
