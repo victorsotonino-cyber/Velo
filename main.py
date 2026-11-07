@@ -16,7 +16,7 @@ logging.basicConfig(
 log = logging.getLogger("datashop")
 
 
-def start_health_server(bot: DataShopBot, port: int) -> None:
+def start_health_server(bot: DataShopBot, port: int) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             if self.path not in ("/", "/health"):
@@ -40,6 +40,7 @@ def start_health_server(bot: DataShopBot, port: int) -> None:
     thread = threading.Thread(target=server.serve_forever, name="health-server", daemon=True)
     thread.start()
     log.info("Servidor de salud iniciado en el puerto %s", port)
+    return server
 
 
 def main() -> None:
@@ -47,11 +48,15 @@ def main() -> None:
     if not settings.token:
         raise SystemExit("Falta DISCORD_TOKEN. Configúralo en el entorno del hosting; no lo pegues en el código.")
     bot = DataShopBot(settings)
-    start_health_server(bot, settings.port)
+    health_server = start_health_server(bot, settings.port)
     try:
         bot.run(settings.token, log_handler=None)
     except KeyboardInterrupt:
         log.info("Apagado solicitado.")
+    finally:
+        health_server.shutdown()
+        health_server.server_close()
+        log.info("Servidor de salud cerrado.")
 
 
 if __name__ == "__main__":
