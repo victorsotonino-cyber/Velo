@@ -39,11 +39,28 @@ def _topic_value(channel: discord.TextChannel, key: str) -> str | None:
 
 
 def _ticket_owner(channel: discord.TextChannel) -> int | None:
-    raw = _topic_value(channel, "DATASHOP_OWNER")
-    try:
-        return int(raw) if raw else None
-    except ValueError:
-        return None
+    """Read current and legacy ticket-owner metadata without misclassifying normal channels."""
+    topic = channel.topic or ""
+    values: dict[str, str] = {}
+    for part in topic.replace("\\n", ";").split(";"):
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        values[key.strip().casefold()] = value.strip()
+
+    # Older Velo builds used different topic keys. Keep those tickets manageable
+    # after an update instead of treating their close/claim buttons as invalid.
+    for key in ("datashop_owner", "ticket_owner", "ticket-owner", "owner_id", "owner"):
+        raw = values.get(key)
+        if not raw:
+            continue
+        try:
+            owner_id = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if owner_id > 0:
+            return owner_id
+    return None
 
 
 def _is_ticket(channel: discord.TextChannel) -> bool:
