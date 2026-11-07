@@ -48,6 +48,22 @@ class CommandSyncScopeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await bot.close()
 
+    async def test_auto_scope_uses_guild_scope_when_guild_id_exists(self) -> None:
+        bot = DataShopBot(make_settings(scope="auto", guild_id=123456789))
+        try:
+            bot.tree.copy_global_to = Mock()
+            bot.tree.clear_commands = Mock()
+            bot.tree.sync = AsyncMock(side_effect=[[], []])
+
+            await bot.sync_application_commands()
+
+            bot.tree.copy_global_to.assert_called_once()
+            self.assertEqual(bot.tree.sync.await_count, 2)
+            self.assertEqual(bot.tree.sync.await_args_list[0].kwargs["guild"].id, 123456789)
+            self.assertEqual(bot.tree.sync.await_args_list[1].kwargs, {})
+        finally:
+            await bot.close()
+
     async def test_global_scope_removes_stale_guild_commands_first(self) -> None:
         bot = DataShopBot(make_settings(scope="global", guild_id=123456789))
         try:
