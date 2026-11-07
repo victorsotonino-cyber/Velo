@@ -30,9 +30,10 @@ class CommandSyncFallbackTests(unittest.IsolatedAsyncioTestCase):
             staff_role_id=None,
             member_role_id=None,
             currency="USD",
+            command_sync_scope="guild" if guild_id is not None else "global",
         )
 
-    async def test_forbidden_guild_sync_falls_back_to_global_commands(self) -> None:
+    async def test_forbidden_guild_sync_does_not_fallback_to_global_commands(self) -> None:
         bot = DataShopBot(self._settings(123456789))
         forbidden = discord.Forbidden(
             SimpleNamespace(status=403, reason="Forbidden"),
@@ -42,12 +43,11 @@ class CommandSyncFallbackTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(bot.tree, "copy_global_to") as copy_global_to, patch.object(
                 bot.tree, "sync", new_callable=AsyncMock
             ) as sync:
-                sync.side_effect = [forbidden, []]
+                sync.side_effect = forbidden
                 await bot.sync_application_commands()
                 copy_global_to.assert_called_once()
-                self.assertEqual(sync.await_count, 2)
+                self.assertEqual(sync.await_count, 1)
                 self.assertIn("guild", sync.await_args_list[0].kwargs)
-                self.assertEqual(sync.await_args_list[1].kwargs, {})
         finally:
             await bot.close()
 
