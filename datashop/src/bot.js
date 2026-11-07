@@ -46,12 +46,18 @@ async function run(message, args) {
     return reply('Acciones: `!producto agregar`, `!producto stock`, `!producto quitar`.');
   }
   if(name==='venta'){
-    if(!admin())return;const user=message.mentions.users.first(),amount=Number(args.shift());const productName=args.join(' ');
+    if(!admin())return;const user=message.mentions.users.first(),amount=Number(args[1]);const productName=args.slice(2).join(' ').replace(/^['\"]|['\"]$/g,'');
     if(!user || !Number.isFinite(amount) || amount<=0)return reply('Uso: `!venta @cliente monto "producto"`');
     const c=g.customers[user.id] ||= {spent:0,orders:0};c.spent=Math.round((c.spent+amount)*100)/100;c.orders++;g.sales++;
     const p=g.products.find(x=>x.name.toLowerCase()===productName.replace(/^["']|["']$/g,'').toLowerCase());if(p&&p.stock>0)p.stock--;
     db.save(message.guild.id);const ch=g.channels.ventas&&message.guild.channels.cache.get(g.channels.ventas);if(ch)ch.send({embeds:[embed(g,'💸 Nueva venta',`Cliente: ${user}\nMonto: **${money(g,amount)}**\nProducto: ${productName||'No especificado'}`)]}).catch(()=>{});
     return reply(`✅ Venta registrada para ${user}: ${money(g,amount)}.`);
+  }
+  if(name==='metodo'){
+    if(!admin())return;const action=(args.shift()||'').toLowerCase(),methodName=args.shift();
+    if(action==='agregar'){const detail=args.join(' ');if(!methodName||!detail)return reply('Uso: !metodo agregar "Nombre" "Detalles"');const old=g.methods.find(x=>x.name.toLowerCase()===methodName.toLowerCase());if(old)old.detail=detail;else g.methods.push({name:methodName,detail});db.save(message.guild.id);return reply('✅ Método de pago guardado.');}
+    if(action==='quitar'){const index=g.methods.findIndex(x=>x.name.toLowerCase()===String(methodName).toLowerCase());if(index<0)return reply('❌ Método no encontrado.');g.methods.splice(index,1);db.save(message.guild.id);return reply('🗑️ Método eliminado.');}
+    return reply('Usa !metodo agregar o !metodo quitar.');
   }
   if(name==='ticketpanel'){
     if(!admin())return;const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ds:ticket').setLabel('Abrir ticket').setEmoji('🎫').setStyle(ButtonStyle.Primary));
