@@ -31,6 +31,7 @@ class Settings:
     staff_role_id: int | None
     member_role_id: int | None
     currency: str
+    command_sync_scope: str = "auto"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -41,6 +42,17 @@ class Settings:
             raise ValueError("PORT debe ser un número.") from exc
         if not 1 <= port <= 65535:
             raise ValueError("PORT debe estar entre 1 y 65535.")
+
+        raw_sync_scope = os.getenv("COMMAND_SYNC_SCOPE", "auto").strip().lower()
+        if raw_sync_scope not in {"auto", "guild", "global"}:
+            raise ValueError("COMMAND_SYNC_SCOPE debe ser auto, guild o global.")
+
+        guild_id = _optional_id("GUILD_ID")
+        if raw_sync_scope == "guild" and guild_id is None:
+            raise ValueError("COMMAND_SYNC_SCOPE=guild requiere configurar GUILD_ID.")
+        sync_scope = (
+            "guild" if guild_id is not None else "global"
+        ) if raw_sync_scope == "auto" else raw_sync_scope
 
         data_dir = Path(os.getenv("DATASHOP_DATA_DIR", "./data")).expanduser()
         if not data_dir.is_absolute():
@@ -53,7 +65,7 @@ class Settings:
         return cls(
             token=os.getenv("DISCORD_TOKEN", "").strip(),
             prefix=prefix,
-            guild_id=_optional_id("GUILD_ID"),
+            guild_id=guild_id,
             port=port,
             data_dir=data_dir,
             welcome_channel_id=_optional_id("WELCOME_CHANNEL_ID"),
@@ -62,4 +74,5 @@ class Settings:
             staff_role_id=_optional_id("STAFF_ROLE_ID"),
             member_role_id=_optional_id("MEMBER_ROLE_ID"),
             currency=os.getenv("STORE_CURRENCY", "USD").strip().upper() or "USD",
+            command_sync_scope=sync_scope,
         )
