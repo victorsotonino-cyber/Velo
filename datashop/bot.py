@@ -48,7 +48,11 @@ class DataShopBot(commands.Bot):
         copy. This prevents old global commands from appearing beside the
         current guild commands after a previous deployment.
         """
-        if self.settings.command_sync_scope == "guild":
+        scope = self.settings.command_sync_scope
+        if scope == "auto":
+            scope = "guild" if self.settings.guild_id is not None else "global"
+
+        if scope == "guild":
             if not self.settings.guild_id:
                 log.error("COMMAND_SYNC_SCOPE=guild requiere GUILD_ID; no se publicarán comandos globales como fallback.")
                 return
