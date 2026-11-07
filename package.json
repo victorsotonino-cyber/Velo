@@ -1,0 +1,19 @@
+{
+  "name": "datashop-discord-bot",
+  "version": "2.0.0",
+  "private": true,
+  "description": "DATASHOP Discord bot con prefijo !",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check src/database.js && node --check src/events.js && node --check src/commands.js && node --check src/tickets.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.4.7"
+  }
+}

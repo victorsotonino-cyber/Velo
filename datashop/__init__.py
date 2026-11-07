@@ -1,1 +1,0 @@
-"""DATASHOP Discord bot package."""

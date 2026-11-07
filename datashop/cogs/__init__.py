@@ -1,1 +1,0 @@
-"""Command cogs for DATASHOP."""
