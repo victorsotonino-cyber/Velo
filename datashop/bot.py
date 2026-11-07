@@ -38,7 +38,7 @@ class DataShopBot(commands.Bot):
             await self.load_extension(extension)
             log.info("Módulo cargado: %s", extension)
 
-        await self.sync_application_commands()
+        log.info("Registro slash desactivado: DATASHOP utiliza únicamente comandos con prefijo %s.", self.settings.prefix)
 
     async def sync_application_commands(self) -> None:
         """
