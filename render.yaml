@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: velo-datashop-bot
+    runtime: python
+    plan: starter
+    buildCommand: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: velo-datashop-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: COMMAND_SYNC_SCOPE
+        value: auto
+      - key: BOT_PREFIX
+        value: "!"
+      - key: STORE_CURRENCY
+        value: USD
+      - key: DATASHOP_DATA_DIR
+        value: /var/data
