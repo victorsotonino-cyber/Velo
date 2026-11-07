@@ -1,0 +1,22 @@
+name: DATASHOP checks
+on:
+  push:
+    branches: [rebuild/datashop-prefix-v1]
+    paths: ['datashop/**', '.github/workflows/datashop-check.yml']
+  pull_request:
+    paths: ['datashop/**', '.github/workflows/datashop-check.yml']
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: datashop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: datashop/package-lock.json
+      - run: npm install
+      - run: npm run check
