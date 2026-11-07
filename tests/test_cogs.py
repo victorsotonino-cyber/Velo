@@ -130,6 +130,17 @@ class TicketRuntimeRegressionTests(unittest.TestCase):
         self.assertFalse(_is_ticket(SimpleNamespace(topic="ordinary channel")))
         self.assertFalse(_is_ticket(SimpleNamespace(topic="DATASHOP_OWNER=invalid")))
 
+    def test_ticket_detection_accepts_legacy_owner_metadata(self) -> None:
+        for topic in (
+            "ticket_owner=123",
+            "ticket-owner=123",
+            "owner_id=123",
+            "owner=123",
+        ):
+            with self.subTest(topic=topic):
+                self.assertTrue(_is_ticket(SimpleNamespace(topic=topic)))
+        self.assertFalse(_is_ticket(SimpleNamespace(topic="ticket_owner=invalid")))
+
     def test_registered_rating_keys_are_a_set(self) -> None:
         cog = Tickets(SimpleNamespace())
         self.assertIsInstance(cog._registered_rating_keys, set)
