@@ -41,31 +41,66 @@ class DataShopBot(commands.Bot):
         await self.sync_application_commands()
 
     async def sync_application_commands(self) -> None:
-        """Sync slash commands without letting a bad GUILD_ID crash bot startup."""
-        if self.settings.guild_id:
-            guild = discord.Object(id=self.settings.guild_id)
-            # Replace stale guild-scoped commands left by older versions.
-            self.tree.copy_global_to(guild=guild)
-            try:
-                synced = await self.tree.sync(guild=guild)
-                log.info("Comandos slash sincronizados en servidor %s: %s", guild.id, len(synced))
+        """
+        Synchronize one command scope at a time.
+
+        Guild mode removes stale global registrations before serving the guild
+        copy. This prevents old global commands from appearing beside the
+        current guild commands after a previous deployment.
+        """
+        scope = self.settings.command_sync_scope
+        if scope == "auto":
+            scope = "guild" if self.settings.guild_id is not None else "global"
+
+        if scope == "guild":
+            if not self.settings.guild_id:
+                log.error("COMMAND_SYNC_SCOPE=guild requiere GUILD_ID; no se publicarán comandos globales como fallback.")
                 return
+
+            guild = discord.Object(id=self.settings.guild_id)
+            try:
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+
+                # Remove stale global commands left by earlier global deployments.
+                self.tree.clear_commands(guild=None)
+                removed_global = await self.tree.sync()
+                log.info(
+                    "Comandos sincronizados: %s en servidor %s; comandos globales retirados: %s.",
+                    len(synced),
+                    guild.id,
+                    len(removed_global),
+                )
             except discord.HTTPException:
                 log.exception(
                     "No se pudieron sincronizar comandos en GUILD_ID=%s. "
-                    "Comprueba que sea el ID correcto y que el bot esté invitado a ese servidor "
-                    "con los scopes bot y applications.commands. Intentaré sincronizar globalmente.",
+                    "Comprueba el ID, la invitación y el scope applications.commands. "
+                    "No haré fallback global para evitar duplicar comandos.",
+                    guild.id,
+                )
+            return
+
+        # If a server ID is supplied while global mode is selected, clear
+        # that server's old scoped registrations before publishing globally.
+        if self.settings.guild_id:
+            guild = discord.Object(id=self.settings.guild_id)
+            try:
+                self.tree.clear_commands(guild=guild)
+                removed_guild = await self.tree.sync(guild=guild)
+                log.info(
+                    "Comandos específicos antiguos retirados del servidor %s: %s.",
+                    guild.id,
+                    len(removed_guild),
+                )
+            except discord.HTTPException:
+                log.exception(
+                    "No se pudieron retirar los comandos antiguos del servidor %s.",
                     guild.id,
                 )
 
         try:
             synced = await self.tree.sync()
             log.info("Comandos slash globales sincronizados: %s", len(synced))
-            if self.settings.guild_id:
-                log.warning(
-                    "Arranque continuado con comandos globales porque falló la sincronización por servidor. "
-                    "Los comandos globales pueden tardar en aparecer."
-                )
         except discord.HTTPException:
             log.exception(
                 "No se pudieron sincronizar los comandos slash globales. "

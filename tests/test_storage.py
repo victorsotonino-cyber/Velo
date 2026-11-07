@@ -40,6 +40,12 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(get_guild_data("settings.json", 654321, {}), {"prefix": "!"})
         self.assertEqual(get_guild_data("settings.json", 999999, {}), {})
 
+    def test_set_guild_data_does_not_overwrite_non_object_json(self) -> None:
+        write_json("settings.json", ["unexpected", "list"])
+        with self.assertRaises(RuntimeError):
+            set_guild_data("settings.json", 123456, {"prefix": "!"})
+        self.assertEqual(read_json("settings.json", {}), ["unexpected", "list"])
+
     def test_invalid_file_path_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             read_json("../unsafe.json", {})

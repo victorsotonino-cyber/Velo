@@ -72,6 +72,8 @@ def set_guild_data(filename: str, guild_id: int, value: Any) -> None:
         raise ValueError("guild_id no es válido.")
     all_data = read_json(filename, {})
     if not isinstance(all_data, dict):
-        all_data = {}
+        raise RuntimeError(
+            f"El contenido de {filename} debe ser un objeto JSON; no se sobrescribirá para evitar perder datos."
+        )
     all_data[str(guild_id)] = value
     write_json(filename, all_data)
