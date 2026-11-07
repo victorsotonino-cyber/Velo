@@ -77,18 +77,20 @@ El módulo de participación añade estado AFK por servidor, recordatorios persi
 
 ## Configuración y alojamiento
 
-Variables básicas: DISCORD_TOKEN, GUILD_ID, BOT_PREFIX, PORT, DATASHOP_DATA_DIR y STORE_CURRENCY. Los valores opcionales de canales y roles se documentan en .env.example.
+Variables básicas: DISCORD_TOKEN, GUILD_ID, COMMAND_SYNC_SCOPE, BOT_PREFIX, PORT, DATASHOP_DATA_DIR y STORE_CURRENCY. COMMAND_SYNC_SCOPE admite auto, guild o global: auto usa comandos por servidor cuando existe GUILD_ID y globales cuando no existe. En modo guild se limpian los registros globales antiguos; en modo global se limpian los registros antiguos del GUILD_ID indicado. No se hace fallback automático a otro scope cuando el ID es incorrecto, para evitar que aparezcan comandos duplicados. Los valores opcionales de canales y roles se documentan en .env.example.
 
-Para Render:
-- Runtime: Python 3
-- Build Command: pip install -r requirements.txt
+Para Render, el repositorio incluye render.yaml:
+- Runtime: Python 3.12.10
+- Build Command: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 - Start Command: python main.py
+- Health Check: /health
+- Disco persistente montado en /var/data con DATASHOP_DATA_DIR=/var/data
 
-El servidor HTTP integrado expone /health. Para conservar productos, pedidos, advertencias y ajustes entre reinicios, configura almacenamiento persistente para DATASHOP_DATA_DIR en el hosting.
+Configura DISCORD_TOKEN en el panel privado de Render. GUILD_ID es opcional; al dejarlo vacío, COMMAND_SYNC_SCOPE=auto registra comandos globales. Si defines GUILD_ID, auto registra comandos en ese servidor y retira los comandos globales antiguos. Revisa el coste del plan y del disco persistente antes de aplicar el Blueprint.
 
 ## Alcance conocido
 
-- La información se guarda en archivos JSON por servidor.
+- La información se guarda en archivos JSON por servidor y requiere un disco persistente en hosting.
 - No se procesan pagos reales ni se verifican automáticamente transferencias.
-- El AutoMod del bot no sustituye las funciones nativas de seguridad de Discord ni un sistema completo anti-raid. Las valoraciones del ticket se guardan como datos por servidor; los botones de valoración son temporales y pueden dejar de responder si el proceso se reinicia.
+- El AutoMod del bot no sustituye las funciones nativas de seguridad de Discord ni un sistema completo anti-raid. Las valoraciones del ticket se guardan como datos por servidor y las vistas de valoración pendientes se restauran durante el arranque cuando el ticket sigue disponible.
 - Los comandos de moderación dependen de los permisos de Discord y de la jerarquía de roles.
