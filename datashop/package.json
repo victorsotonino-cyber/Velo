@@ -1,0 +1,19 @@
+{
+  "name": "datashop-discord-bot",
+  "version": "2.0.0",
+  "private": true,
+  "description": "DATASHOP Discord shop bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check src/bot.js && node --check src/database.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "better-sqlite3": "^12.2.0"
+  }
+}
