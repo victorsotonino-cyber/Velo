@@ -12,19 +12,6 @@ async function run(message, args) {
   const reply=(text,extra={})=>message.reply({content:text,...extra});
   const admin=()=>{ if(!staff(member)){reply('❌ Este comando es solo para el equipo autorizado.');return false;} return true; };
   if(!name) return;
-  if(name==='templane' || name==='template') {
-    if(!admin()) return;
-    const action=(args.shift() || 'roles').toLowerCase();
-    if(action!=='roles' && action!=='todo') return reply('Uso: `!templane roles`');
-    const result=await createRoleTemplate(message.guild, g);
-    db.save(message.guild.id);
-    return reply({embeds:[embed(g,'✅ Plantilla de roles DATASHOP',[
-      `Creados: **${result.created}**`,
-      `Ya existentes: **${result.existing}**`,
-      '',
-      ...result.roles.map(r=>`${r.emoji} **${r.name}** — <@&${r.id}>`)
-    ].join('\\n'))]});
-  }
   if(name==='ping') return reply(`🏓 Pong: **${message.client.ws.ping} ms**`);
   if(name==='ayuda' || name==='help') return reply({embeds:[embed(g,'📚 DATASHOP · Comandos',[
     '**General**: `!ping`, `!ayuda`, `!tienda`, `!metodos`, `!userinfo @usuario`, `!serverinfo`, `!sugerencia texto`, `!encuesta pregunta | opción 1 | opción 2`,
@@ -117,6 +104,24 @@ module.exports = client => {
     try{await run(message,args);}catch(error){console.error('Comando DATASHOP:',error);message.reply('❌ Error al ejecutar el comando.').catch(()=>{});}
   });
   client.on(Events.InteractionCreate,async interaction=>{
+    if (interaction.isChatInputCommand() && interaction.commandName === 'templane') {
+      if (!interaction.inGuild()) return interaction.reply({content:'Este comando solo funciona dentro de un servidor.',ephemeral:true});
+      const member = await interaction.guild.members.fetch(interaction.user.id);
+      if (!staff(member)) return interaction.reply({content:'❌ Solo el equipo autorizado puede ejecutar esta plantilla.',ephemeral:true});
+      await interaction.deferReply({ephemeral:true});
+      try {
+        const config = db.get(interaction.guild.id);
+        const result = await createRoleTemplate(interaction.guild, config);
+        db.save(interaction.guild.id);
+        const lines = result.roles.map(r => r.emoji+' **'+r.name+'** — <@&'+r.id+'>').join('\\n');
+        const card = new EmbedBuilder().setColor(config.store.color || '#e11d2e').setTitle('✅ Plantilla de roles DATASHOP').setDescription('Se revisaron los 10 roles. No se duplican los que ya existen.\\n\\n'+lines).addFields({name:'Resultado',value:'Creados: **'+result.created+'**\\nYa existentes: **'+result.existing+'**'}).setFooter({text:'DATASHOP · Configuración del servidor'});
+        return interaction.editReply({embeds:[card]});
+      } catch (error) {
+        console.error('Error /templane todo:', error);
+        return interaction.editReply('❌ No pude crear los roles. Revisa que el bot tenga **Administrar roles** y que su rol esté por encima de los roles que debe crear.');
+      }
+    }
+
     if(!interaction.isButton()||interaction.customId!=='ds:ticket'||!interaction.guild)return;
     const guild=interaction.guild,g=db.get(guild.id),existing=guild.channels.cache.find(c=>c.type===ChannelType.GuildText&&c.topic===`DATASHOP_OWNER=${interaction.user.id}`);
     if(existing)return interaction.reply({content:`Ya tienes un ticket abierto: ${existing}`,ephemeral:true});
