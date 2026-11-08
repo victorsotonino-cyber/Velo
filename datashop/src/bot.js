@@ -97,7 +97,14 @@ async function run(message, args) {
 }
 function guildName(g){return g.name;}
 module.exports = client => {
-  client.once(Events.ClientReady, async ()=>{\n    console.log('DATASHOP conectado como '+client.user.tag);\n    client.user.setActivity('DATASHOP');\n    const rest = new REST({ version:'10' }).setToken(process.env.DISCORD_TOKEN);\n    const commands = [new SlashCommandBuilder().setName('templane').setDescription('Configura todos los roles profesionales de DATASHOP').addSubcommand(sub => sub.setName('todo').setDescription('Crea los 10 roles del servidor')).toJSON()];\n    try { await rest.put(Routes.applicationCommands(client.user.id), { body:commands }); console.log('Comando /templane todo registrado.'); }\n    catch (error) { console.error('Error registrando /templane todo:', error); }\n  });
+  client.once(Events.ClientReady, async ()=>{
+    console.log('DATASHOP conectado como '+client.user.tag);
+    client.user.setActivity('DATASHOP');
+    const rest = new REST({ version:'10' }).setToken(process.env.DISCORD_TOKEN);
+    const commands = [new SlashCommandBuilder().setName('templane').setDescription('Configura todos los roles profesionales de DATASHOP').addSubcommand(sub => sub.setName('todo').setDescription('Crea los 10 roles del servidor')).toJSON()];
+    try { await rest.put(Routes.applicationCommands(client.user.id), { body:commands }); console.log('Comando /templane todo registrado.'); }
+    catch (error) { console.error('Error registrando /templane todo:', error); }
+  });
   client.on(Events.MessageCreate,async message=>{
     if(!message.guild||message.author.bot||!message.content.startsWith(PREFIX))return;
     const args=tokenize(message.content.slice(PREFIX.length).trim());
