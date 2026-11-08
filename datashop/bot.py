@@ -34,6 +34,7 @@ class DataShopBot(commands.Bot):
             "datashop.cogs.community",
             "datashop.cogs.engagement",
             "datashop.cogs.configuration",
+            "datashop.cogs.templane",
         ):
             await self.load_extension(extension)
             log.info("Módulo cargado: %s", extension)
@@ -124,6 +125,11 @@ class DataShopBot(commands.Bot):
         error: commands.CommandError,
     ) -> None:
         if isinstance(error, commands.CommandNotFound):
+            if ctx.guild is not None and ctx.message.content.startswith(self.settings.prefix):
+                try:
+                    await ctx.send("❌ Este comando no está registrado en DATASHOP. Usa `!help` para ver los comandos disponibles.")
+                except discord.HTTPException:
+                    pass
             return
         if isinstance(error, commands.NoPrivateMessage):
             message = "Este comando solo se puede usar dentro de un servidor."
