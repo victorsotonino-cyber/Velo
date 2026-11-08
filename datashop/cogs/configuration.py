@@ -455,6 +455,179 @@ class Configuration(commands.Cog):
         set_guild_data("settings.json", ctx.guild.id, settings)
         await send_context(ctx, f"✅ Se retiró del filtro: **{word.strip()}**.")
 
+    @botconfig.command(name="channel", description="Configura el canal de un módulo.")
+    async def config_channel(self, ctx: commands.Context, module: str, channel: discord.TextChannel) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        keys = {
+            "welcome": "welcome_channel_id", "logs": "logs_channel_id",
+            "tickets": "ticket_channel_id", "suggestions": "suggestions_channel_id",
+            "announcements": "announcements_channel_id", "polls": "polls_channel_id",
+            "giveaways": "giveaways_channel_id", "shop": "shop_channel_id",
+            "orders": "orders_channel_id", "vouches": "vouches_channel_id",
+        }
+        key = keys.get(module.casefold())
+        if key is None:
+            await send_context(ctx, "Módulo no válido: welcome, logs, tickets, suggestions, announcements, polls, giveaways, shop, orders o vouches.")
+            return
+        settings = _get_settings(ctx.guild.id)
+        settings[key] = channel.id
+        if module.casefold() == "welcome":
+            settings["welcome_disabled"] = False
+        try:
+            set_guild_data("settings.json", ctx.guild.id, settings)
+        except RuntimeError:
+            await send_context(ctx, "❌ No pude guardar el cambio. Comprueba el almacenamiento.")
+            return
+        await send_context(ctx, f"✅ Canal de {module} guardado: {channel.mention}")
+
+    @botconfig.command(name="role", description="Configura el rol de un módulo.")
+    async def config_role(self, ctx: commands.Context, module: str, role: discord.Role) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        if role.is_default() or role.managed:
+            await send_context(ctx, "Ese rol no se puede asignar a un módulo.")
+            return
+        keys = {"autorole": "autorole_id", "staff": "staff_role_id", "buyer": "buyer_role_id", "verified": "verified_role_id"}
+        key = keys.get(module.casefold())
+        if key is None:
+            await send_context(ctx, "Módulo no válido: autorole, staff, buyer o verified.")
+            return
+        settings = _get_settings(ctx.guild.id)
+        if key == "autorole_id":
+            risky = role.permissions.administrator or role.permissions.manage_guild or role.permissions.manage_roles or role.permissions.manage_channels or role.permissions.manage_messages or role.permissions.kick_members or role.permissions.ban_members or role.permissions.moderate_members
+            me = ctx.guild.me
+            if risky or me is None or not me.guild_permissions.manage_roles or role >= me.top_role:
+                await send_context(ctx, "El autorol debe ser básico y estar por debajo del rol del bot.")
+                return
+            settings["autorole_disabled"] = False
+        settings[key] = role.id
+        try:
+            set_guild_data("settings.json", ctx.guild.id, settings)
+        except RuntimeError:
+            await send_context(ctx, "❌ No pude guardar el cambio.")
+            return
+        await send_context(ctx, f"✅ Rol de {module} guardado: {role.mention}")
+
+    @botconfig.command(name="toggle", description="Activa o desactiva un módulo.")
+    async def config_toggle(self, ctx: commands.Context, module: str, enabled: bool) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        keys = {
+            "welcome": ("welcome_disabled", False), "autorole": ("autorole_disabled", False),
+            "automod": ("automod_enabled", True), "tickets": ("tickets_enabled", True),
+            "suggestions": ("suggestions_enabled", True), "polls": ("polls_enabled", True),
+            "giveaways": ("giveaways_enabled", True), "shop": ("shop_enabled", True),
+            "logs": ("logs_enabled", True), "leveling": ("leveling_enabled", True),
+            "reminders": ("reminders_enabled", True), "afk": ("afk_enabled", True),
+        }
+        entry = keys.get(module.casefold())
+        if entry is None:
+            await send_context(ctx, "Módulo no válido. Opciones: welcome, autorole, automod, tickets, suggestions, polls, giveaways, shop, logs, leveling, reminders, afk.")
+            return
+        setting_key, positive = entry
+        settings = _get_settings(ctx.guild.id)
+        if enabled and module.casefold() == "welcome" and not (settings.get("welcome_channel_id") or self.bot.settings.welcome_channel_id):
+            await send_context(ctx, "Configura primero el canal: !botconfig channel welcome #canal")
+            return
+        settings[setting_key] = enabled if positive else not enabled
+        try:
+            set_guild_data("settings.json", ctx.guild.id, settings)
+        except RuntimeError:
+            await send_context(ctx, "❌ No pude guardar el cambio.")
+            return
+        await send_context(ctx, f"✅ Módulo **{module}** {'activado' if enabled else 'desactivado'} y guardado.")
+
+    @botconfig.command(name="welcome-message", description="Personaliza el mensaje de bienvenida.")
+    async def config_welcome_message(self, ctx: commands.Context, *, message: str) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        if not message.strip() or len(message) > 1500:
+            await send_context(ctx, "El mensaje debe tener entre 1 y 1500 caracteres.")
+            return
+        settings = _get_settings(ctx.guild.id)
+        settings["welcome_message"] = message
+        try:
+            set_guild_data("settings.json", ctx.guild.id, settings)
+        except RuntimeError:
+            await send_context(ctx, "❌ No pude guardar el mensaje.")
+            return
+        await send_context(ctx, "✅ Mensaje guardado. Variables: {user}, {mention}, {server}, {count}.")
+
+    @botconfig.command(name="welcome-reset", description="Restaura el mensaje de bienvenida predeterminado.")
+    async def config_welcome_reset(self, ctx: commands.Context) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        settings = _get_settings(ctx.guild.id)
+        settings.pop("welcome_message", None)
+        set_guild_data("settings.json", ctx.guild.id, settings)
+        await send_context(ctx, "✅ Mensaje de bienvenida restaurado.")
+
+    @botconfig.command(name="set", description="Guarda un ajuste avanzado permitido.")
+    async def config_set(self, ctx: commands.Context, key: str, *, value: str) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        allowed = {"welcome_title", "welcome_color", "ticket_name_format", "ticket_max_open", "automod_flood_limit", "automod_flood_window", "store_currency", "shop_footer"}
+        key = key.casefold()
+        if key not in allowed:
+            await send_context(ctx, "Ajustes permitidos: welcome_title, welcome_color, ticket_name_format, ticket_max_open, automod_flood_limit, automod_flood_window, store_currency, shop_footer.")
+            return
+        clean = value.strip()
+        if not clean or len(clean) > 200:
+            await send_context(ctx, "El valor debe tener entre 1 y 200 caracteres.")
+            return
+        if key == "welcome_color" and (len(clean) != 7 or not clean.startswith("#") or any(c not in "0123456789abcdefABCDEF" for c in clean[1:])):
+            await send_context(ctx, "El color debe tener formato #RRGGBB.")
+            return
+        bounds = {"ticket_max_open": (1, 5), "automod_flood_limit": (3, 15), "automod_flood_window": (3, 30)}
+        if key in bounds:
+            try:
+                number = int(clean)
+            except ValueError:
+                await send_context(ctx, "Este ajuste necesita un número entero.")
+                return
+            low, high = bounds[key]
+            if not low <= number <= high:
+                await send_context(ctx, f"El valor debe estar entre {low} y {high}.")
+                return
+            clean = number
+        settings = _get_settings(ctx.guild.id)
+        settings[key] = clean
+        try:
+            set_guild_data("settings.json", ctx.guild.id, settings)
+        except RuntimeError:
+            await send_context(ctx, "❌ No pude guardar el ajuste.")
+            return
+        await send_context(ctx, f"✅ Ajuste **{key}** guardado: **{clean}**.")
+
+    @botconfig.command(name="export", description="Descarga una copia de seguridad de la configuración.")
+    async def config_export(self, ctx: commands.Context) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        import json
+        from io import BytesIO
+        payload = json.dumps(_get_settings(ctx.guild.id), ensure_ascii=False, indent=2).encode("utf-8")
+        file = discord.File(BytesIO(payload), filename=f"datashop-config-{ctx.guild.id}.json")
+        await send_context(ctx, "📦 Copia de seguridad de la configuración de este servidor.", file=file, ephemeral=ctx.interaction is not None)
+
+    @botconfig.command(name="reset", description="Restablece la configuración de DATASHOP.")
+    async def config_reset(self, ctx: commands.Context, confirm: str) -> None:
+        if not _is_admin(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador.")
+            return
+        if confirm.casefold() != "confirmar":
+            await send_context(ctx, "Para confirmar escribe: !botconfig reset confirmar")
+            return
+        set_guild_data("settings.json", ctx.guild.id, {})
+        await send_context(ctx, "⚠️ Configuración restablecida. No se borraron tickets, pedidos ni datos de tienda.")
+
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         settings = _get_settings(member.guild.id)
@@ -492,10 +665,17 @@ class Configuration(commands.Cog):
         channel_id = settings.get("welcome_channel_id") or self.bot.settings.welcome_channel_id
         channel = member.guild.get_channel(int(channel_id)) if channel_id else None
         if isinstance(channel, discord.TextChannel):
+            template = str(settings.get("welcome_message") or "¡Bienvenido/a {mention} a **{server}**!")
+            rendered = template.replace("{user}", discord.utils.escape_markdown(str(member))).replace("{mention}", member.mention).replace("{server}", discord.utils.escape_markdown(member.guild.name)).replace("{count}", str(member.guild.member_count or 0))
+            color_raw = str(settings.get("welcome_color", "#8B5CF6"))
+            try:
+                welcome_color = discord.Color.from_str(color_raw)
+            except (ValueError, TypeError):
+                welcome_color = discord.Color.from_str("#8B5CF6")
             embed = discord.Embed(
-                title="Welcome to DATASHOP",
-                description=f"¡Bienvenido/a {member.mention} a **{member.guild.name}**!",
-                color=discord.Color.from_str("#8B5CF6"),
+                title=str(settings.get("welcome_title") or "👋 ¡Bienvenido/a!")[:256],
+                description=rendered[:4000],
+                color=welcome_color,
             )
             embed.set_thumbnail(url=member.display_avatar.url)
             embed.set_footer(text=f"Miembro #{member.guild.member_count or 0}")
