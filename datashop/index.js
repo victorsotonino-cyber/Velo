@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, Collection, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const registerEvents = require('./src/bot');
 if (!process.env.DISCORD_TOKEN) {
   console.error('Falta DISCORD_TOKEN. Configúralo en el entorno del hosting.');
