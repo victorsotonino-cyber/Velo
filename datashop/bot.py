@@ -35,6 +35,7 @@ class DataShopBot(commands.Bot):
             "datashop.cogs.engagement",
             "datashop.cogs.configuration",
             "datashop.cogs.templane",
+            "datashop.cogs.welcome",
         ):
             await self.load_extension(extension)
             log.info("Módulo cargado: %s", extension)
