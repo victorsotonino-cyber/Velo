@@ -14,19 +14,25 @@ const ROLES = [
 ];
 
 const GROUPS = [
-  { key:'informacion', name:'📌 INFORMACIÓN', channels:[
-    ['welcome','👋・welcome'],['invites','📨・invites'],['reward','🎁・reward'],
-    ['new','📢・new'],['term','📜・term'],['web','🌐・web']
+  { key:'myst-market', name:'@Myst Market', channels:[
+    ['welcome','👋・welcome'],['invites','🫂・invites'],['telegram','🔗・telegram'],
+    ['payments-methods','💳・payments-methods'],['scammers','⛔・scammers']
   ]},
-  { key:'tienda', name:'🛒 TIENDA', channels:[
-    ['ticket','🎫・ticket'],['restock','📦・restock'],['proof','🧾・proof'],
-    ['legit','✅・legit'],['vouch','⭐・vouch']
+  { key:'important', name:'Important', channels:[
+    ['news','📌・news'],['terms','📄・terms'],['website','🌐・website'],
+    ['ticket','🎟️・ticket'],['restock','📦・restock']
   ]},
-  { key:'comunidad', name:'💬 COMUNIDAD', channels:[
-    ['chat','💬・chat'],['multimedia','🎬・multimedia']
+  { key:'leg1t', name:'Leg1t', channels:[
+    ['l3g1t','✅・l3g1t'],['m4k3-a-r3v1ew','✅・m4k3-a-r3v1ew'],['r3v1ew','✅・r3v1ew']
   ]},
-  { key:'equipo', name:'🛡️ EQUIPO', channels:[
-    ['comando','🤖・comando']
+  { key:'general', name:'GENERAL', channels:[
+    ['chat','🌎・chat'],['cmds','🤖・cmds'],['how-to-secure','🔨・how-to-secure']
+  ]},
+  { key:'slots', name:'SLOTS', channels:[
+    ['keilse','🛒・keilse'],['benito','🛒・benito']
+  ]},
+  { key:'ally-s-can-scam', name:'Ally/s can scam', channels:[
+    ['affys','🤝・affys'],['plantilla','📕・plantilla']
   ]}
 ];
 
