@@ -101,9 +101,23 @@ module.exports = client => {
     console.log('DATASHOP conectado como '+client.user.tag);
     client.user.setActivity('DATASHOP');
     const rest = new REST({ version:'10' }).setToken(process.env.DISCORD_TOKEN);
-    const commands = [new SlashCommandBuilder().setName('templane').setDescription('Configura todos los roles profesionales de DATASHOP').addSubcommand(sub => sub.setName('todo').setDescription('Crea los 10 roles del servidor')).toJSON()];
-    try { await rest.put(Routes.applicationCommands(client.user.id), { body:commands }); console.log('Comando /templane todo registrado.'); }
-    catch (error) { console.error('Error registrando /templane todo:', error); }
+    const commands = [
+      new SlashCommandBuilder()
+        .setName('templane')
+        .setDescription('Configura los roles, categorías y canales de DATASHOP')
+        .addSubcommand(sub => sub.setName('todo').setDescription('Crea la plantilla completa del servidor'))
+        .toJSON()
+    ];
+    // Los comandos de servidor se publican al instante; los globales pueden tardar bastante.
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), { body:commands });
+        console.log('Comando /templane todo registrado en el servidor '+guild.name+' ('+guild.id+').');
+      } catch (error) {
+        console.error('No se pudo registrar /templane todo en '+guild.id+':', error);
+      }
+    }
+    if (client.guilds.cache.size === 0) console.warn('DATASHOP no está en ningún servidor: no se pudieron registrar comandos.');
   });
   client.on(Events.MessageCreate,async message=>{
     if(!message.guild||message.author.bot||!message.content.startsWith(PREFIX))return;
