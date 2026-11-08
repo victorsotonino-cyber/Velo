@@ -1,9 +1,10 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits: P } = require('discord.js');
 const db = require('./database');
+const createRoleTemplate = require('./role-template');
 const PREFIX = process.env.PREFIX || '!';
 const money = (g,n) => `${g.store.currency || '$'}${Number(n).toFixed(2)}`;
 const embed = (g,title,description) => new EmbedBuilder().setColor(g.store.color || '#e11d2e').setTitle(title).setDescription(description || null).setFooter({text:g.store.name || 'DATASHOP'});
-const staff = m => m.permissions.has(P.Administrator) || m.permissions.has(P.ManageGuild) || m.roles.cache.some(r => r.id === db.get(m.guild.id).roles.staff || r.id === db.get(m.guild.id).roles.admin || r.id === db.get(m.guild.id).roles.owner);
+const staff = m => m.permissions.has(P.Administrator) || m.permissions.has(P.ManageGuild) || m.roles.cache.some(r => Object.values(db.get(m.guild.id).roles).filter(Boolean).includes(r.id));
 const tokenize = s => { const a=[]; const re=/"([^"]*)"|'([^']*)'|(\S+)/g; let m; while((m=re.exec(s))) a.push(m[1] ?? m[2] ?? m[3]); return a; };
 const mentionId = s => String(s || '').replace(/[<@!>]/g,'');
 async function run(message, args) {
@@ -11,13 +12,26 @@ async function run(message, args) {
   const reply=(text,extra={})=>message.reply({content:text,...extra});
   const admin=()=>{ if(!staff(member)){reply('❌ Este comando es solo para el equipo autorizado.');return false;} return true; };
   if(!name) return;
+  if(name==='templane' || name==='template') {
+    if(!admin()) return;
+    const action=(args.shift() || 'roles').toLowerCase();
+    if(action!=='roles' && action!=='todo') return reply('Uso: `!templane roles`');
+    const result=await createRoleTemplate(message.guild, g);
+    db.save(message.guild.id);
+    return reply({embeds:[embed(g,'✅ Plantilla de roles DATASHOP',[
+      `Creados: **${result.created}**`,
+      `Ya existentes: **${result.existing}**`,
+      '',
+      ...result.roles.map(r=>`${r.emoji} **${r.name}** — <@&${r.id}>`)
+    ].join('\\n'))]});
+  }
   if(name==='ping') return reply(`🏓 Pong: **${message.client.ws.ping} ms**`);
   if(name==='ayuda' || name==='help') return reply({embeds:[embed(g,'📚 DATASHOP · Comandos',[
     '**General**: `!ping`, `!ayuda`, `!tienda`, `!metodos`, `!userinfo @usuario`, `!serverinfo`, `!sugerencia texto`, `!encuesta pregunta | opción 1 | opción 2`,
     '**Tienda (staff)**: `!producto agregar "Nombre" precio [stock]`, `!producto stock "Nombre" cantidad`, `!producto quitar "Nombre"`, `!venta @cliente monto "producto"`,
     '**Tickets**: `!ticketpanel`, dentro de un ticket `!cerrar`,
     '**Moderación**: `!ban @usuario razón`, `!kick @usuario razón`, `!timeout @usuario 10m razón`, `!clear 20`, `!warn @usuario razón`, `!lock`, `!unlock`,
-    '**Administración**: `!say texto`, `!setcanal logs|shop|methods|suggestions|vouches`'
+    '**Administración**: `!templane roles`, `!say texto`, `!setcanal logs|shop|methods|suggestions|vouches`'
   ].join('\n\n'))]});
   if(name==='tienda' || name==='shop'){
     const products=g.products;
