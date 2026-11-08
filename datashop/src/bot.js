@@ -4,7 +4,7 @@ const createRoleTemplate = require('./role-template');
 const PREFIX = process.env.PREFIX || '!';
 const money = (g,n) => `${g.store.currency || '$'}${Number(n).toFixed(2)}`;
 const embed = (g,title,description) => new EmbedBuilder().setColor(g.store.color || '#e11d2e').setTitle(title).setDescription(description || null).setFooter({text:g.store.name || 'DATASHOP'});
-const staff = m => m.permissions.has(P.Administrator) || m.permissions.has(P.ManageGuild) || m.roles.cache.some(r => Object.values(db.get(m.guild.id).roles).filter(Boolean).includes(r.id));
+const staff = m => m.permissions.has(P.Administrator) || m.permissions.has(P.ManageGuild) || m.roles.cache.some(r => ['owner','manager','coordinator','admin','moderator','support','staff'].some(key => db.get(m.guild.id).roles[key] === r.id));
 const tokenize = s => { const a=[]; const re=/"([^"]*)"|'([^']*)'|(\S+)/g; let m; while((m=re.exec(s))) a.push(m[1] ?? m[2] ?? m[3]); return a; };
 const mentionId = s => String(s || '').replace(/[<@!>]/g,'');
 async function run(message, args) {
