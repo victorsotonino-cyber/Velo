@@ -106,6 +106,7 @@ module.exports = client => {
   client.on(Events.InteractionCreate,async interaction=>{
     if (interaction.isChatInputCommand() && interaction.commandName === 'templane') {
       if (!interaction.inGuild()) return interaction.reply({content:'Este comando solo funciona dentro de un servidor.',ephemeral:true});
+      if (interaction.options.getSubcommand() !== 'todo') return interaction.reply({content:'Usa /templane todo.',ephemeral:true});
       const member = await interaction.guild.members.fetch(interaction.user.id);
       if (!staff(member)) return interaction.reply({content:'❌ Solo el equipo autorizado puede ejecutar esta plantilla.',ephemeral:true});
       await interaction.deferReply({ephemeral:true});
@@ -113,12 +114,24 @@ module.exports = client => {
         const config = db.get(interaction.guild.id);
         const result = await createRoleTemplate(interaction.guild, config);
         db.save(interaction.guild.id);
-        const lines = result.roles.map(r => r.emoji+' **'+r.name+'** — <@&'+r.id+'>').join('\\n');
-        const card = new EmbedBuilder().setColor(config.store.color || '#e11d2e').setTitle('✅ Plantilla de roles DATASHOP').setDescription('Se revisaron los 10 roles. No se duplican los que ya existen.\\n\\n'+lines).addFields({name:'Resultado',value:'Creados: **'+result.created+'**\\nYa existentes: **'+result.existing+'**'}).setFooter({text:'DATASHOP · Configuración del servidor'});
+        const roleLines = result.roles.map(r => r.emoji+' **'+r.name+'**').join('\n');
+        const categoryLines = result.categories.map(c => '📁 **'+c.name+'**').join('\n');
+        const channelLines = result.channels.map(c => '<#'+c.id+'>').join(' · ');
+        const card = new EmbedBuilder()
+          .setColor(config.store.color || '#e11d2e')
+          .setTitle('✅ Plantilla completa DATASHOP')
+          .setDescription('Se configuraron los roles, categorías y canales del servidor. Los elementos existentes se reutilizaron para evitar duplicados.')
+          .addFields(
+            {name:'👑 Roles',value:roleLines.slice(0,1024)},
+            {name:'📂 Categorías creadas/revisadas',value:categoryLines.slice(0,1024)},
+            {name:'💬 Canales',value:channelLines.slice(0,1024)},
+            {name:'📊 Resumen',value:'Roles nuevos: **'+result.rolesCreated+'** · Existentes: **'+result.rolesExisting+'**\nCanales nuevos: **'+result.channelsCreated+'** · Existentes: **'+result.channelsExisting+'**'}
+          )
+          .setFooter({text:'DATASHOP · Plantilla completa'});
         return interaction.editReply({embeds:[card]});
       } catch (error) {
         console.error('Error /templane todo:', error);
-        return interaction.editReply('❌ No pude crear los roles. Revisa que el bot tenga **Administrar roles** y que su rol esté por encima de los roles que debe crear.');
+        return interaction.editReply('❌ No pude completar la plantilla. Dale al bot **Administrar roles** y **Administrar canales**, y coloca su rol por encima de los roles que debe crear.');
       }
     }
 
