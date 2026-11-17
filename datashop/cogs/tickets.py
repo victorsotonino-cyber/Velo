@@ -654,7 +654,7 @@ class TicketPanelView(discord.ui.View):
             title=f"{EMOJI_COMPRA} Centro de compras DATASHOP",
             description=(
                 "Selecciona una categoría para ver sus productos.\n\n"
-                + "\n".join(f"{emoji} **{label}**" for label, emoji in PURCHASE_CATEGORIES.values())
+                + "\n".join(f"{_category_emoji(interaction.guild, key)} **{label}**" for key, (label, _emoji) in PURCHASE_CATEGORIES.items())
                 + f"\n\n{EMOJI_TARJETA} El equipo confirmará el método de pago dentro del ticket."
             ),
             color=discord.Color.from_str("#8B5CF6"),
