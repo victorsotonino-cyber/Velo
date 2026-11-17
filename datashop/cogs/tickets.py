@@ -389,9 +389,14 @@ def _ensure_purchase_catalog(guild_id: int) -> dict:
 
 
 def _category_emoji(guild: discord.Guild, category: str):
+    """Return an emoji object acceptable to discord.py component serializers."""
     raw = PURCHASE_CATEGORIES[category][1]
     if raw == "discord":
         return discord.utils.get(guild.emojis, name="discordtop1") or "💬"
+    if isinstance(raw, str) and raw.startswith("<") and raw.endswith(">"):
+        parsed = discord.PartialEmoji.from_str(raw)
+        if parsed.id:
+            return guild.get_emoji(parsed.id) or parsed
     return raw
 EMOJI_COMPRA = "<a:Compra:1453244986291126347>"
 EMOJI_REWARD_NEW = "<a:reward:1458240286865096846>"
@@ -536,13 +541,14 @@ class PurchaseProductView(discord.ui.View):
 
 
 class PurchaseCategoryView(discord.ui.View):
-    def __init__(self, cog: "Tickets") -> None:
+    def __init__(self, cog: "Tickets", guild: discord.Guild) -> None:
         super().__init__(timeout=300)
         self.cog = cog
-        for category, (label, emoji) in PURCHASE_CATEGORIES.items():
+        self.guild = guild
+        for category, (label, _emoji) in PURCHASE_CATEGORIES.items():
             button = discord.ui.Button(
                 label=label,
-                emoji=emoji,
+                emoji=_category_emoji(guild, category),
                 style=discord.ButtonStyle.secondary,
                 row=0 if len(self.children) < 4 else 1,
             )
@@ -657,21 +663,26 @@ class TicketPanelView(discord.ui.View):
         if interaction.guild is None:
             await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
             return
-        embed = discord.Embed(
-            title=f"{EMOJI_COMPRA} Centro de compras DATASHOP",
-            description=(
-                "Selecciona una categoría para ver sus productos.\n\n"
-                + "\n".join(f"{_category_emoji(interaction.guild, key)} **{label}**" for key, (label, _emoji) in PURCHASE_CATEGORIES.items())
-                + f"\n\n{EMOJI_TARJETA} El equipo confirmará el método de pago dentro del ticket."
-            ),
-            color=discord.Color.from_str("#8B5CF6"),
-        )
-        embed.set_footer(text="DATASHOP · Selecciona una categoría")
-        view = PurchaseCategoryView(self.cog)
-        for child in view.children:
-            if isinstance(child, discord.ui.Button) and child.label == "Discord":
-                child.emoji = _category_emoji(interaction.guild, "discord")
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            embed = discord.Embed(
+                title=f"{EMOJI_COMPRA} Centro de compras DATASHOP",
+                description=(
+                    "Selecciona una categoría para ver sus productos.\n\n"
+                    + "\n".join(f"{_category_emoji(interaction.guild, key)} **{label}**" for key, (label, _emoji) in PURCHASE_CATEGORIES.items())
+                    + f"\n\n{EMOJI_TARJETA} El equipo confirmará el método de pago dentro del ticket."
+                ),
+                color=discord.Color.from_str("#8B5CF6"),
+            )
+            embed.set_footer(text="DATASHOP · Selecciona una categoría")
+            view = PurchaseCategoryView(self.cog, interaction.guild)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        except Exception:
+            log.exception("Falló el panel de compra del servidor %s", interaction.guild.id)
+            await interaction.followup.send(
+                "No pude abrir el panel de compra. El error quedó registrado para revisión.",
+                ephemeral=True,
+            )
 
     @discord.ui.button(
         label="Abrir ticket de soporte",
