@@ -1311,7 +1311,7 @@ class Tickets(commands.Cog):
     async def ticket(self, ctx: commands.Context) -> None:
         await send_context(
             ctx,
-            "Comandos: ticket setup, product-category, close, claim, unclaim, reopen, add, remove y transcript.",
+            "Comandos: ticket setup, close, claim, unclaim, reopen, add, remove y transcript. Para clasificar productos usa !ticket-product-category ID categoria.",
             ephemeral=ctx.interaction is not None,
         )
 
@@ -1363,7 +1363,8 @@ class Tickets(commands.Cog):
         embed.set_footer(text="Pulsa Comprar para elegir una categoría y un producto, o usa el menú para soporte y otras solicitudes.")
         await send_context(ctx, embed=embed, view=TicketPanelView(self))
 
-    @ticket.command(name="product-category", description="Asigna un producto del catálogo a una categoría del panel de compra.")
+    @commands.hybrid_command(name="ticket-product-category", description="Asigna un producto del catálogo a una categoría del panel de compra.")
+    @commands.guild_only()
     async def set_product_category(self, ctx: commands.Context, product_id: str, category: str) -> None:
         if not isinstance(ctx.guild, discord.Guild) or not isinstance(ctx.author, discord.Member):
             await send_context(ctx, "Este comando solo funciona dentro de un servidor.")
