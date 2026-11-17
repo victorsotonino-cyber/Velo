@@ -439,11 +439,17 @@ class PurchaseProductSelect(discord.ui.Select):
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
             return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            products = get_guild_data("products.json", interaction.guild.id, {})
+        except (RuntimeError, ValueError):
+            log.exception("No se pudo leer el catálogo del servidor %s", interaction.guild.id)
+            await interaction.followup.send("No pude consultar el catálogo ahora. Inténtalo de nuevo en unos segundos.", ephemeral=True)
+            return
         product_id = self.values[0]
-        products = get_guild_data("products.json", interaction.guild.id, {})
         item = products.get(product_id) if isinstance(products, dict) else None
         if not isinstance(item, dict) or str(item.get("category", "")).casefold() != self.category:
-            await interaction.response.send_message("El producto ya no está disponible. Abre el panel de compra otra vez.", ephemeral=True)
+            await interaction.followup.send("El producto ya no está disponible. Abre el panel de compra otra vez.", ephemeral=True)
             return
         try:
             stock = int(item.get("stock", 0))
@@ -451,9 +457,8 @@ class PurchaseProductSelect(discord.ui.Select):
         except (TypeError, ValueError):
             stock, price = 0, 0
         if stock <= 0 and not item.get("unlimited_stock", False):
-            await interaction.response.send_message("Este producto está agotado.", ephemeral=True)
+            await interaction.followup.send("Este producto está agotado.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
         product_name = str(item.get("name", "Producto"))[:80]
         category_name = PURCHASE_CATEGORIES[self.category][0]
         await interaction.followup.send(
@@ -487,6 +492,7 @@ class PurchaseSellerView(discord.ui.View):
             if interaction.guild is None:
                 await interaction.response.send_message("Este panel solo funciona en un servidor.", ephemeral=True)
                 return
+            await interaction.response.defer(ephemeral=True, thinking=True)
             seller_id = self.SELLERS[key]
             seller = interaction.guild.get_member(seller_id)
             if seller is None:
@@ -495,9 +501,8 @@ class PurchaseSellerView(discord.ui.View):
                 except discord.HTTPException:
                     seller = None
             if seller is None:
-                await interaction.response.send_message("No encontré al vendedor seleccionado.", ephemeral=True)
+                await interaction.followup.send("No encontré al vendedor seleccionado.", ephemeral=True)
                 return
-            await interaction.response.defer(ephemeral=True, thinking=True)
             stock_text = "Infinito" if self.item.get("unlimited_stock", False) else str(self.item.get("stock", 0))
             details = (
                 f"Categoría: {PURCHASE_CATEGORIES[self.category][0]}\n"
@@ -549,11 +554,13 @@ class PurchaseCategoryView(discord.ui.View):
             if interaction.guild is None:
                 await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
                 return
+            await interaction.response.defer(ephemeral=True, thinking=True)
             try:
                 products = _ensure_purchase_catalog(interaction.guild.id)
-            except RuntimeError:
-                await interaction.response.send_message(
-                    "No pude cargar el catálogo porque falló el almacenamiento. Avisa al personal.",
+            except (RuntimeError, ValueError):
+                log.exception("No se pudo preparar el catálogo de compra del servidor %s", interaction.guild.id)
+                await interaction.followup.send(
+                    "No pude cargar el catálogo porque falló el almacenamiento. Inténtalo de nuevo más tarde.",
                     ephemeral=True,
                 )
                 return
@@ -568,7 +575,7 @@ class PurchaseCategoryView(discord.ui.View):
                 color=discord.Color.from_str("#8B5CF6"),
             )
             embed.set_footer(text="DATASHOP · Compra segura")
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
         return callback
 
 
