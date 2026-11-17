@@ -93,6 +93,30 @@ class CommandSyncScopeTests(unittest.IsolatedAsyncioTestCase):
             await bot.close()
 
 
+class ProductionExtensionLoadingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_production_setup_hook_loads_every_extension(self) -> None:
+        bot = DataShopBot(make_settings(scope="global", guild_id=None))
+        try:
+            await bot.setup_hook()
+            expected = {
+                "datashop.cogs.general",
+                "datashop.cogs.moderation",
+                "datashop.cogs.tickets",
+                "datashop.cogs.store",
+                "datashop.cogs.community",
+                "datashop.cogs.engagement",
+                "datashop.cogs.configuration",
+                "datashop.cogs.templane",
+                "datashop.cogs.welcome",
+            }
+            self.assertEqual(set(bot.extensions), expected)
+            self.assertIsNotNone(bot.get_command("ticket"))
+            self.assertIsNotNone(bot.get_command("ticket setup"))
+            self.assertIsNotNone(bot.get_command("ticket control"))
+        finally:
+            await bot.close()
+
+
 class CommandNamespaceTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_registered_root_and_group_command_names_are_unique(self) -> None:
         bot = DataShopBot(make_settings(scope="global", guild_id=None))
