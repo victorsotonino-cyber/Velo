@@ -1189,7 +1189,7 @@ class Tickets(commands.Cog):
     def _valid_ticket(self, channel: discord.TextChannel) -> bool:
         return _ticket_owner(channel) is not None
 
-    @commands.hybrid_group(name="ticket", description="Configura y administra los tickets.", invoke_without_command=True, max_commands=None)
+    @commands.hybrid_group(name="ticket", description="Configura y administra los tickets.", invoke_without_command=True, max_commands=100)
     @commands.guild_only()
     async def ticket(self, ctx: commands.Context) -> None:
         await send_context(
