@@ -317,10 +317,10 @@ class TicketTypeSelect(discord.ui.Select):
 # Categorías comerciales del panel de compra. Los productos se asignan con
 # !ticket product-category <ID_PRODUCTO> <categoria>.
 PURCHASE_CATEGORIES = {
-    "streaming": ("Streaming", "📺"),
-    "discord": ("Discord", "💬"),
-    "ia": ("IA", "🤖"),
-    "pavos": ("Pavos", "🎮"),
+    "streaming": ("Streaming", "<:emoji_100:1571655577510350888>"),
+    "discord": ("Discord", "<:emoji_102:1571655608266924104>"),
+    "ia": ("IA", "<:emoji_100:1571655588629315584>"),
+    "pavos": ("Pavos", "<:emoji_102:1571655620728463360>"),
     "robux": ("Robux", "💎"),
     "cuentas": ("Cuentas", "👤"),
     "minecraft": ("Minecraft", "⛏️"),
@@ -346,10 +346,11 @@ class PurchaseProductSelect(discord.ui.Select):
                 price = float(item.get("price", 0))
             except (TypeError, ValueError):
                 continue
-            if stock <= 0:
+            unlimited = bool(item.get("unlimited_stock", False))
+            if stock <= 0 and not unlimited:
                 continue
             name = str(item.get("name", "Producto")).strip()[:100] or "Producto"
-            description = f"{price:.2f} · Stock: {stock}"[:100]
+            description = f"{price:.2f} · Stock: {'Infinito' if unlimited else stock}"[:100]
             choices.append(discord.SelectOption(label=name, value=str(product_id), description=description))
             if len(choices) == 25:
                 break
@@ -381,39 +382,78 @@ class PurchaseProductSelect(discord.ui.Select):
             price = float(item.get("price", 0))
         except (TypeError, ValueError):
             stock, price = 0, 0
-        if stock <= 0:
+        if stock <= 0 and not item.get("unlimited_stock", False):
             await interaction.response.send_message("Este producto está agotado.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         product_name = str(item.get("name", "Producto"))[:80]
         category_name = PURCHASE_CATEGORIES[self.category][0]
-        details = (
-            f"Categoría: {category_name}\n"
-            f"Producto: {product_name}\n"
-            f"ID: {product_id}\n"
-            f"Precio publicado: {price:.2f}\n"
-            f"Descripción: {str(item.get('description', 'Sin descripción'))[:500]}\n\n"
-            "El personal confirmará disponibilidad, método de pago y entrega dentro de este ticket. "
-            "No envíes contraseñas ni códigos de acceso."
-        )
-        channel = await self.cog.create_ticket(
-            interaction.guild,
-            interaction.user,
-            ticket_type="purchase",
-            subject=f"Compra · {product_name}",
-            details=details,
-        )
-        if channel is None:
-            await interaction.followup.send(
-                "No pude crear el ticket. Comprueba tu límite de tickets o contacta con el personal.",
-                ephemeral=True,
-            )
-            return
         await interaction.followup.send(
-            f"{EMOJI_REWARD_NEW} Tu solicitud de compra está lista: {channel.mention}",
+            embed=discord.Embed(
+                title=f"{EMOJI_COMPRA} Selecciona tu vendedor",
+                description=f"Producto: **{product_name}** · **${price:.2f}**\n\nElige con quién deseas realizar tu compra. Solo se notificará al vendedor seleccionado.",
+                color=discord.Color.from_str("#8B5CF6"),
+            ),
+            view=PurchaseSellerView(self.cog, interaction.user, self.category, product_id, product_name, price, item),
             ephemeral=True,
-            allowed_mentions=discord.AllowedMentions.none(),
         )
+
+
+class PurchaseSellerView(discord.ui.View):
+    SELLERS = {"chill": 1465771597741818069, "toji": 1171135786964484136}
+
+    def __init__(self, cog, buyer, category, product_id, product_name, price, item):
+        super().__init__(timeout=300)
+        self.cog, self.buyer, self.category = cog, buyer, category
+        self.product_id, self.product_name, self.price, self.item = product_id, product_name, price, item
+        for key, label in (("chill", "Chill"), ("toji", "Toji")):
+            button = discord.ui.Button(label=label, style=discord.ButtonStyle.primary, emoji=EMOJI_COMPRA)
+            button.callback = self._choose(key)
+            self.add_item(button)
+
+    def _choose(self, key):
+        async def callback(interaction):
+            if interaction.user.id != self.buyer.id:
+                await interaction.response.send_message("Este selector pertenece a quien inició la compra.", ephemeral=True)
+                return
+            if interaction.guild is None:
+                await interaction.response.send_message("Este panel solo funciona en un servidor.", ephemeral=True)
+                return
+            seller_id = self.SELLERS[key]
+            seller = interaction.guild.get_member(seller_id)
+            if seller is None:
+                try:
+                    seller = await interaction.guild.fetch_member(seller_id)
+                except discord.HTTPException:
+                    seller = None
+            if seller is None:
+                await interaction.response.send_message("No encontré al vendedor seleccionado.", ephemeral=True)
+                return
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            stock_text = "Infinito" if self.item.get("unlimited_stock", False) else str(self.item.get("stock", 0))
+            details = (
+                f"Categoría: {PURCHASE_CATEGORIES[self.category][0]}\n"
+                f"Producto: {self.product_name}\nID: {self.product_id}\n"
+                f"Precio: ${self.price:.2f}\nStock: {stock_text}\n"
+                f"Vendedor: {seller.mention}\n\n"
+                "El personal confirmará el pago y la entrega. No compartas contraseñas ni códigos."
+            )
+            channel = await self.cog.create_ticket(
+                interaction.guild, self.buyer, ticket_type="purchase",
+                subject=f"Compra · {self.product_name}", details=details,
+            )
+            if channel is None:
+                await interaction.followup.send("No pude crear el ticket. Comprueba tu límite de tickets.", ephemeral=True)
+                return
+            await channel.send(
+                f"{EMOJI_COMPRA} Vendedor seleccionado: {seller.mention}\nCliente: {self.buyer.mention}",
+                allowed_mentions=discord.AllowedMentions(users=[seller, self.buyer], roles=False, everyone=False),
+            )
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+            await interaction.followup.send(f"{EMOJI_REWARD_NEW} Ticket creado: {channel.mention}", ephemeral=True)
+        return callback
 
 
 class PurchaseProductView(discord.ui.View):
