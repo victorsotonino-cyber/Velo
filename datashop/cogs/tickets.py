@@ -1304,7 +1304,9 @@ class Tickets(commands.Cog):
         topic = _set_topic_value(channel, "DATASHOP_CLOSED", "1")
         new_name = channel.name if channel.name.startswith("cerrado-") else f"cerrado-{channel.name}"
         await channel.edit(name=new_name[:100], topic=topic)
-        await channel.send(f"🔒 Ticket cerrado por {member.mention}.")
+        await channel.send(
+            f"🔒 Ticket cerrado por {member.mention}. Este canal se eliminará automáticamente en **5 segundos**."
+        )
         await self._log_ticket_event(channel.guild, "Ticket cerrado", channel, member)
         if owner:
             rating_view = TicketRatingView(channel.guild.id, channel.id, owner.id)
@@ -1336,6 +1338,21 @@ class Tickets(commands.Cog):
                 )
             except discord.HTTPException:
                 log.info("No se pudo enviar por DM la valoración del ticket %s", channel.id)
+
+        # Delete after a short grace period so the closure notice can be read.
+        asyncio.create_task(self._delete_closed_ticket(channel))
+
+    async def _delete_closed_ticket(self, channel: discord.TextChannel) -> None:
+        await asyncio.sleep(5)
+        try:
+            await channel.delete(reason="Ticket cerrado: eliminación automática tras 5 segundos")
+            log.info("Ticket %s eliminado automáticamente tras el cierre", channel.id)
+        except discord.NotFound:
+            pass
+        except discord.Forbidden:
+            log.error("No tengo permisos para eliminar el ticket %s", channel.id)
+        except discord.HTTPException:
+            log.exception("No se pudo eliminar automáticamente el ticket %s", channel.id)
 
     async def reopen_channel(self, channel: discord.TextChannel, member: discord.Member) -> None:
         owner_id = _ticket_owner(channel)
