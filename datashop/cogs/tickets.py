@@ -318,13 +318,81 @@ class TicketTypeSelect(discord.ui.Select):
 # !ticket product-category <ID_PRODUCTO> <categoria>.
 PURCHASE_CATEGORIES = {
     "streaming": ("Streaming", "<:emoji_100:1571655577510350888>"),
-    "discord": ("Discord", "<:emoji_102:1571655608266924104>"),
+    "discord": ("Discord", "discordtop1"),
     "ia": ("IA", "<:emoji_100:1571655588629315584>"),
     "pavos": ("Pavos", "<:emoji_102:1571655620728463360>"),
     "robux": ("Robux", "💎"),
     "cuentas": ("Cuentas", "👤"),
     "minecraft": ("Minecraft", "⛏️"),
 }
+
+DEFAULT_PURCHASE_CATALOG = [
+    ("Netflix", 2.00, 10, "streaming", False),
+    ("HBO Max", 2.00, 10, "streaming", False),
+    ("Spotify", 3.00, 10, "streaming", False),
+    ("Crunchyroll", 2.00, 10, "streaming", False),
+    ("YouTube Premium", 2.00, 10, "streaming", False),
+    ("Minecraft Premium", 7.00, 20, "minecraft", False),
+    ("Robux 250", 1.80, 0, "robux", True),
+    ("Robux 500", 3.25, 0, "robux", True),
+    ("Robux 1,000", 7.50, 0, "robux", True),
+    ("Robux 2,000", 15.00, 0, "robux", True),
+    ("Robux 3,000", 21.50, 0, "robux", True),
+    ("Robux 4,000", 29.00, 0, "robux", True),
+    ("Robux 5,000", 36.50, 0, "robux", True),
+    ("Robux 10,000", 70.00, 0, "robux", True),
+    ("Discord Procode 1 mes", 2.00, 0, "discord", True),
+    ("Discord Procode 3 meses", 3.00, 0, "discord", True),
+    ("Server Booster", 2.00, 0, "discord", True),
+    ("Discord Decorations", 1.00, 0, "discord", True),
+    ("Cuenta Roblox OG", 20.00, 0, "cuentas", True),
+]
+
+
+def _ensure_purchase_catalog(guild_id: int) -> dict:
+    products = get_guild_data("products.json", guild_id, {})
+    if not isinstance(products, dict):
+        products = {}
+    by_name = {
+        str(item.get("name", "")).strip().casefold(): key
+        for key, item in products.items()
+        if isinstance(item, dict)
+    }
+    changed = False
+    for name, price, stock, category, unlimited in DEFAULT_PURCHASE_CATALOG:
+        key = by_name.get(name.casefold())
+        if key is None:
+            key = re.sub(r"[^A-Z0-9]+", "-", name.upper()).strip("-")[:24]
+            base, suffix = key, 2
+            while key in products:
+                key = f"{base}-{suffix}"
+                suffix += 1
+            products[key] = {
+                "name": name, "price": price, "stock": stock, "category": category,
+                "unlimited_stock": unlimited,
+                "description": "Stock infinito" if unlimited else f"Stock disponible: {stock}",
+            }
+            by_name[name.casefold()] = key
+            changed = True
+        else:
+            item = products[key]
+            if not item.get("category"):
+                item["category"] = category
+                changed = True
+            if "unlimited_stock" not in item:
+                item["unlimited_stock"] = unlimited
+                changed = True
+            products[key] = item
+    if changed:
+        set_guild_data("products.json", guild_id, products)
+    return products
+
+
+def _category_emoji(guild: discord.Guild, category: str):
+    raw = PURCHASE_CATEGORIES[category][1]
+    if raw == "discord":
+        return discord.utils.get(guild.emojis, name="discordtop1") or "💬"
+    return raw
 EMOJI_COMPRA = "<a:Compra:1453244986291126347>"
 EMOJI_REWARD_NEW = "<a:reward:1458240286865096846>"
 EMOJI_CARGANDO = "<a:Cargando:1453113983640014860>"
@@ -481,16 +549,21 @@ class PurchaseCategoryView(discord.ui.View):
             if interaction.guild is None:
                 await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
                 return
-            products = get_guild_data("products.json", interaction.guild.id, {})
-            if not isinstance(products, dict):
-                products = {}
+            try:
+                products = _ensure_purchase_catalog(interaction.guild.id)
+            except RuntimeError:
+                await interaction.response.send_message(
+                    "No pude cargar el catálogo porque falló el almacenamiento. Avisa al personal.",
+                    ephemeral=True,
+                )
+                return
             label = PURCHASE_CATEGORIES[category][0]
             view = PurchaseProductView(self.cog, category, products)
             embed = discord.Embed(
                 title=f"{EMOJI_COMPRA} Catálogo · {label}",
                 description=(
                     f"Selecciona el producto de **{label}** que deseas comprar.\n"
-                    f"{EMOJI_CARGANDO} El catálogo muestra únicamente productos con stock."
+                    f"{EMOJI_CARGANDO} Se muestran productos disponibles y productos con stock infinito."
                 ),
                 color=discord.Color.from_str("#8B5CF6"),
             )
@@ -587,7 +660,11 @@ class TicketPanelView(discord.ui.View):
             color=discord.Color.from_str("#8B5CF6"),
         )
         embed.set_footer(text="DATASHOP · Selecciona una categoría")
-        await interaction.response.send_message(embed=embed, view=PurchaseCategoryView(self.cog), ephemeral=True)
+        view = PurchaseCategoryView(self.cog)
+        for child in view.children:
+            if isinstance(child, discord.ui.Button) and child.label == "Discord":
+                child.emoji = _category_emoji(interaction.guild, "discord")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(
         label="Abrir ticket de soporte",
