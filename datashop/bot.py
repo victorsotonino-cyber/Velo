@@ -40,7 +40,9 @@ class DataShopBot(commands.Bot):
             await self.load_extension(extension)
             log.info("Módulo cargado: %s", extension)
 
-        log.info("Registro slash desactivado: DATASHOP utiliza únicamente comandos con prefijo %s.", self.settings.prefix)
+        # Hybrid commands must be synchronized so Discord users can use slash
+        # commands instead of relying exclusively on message-content prefix commands.
+        await self.sync_application_commands()
 
     async def sync_application_commands(self) -> None:
         """
