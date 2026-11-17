@@ -416,7 +416,9 @@ def _category_emoji(guild: discord.Guild, category: str):
     }.get(category, "🛍️")
     raw = PURCHASE_CATEGORIES.get(category, ("", fallback))[1]
     try:
-        if raw == "discord":
+        if raw in {"discord", "discordtop1", ":discordtop1:"}:
+            # A bare custom-emoji name is not valid in a Discord component.
+            # Resolve it to an emoji object from this guild; otherwise use Unicode.
             return discord.utils.get(guild.emojis, name="discordtop1") or fallback
         if isinstance(raw, str) and raw.startswith("<") and raw.endswith(">"):
             parsed = discord.PartialEmoji.from_str(raw)
