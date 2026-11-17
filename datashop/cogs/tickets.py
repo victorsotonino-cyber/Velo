@@ -409,17 +409,23 @@ def _ensure_purchase_catalog(guild_id: int) -> dict:
 
 
 def _category_emoji(guild: discord.Guild, category: str):
-    """Return a guild emoji object; never send an unavailable custom emoji to Discord."""
-    raw = PURCHASE_CATEGORIES[category][1]
-    if raw == "discord":
-        return discord.utils.get(guild.emojis, name="discordtop1") or "💬"
-    if isinstance(raw, str) and raw.startswith("<") and raw.endswith(">"):
-        parsed = discord.PartialEmoji.from_str(raw)
-        if parsed.id:
-            return guild.get_emoji(parsed.id) or {
-                "streaming": "📺", "ia": "🤖", "pavos": "🎮"
-            }.get(category, "🛍️")
-    return raw
+    """Return only an emoji that is usable in this guild; otherwise use Unicode."""
+    fallback = {
+        "streaming": "📺", "discord": "💬", "ia": "🤖", "pavos": "🎮",
+        "robux": "💎", "cuentas": "👤", "minecraft": "⛏️",
+    }.get(category, "🛍️")
+    raw = PURCHASE_CATEGORIES.get(category, ("", fallback))[1]
+    try:
+        if raw == "discord":
+            return discord.utils.get(guild.emojis, name="discordtop1") or fallback
+        if isinstance(raw, str) and raw.startswith("<") and raw.endswith(">"):
+            parsed = discord.PartialEmoji.from_str(raw)
+            if parsed.id:
+                return guild.get_emoji(parsed.id) or fallback
+        return raw or fallback
+    except (TypeError, ValueError, AttributeError):
+        log.warning("Emoji de categoría no disponible: %s", category)
+        return fallback
 EMOJI_COMPRA = "<a:Compra:1453244986291126347>"
 EMOJI_REWARD_NEW = "<a:reward:1458240286865096846>"
 EMOJI_CARGANDO = "<a:Cargando:1453113983640014860>"
@@ -1197,11 +1203,7 @@ class Tickets(commands.Cog):
         category = guild.get_channel(int(category_id)) if category_id else None
 
         # The global staff role always keeps access, even when a category has its own routed role.
-        global_staff_role_id = (
-            settings.get("staff_role_id")
-            or self.bot.settings.staff_role_id
-            or DEFAULT_STAFF_ROLE_ID
-        )
+        global_staff_role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
         routed_staff_role_id = route.get("staff_role_id")
         support_roles: list[discord.Role] = []
         for raw_role_id in (global_staff_role_id, routed_staff_role_id):
@@ -1381,8 +1383,18 @@ class Tickets(commands.Cog):
         settings = _get_settings(ctx.guild.id)
         if category is not None:
             settings["ticket_category_id"] = category.id
-        # Always apply the requested staff role unless a role was explicitly selected with the command.
-        settings["staff_role_id"] = staff_role.id if staff_role is not None else DEFAULT_STAFF_ROLE_ID
+        # Never publish a hard-coded role ID from another server.
+        # Keep the configured role only when it actually exists in this guild.
+        if staff_role is not None:
+            settings["staff_role_id"] = staff_role.id
+        else:
+            configured_role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
+            try:
+                configured_role = ctx.guild.get_role(int(configured_role_id)) if configured_role_id else None
+            except (TypeError, ValueError):
+                configured_role = None
+            if configured_role is None:
+                settings.pop("staff_role_id", None)
         set_guild_data("settings.json", ctx.guild.id, settings)
 
         embed = discord.Embed(
@@ -1403,9 +1415,14 @@ class Tickets(commands.Cog):
         )
         if ctx.guild.icon:
             embed.set_thumbnail(url=ctx.guild.icon.url)
+        staff_role_id = settings.get("staff_role_id") or self.bot.settings.staff_role_id
+        try:
+            staff_role = ctx.guild.get_role(int(staff_role_id)) if staff_role_id else None
+        except (TypeError, ValueError):
+            staff_role = None
         embed.add_field(
             name="Personal de soporte",
-            value=f"<@&{settings['staff_role_id']}>",
+            value=staff_role.mention if staff_role else "No configurado · usa !ticket setup #categoría @rol",
             inline=False,
         )
         embed.add_field(
