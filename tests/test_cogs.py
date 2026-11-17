@@ -190,13 +190,17 @@ class TicketPanelBrandingTests(unittest.TestCase):
         self.assertEqual(
             [option.emoji.id for option in selector.options],
             [
-                1561518116826255441,
                 1550144965404004502,
                 1561921833203142757,
                 1550146329915949077,
                 1561925621578469450,
             ],
         )
+        purchase_button = next(
+            child for child in view.children
+            if isinstance(child, discord.ui.Button) and child.label == "Comprar"
+        )
+        self.assertEqual(purchase_button.emoji.id, 1561518116826255441)
         self.assertEqual(TICKET_TYPES["purchase"][0], "Comprar un artículo")
         self.assertEqual(TICKET_TYPES["support"][0], "Hacer una consulta")
         self.assertEqual(TICKET_TYPES["report"][0], "Reportar un problema")
