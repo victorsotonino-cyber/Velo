@@ -139,10 +139,11 @@ class ShopProductSelect(discord.ui.Select):
                 price = float(item.get("price", 0))
             except (TypeError, ValueError):
                 continue
-            if stock <= 0:
+            unlimited = bool(item.get("unlimited_stock", False))
+            if stock <= 0 and not unlimited:
                 continue
             name = str(item.get("name", "Producto"))[:100] or "Producto"
-            description = f"{price:.2f} {cog.bot.settings.currency} · Stock {stock}"[:100]
+            description = f"{price:.2f} {cog.bot.settings.currency} · Stock infinito"[:100] if unlimited else f"{price:.2f} {cog.bot.settings.currency} · Stock {stock}"[:100]
             options.append(discord.SelectOption(label=name, value=str(product_id)[:100], description=description))
             if len(options) >= 25:
                 break
@@ -179,7 +180,7 @@ def _storefront_embed(guild: discord.Guild, products: dict[str, Any], currency: 
             continue
         price = _safe_money(item.get("price", -1), -1)
         stock = _safe_int(item.get("stock", -1), -1)
-        if price < 0 or stock <= 0:
+        if price < 0 or (stock <= 0 and not item.get("unlimited_stock", False)):
             continue
         available.append((str(product_id), item, price, stock))
 
@@ -489,6 +490,49 @@ class Store(commands.Cog):
             ephemeral=ctx.interaction is not None,
         )
 
+    @shop.command(name="catalog-defaults", description="Carga o actualiza el catálogo inicial de DATASHOP.")
+    async def catalog_defaults(self, ctx: commands.Context) -> None:
+        if not _is_staff(ctx):
+            await send_context(ctx, "Necesitas Gestionar servidor o Administrador para cargar el catálogo.")
+            return
+        catalog = [
+            ("Netflix", 2.00, 10, "streaming", False),
+            ("HBO Max", 2.00, 10, "streaming", False),
+            ("Spotify", 3.00, 10, "streaming", False),
+            ("Crunchyroll", 2.00, 10, "streaming", False),
+            ("YouTube Premium", 2.00, 10, "streaming", False),
+            ("Minecraft Premium", 7.00, 20, "minecraft", False),
+            ("Robux 250", 1.80, 0, "robux", True),
+            ("Robux 500", 3.25, 0, "robux", True),
+            ("Robux 1,000", 7.50, 0, "robux", True),
+            ("Robux 2,000", 15.00, 0, "robux", True),
+            ("Robux 3,000", 21.50, 0, "robux", True),
+            ("Robux 4,000", 29.00, 0, "robux", True),
+            ("Robux 5,000", 36.50, 0, "robux", True),
+            ("Robux 10,000", 70.00, 0, "robux", True),
+            ("Discord Procode 1 mes", 2.00, 0, "discord", True),
+            ("Discord Procode 3 meses", 3.00, 0, "discord", True),
+            ("Server Booster", 2.00, 0, "discord", True),
+            ("Discord Decorations", 1.00, 0, "discord", True),
+            ("Cuenta Roblox OG", 20.00, 0, "cuentas", True),
+        ]
+        async with self._inventory_lock:
+            products = _products(ctx)
+            existing = {str(item.get("name", "")).casefold(): key for key, item in products.items() if isinstance(item, dict)}
+            created = updated = 0
+            for name, price, stock, category, unlimited in catalog:
+                key = existing.get(name.casefold())
+                if key is None:
+                    key = secrets.token_hex(3).upper()
+                    while key in products:
+                        key = secrets.token_hex(3).upper()
+                    products[key] = {"name": name, "price": price, "stock": stock, "category": category, "unlimited_stock": unlimited, "description": "Stock infinito" if unlimited else f"Stock disponible: {stock}"}
+                    created += 1
+                else:
+                    products[key].update({"name": name, "price": price, "stock": stock, "category": category, "unlimited_stock": unlimited})
+                    updated += 1
+            set_guild_data("products.json", ctx.guild.id, products)
+        await send_context(ctx, f"Catálogo guardado. Nuevos: **{created}** · Actualizados: **{updated}**. Decorations inicia en $1; ajusta variantes hasta $30 con !shop edit.")
     @shop.command(name="list", description="Muestra el catálogo de productos.")
     async def list_products(self, ctx: commands.Context) -> None:
         products = _products(ctx)
@@ -805,7 +849,8 @@ class Store(commands.Cog):
                 parsed_stock = int(stock)
             except (TypeError, ValueError):
                 return None, "El precio o stock de este producto no es válido. Pide al personal que lo revise."
-            if parsed_stock < quantity or parsed_stock < 0:
+            unlimited = bool(item.get("unlimited_stock", False))
+            if parsed_stock < 0 or (parsed_stock < quantity and not unlimited):
                 return None, f"Stock insuficiente. Disponible: {parsed_stock}."
             if not math.isfinite(price) or price < 0 or price > 1_000_000:
                 return None, "El precio de este producto no es válido. Pide al personal que lo revise."
@@ -832,7 +877,8 @@ class Store(commands.Cog):
                 "stock_restored": False,
             }
             previous_products = copy.deepcopy(products)
-            item["stock"] = parsed_stock - quantity
+            if not unlimited:
+                item["stock"] = parsed_stock - quantity
             products[key] = item
             orders.append(order)
             try:
@@ -930,7 +976,7 @@ class Store(commands.Cog):
                 current_quantity = int(items.get(key, 0))
             except (TypeError, ValueError):
                 current_quantity = 0
-            if current_quantity + quantity > stock:
+            if current_quantity + quantity > stock and not product.get("unlimited_stock", False):
                 await send_context(ctx, f"Stock disponible: {stock}. Ya tienes {current_quantity} en el carrito.")
                 return
             if key not in items and len(items) >= 25:
@@ -1104,7 +1150,7 @@ class Store(commands.Cog):
                 key, product = found
                 price = _safe_money(product.get("price", -1), -1)
                 stock = _safe_int(product.get("stock", -1), -1)
-                if quantity < 1 or quantity > 100 or price < 0 or stock < quantity:
+                if quantity < 1 or quantity > 100 or price < 0 or (stock < quantity and not product.get("unlimited_stock", False)):
                     await send_context(
                         ctx,
                         f"No pude completar el carrito: revisa stock/precio de **{product.get('name', key)}**. Disponible: {max(0, stock)}.",
@@ -1127,7 +1173,8 @@ class Store(commands.Cog):
                 order_id = secrets.token_hex(4).upper()
                 while any(isinstance(row, dict) and str(row.get("id", "")).upper() == order_id for row in orders):
                     order_id = secrets.token_hex(4).upper()
-                product["stock"] = _safe_int(product.get("stock", 0)) - quantity
+                if not product.get("unlimited_stock", False):
+                    product["stock"] = _safe_int(product.get("stock", 0)) - quantity
                 products[key] = product
                 order = {
                     "id": order_id,
