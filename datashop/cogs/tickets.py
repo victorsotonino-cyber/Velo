@@ -350,9 +350,17 @@ DEFAULT_PURCHASE_CATALOG = [
 
 
 def _ensure_purchase_catalog(guild_id: int) -> dict:
+    """Create missing products and repair the initial quantities exactly once."""
     products = get_guild_data("products.json", guild_id, {})
     if not isinstance(products, dict):
         products = {}
+
+    settings = _get_settings(guild_id)
+    try:
+        initialize_defaults = int(settings.get("purchase_catalog_version", 0)) < 1
+    except (TypeError, ValueError, OverflowError):
+        initialize_defaults = True
+
     by_name = {
         str(item.get("name", "")).strip().casefold(): key
         for key, item in products.items()
@@ -376,27 +384,41 @@ def _ensure_purchase_catalog(guild_id: int) -> dict:
             changed = True
         else:
             item = products[key]
-            if not item.get("category"):
-                item["category"] = category
+            if initialize_defaults:
+                item.update({
+                    "name": name, "price": price, "stock": stock, "category": category,
+                    "unlimited_stock": unlimited,
+                })
+                item.setdefault("description", "Stock infinito" if unlimited else f"Stock disponible: {stock}")
                 changed = True
-            if "unlimited_stock" not in item:
-                item["unlimited_stock"] = unlimited
-                changed = True
+            else:
+                if not item.get("category"):
+                    item["category"] = category
+                    changed = True
+                if "unlimited_stock" not in item:
+                    item["unlimited_stock"] = unlimited
+                    changed = True
             products[key] = item
+
     if changed:
         set_guild_data("products.json", guild_id, products)
+    if initialize_defaults:
+        settings["purchase_catalog_version"] = 1
+        set_guild_data("settings.json", guild_id, settings)
     return products
 
 
 def _category_emoji(guild: discord.Guild, category: str):
-    """Return an emoji object acceptable to discord.py component serializers."""
+    """Return a guild emoji object; never send an unavailable custom emoji to Discord."""
     raw = PURCHASE_CATEGORIES[category][1]
     if raw == "discord":
         return discord.utils.get(guild.emojis, name="discordtop1") or "💬"
     if isinstance(raw, str) and raw.startswith("<") and raw.endswith(">"):
         parsed = discord.PartialEmoji.from_str(raw)
         if parsed.id:
-            return guild.get_emoji(parsed.id) or parsed
+            return guild.get_emoji(parsed.id) or {
+                "streaming": "📺", "ia": "🤖", "pavos": "🎮"
+            }.get(category, "🛍️")
     return raw
 EMOJI_COMPRA = "<a:Compra:1453244986291126347>"
 EMOJI_REWARD_NEW = "<a:reward:1458240286865096846>"
@@ -523,6 +545,16 @@ class PurchaseSellerView(discord.ui.View):
             if channel is None:
                 await interaction.followup.send("No pude crear el ticket. Comprueba tu límite de tickets.", ephemeral=True)
                 return
+            try:
+                await channel.set_permissions(
+                    seller,
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    reason="Vendedor seleccionado por el cliente",
+                )
+            except discord.HTTPException:
+                log.exception("No se pudieron aplicar permisos al vendedor %s en el ticket %s", seller.id, channel.id)
             await channel.send(
                 f"{EMOJI_COMPRA} Vendedor seleccionado: {seller.mention}\nCliente: {self.buyer.mention}",
                 allowed_mentions=discord.AllowedMentions(users=[seller, self.buyer], roles=False, everyone=False),
@@ -576,7 +608,10 @@ class PurchaseCategoryView(discord.ui.View):
                 title=f"{EMOJI_COMPRA} Catálogo · {label}",
                 description=(
                     f"Selecciona el producto de **{label}** que deseas comprar.\n"
-                    f"{EMOJI_CARGANDO} Se muestran productos disponibles y productos con stock infinito."
+                    + ("<:emoji_100:1571655577510350888> <:emoji_102:1571655608266924104> "
+                       "<:emoji_100:1571655588629315584> <:emoji_102:1571655620728463360>\n"
+                       if category == "streaming" else "")
+                    + f"{EMOJI_CARGANDO} Se muestran productos disponibles y productos con stock infinito."
                 ),
                 color=discord.Color.from_str("#8B5CF6"),
             )
