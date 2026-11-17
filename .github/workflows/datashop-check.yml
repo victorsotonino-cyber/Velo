@@ -2,7 +2,7 @@ name: DATASHOP checks
 on:
   push:
     branches: [rebuild/datashop-prefix-v1]
-    paths: ['datashop/**', '.github/workflows/datashop-check.yml']
+    paths: ['datashop/**', 'tests/**', '.github/workflows/datashop-check.yml']
   pull_request:
     paths: ['datashop/**', '.github/workflows/datashop-check.yml']
 jobs:
