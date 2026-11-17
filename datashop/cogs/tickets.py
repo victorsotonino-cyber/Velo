@@ -133,7 +133,7 @@ TICKET_TYPES = {
     "refund": ("Reclamación", EMOJI_REPORT),
     "other": ("Otros", EMOJI_QUESTION),
 }
-PUBLIC_TICKET_TYPE_KEYS = ("purchase", "support", "report", "reward", "workers")
+PUBLIC_TICKET_TYPE_KEYS = ("support", "report", "reward", "workers")
 TICKET_PRIORITIES = {
     "low": ("Baja", "🟢"),
     "normal": ("Normal", "🟡"),
@@ -313,6 +313,152 @@ class TicketTypeSelect(discord.ui.Select):
         await interaction.response.send_modal(TicketRequestModal(self.cog, self.values[0]))
 
 
+
+# Categorías comerciales del panel de compra. Los productos se asignan con
+# !ticket product-category <ID_PRODUCTO> <categoria>.
+PURCHASE_CATEGORIES = {
+    "streaming": ("Streaming", "📺"),
+    "discord": ("Discord", "💬"),
+    "ia": ("IA", "🤖"),
+    "pavos": ("Pavos", "🎮"),
+    "robux": ("Robux", "💎"),
+    "cuentas": ("Cuentas", "👤"),
+    "minecraft": ("Minecraft", "⛏️"),
+}
+EMOJI_COMPRA = "<a:Compra:1453244986291126347>"
+EMOJI_REWARD_NEW = "<a:reward:1458240286865096846>"
+EMOJI_CARGANDO = "<a:Cargando:1453113983640014860>"
+EMOJI_TARJETA = "<a:tarjeta:1453373965287293009>"
+
+
+class PurchaseProductSelect(discord.ui.Select):
+    def __init__(self, cog: "Tickets", category: str, products: dict) -> None:
+        self.cog = cog
+        self.category = category
+        choices = []
+        for product_id, item in products.items():
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("category", "")).casefold() != category:
+                continue
+            try:
+                stock = int(item.get("stock", 0))
+                price = float(item.get("price", 0))
+            except (TypeError, ValueError):
+                continue
+            if stock <= 0:
+                continue
+            name = str(item.get("name", "Producto")).strip()[:100] or "Producto"
+            description = f"{price:.2f} · Stock: {stock}"[:100]
+            choices.append(discord.SelectOption(label=name, value=str(product_id), description=description))
+            if len(choices) == 25:
+                break
+        if not choices:
+            choices = [discord.SelectOption(label="Sin productos disponibles", value="_empty")]
+        super().__init__(
+            placeholder="Selecciona el producto que deseas comprar…",
+            min_values=1,
+            max_values=1,
+            options=choices,
+        )
+        self.available = choices[0].value != "_empty"
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not self.available or self.values[0] == "_empty":
+            await interaction.response.send_message("Esta categoría todavía no tiene productos disponibles.", ephemeral=True)
+            return
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        product_id = self.values[0]
+        products = get_guild_data("products.json", interaction.guild.id, {})
+        item = products.get(product_id) if isinstance(products, dict) else None
+        if not isinstance(item, dict) or str(item.get("category", "")).casefold() != self.category:
+            await interaction.response.send_message("El producto ya no está disponible. Abre el panel de compra otra vez.", ephemeral=True)
+            return
+        try:
+            stock = int(item.get("stock", 0))
+            price = float(item.get("price", 0))
+        except (TypeError, ValueError):
+            stock, price = 0, 0
+        if stock <= 0:
+            await interaction.response.send_message("Este producto está agotado.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        product_name = str(item.get("name", "Producto"))[:80]
+        category_name = PURCHASE_CATEGORIES[self.category][0]
+        details = (
+            f"Categoría: {category_name}\n"
+            f"Producto: {product_name}\n"
+            f"ID: {product_id}\n"
+            f"Precio publicado: {price:.2f}\n"
+            f"Descripción: {str(item.get('description', 'Sin descripción'))[:500]}\n\n"
+            "El personal confirmará disponibilidad, método de pago y entrega dentro de este ticket. "
+            "No envíes contraseñas ni códigos de acceso."
+        )
+        channel = await self.cog.create_ticket(
+            interaction.guild,
+            interaction.user,
+            ticket_type="purchase",
+            subject=f"Compra · {product_name}",
+            details=details,
+        )
+        if channel is None:
+            await interaction.followup.send(
+                "No pude crear el ticket. Comprueba tu límite de tickets o contacta con el personal.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            f"{EMOJI_REWARD_NEW} Tu solicitud de compra está lista: {channel.mention}",
+            ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+
+class PurchaseProductView(discord.ui.View):
+    def __init__(self, cog: "Tickets", category: str, products: dict) -> None:
+        super().__init__(timeout=300)
+        self.add_item(PurchaseProductSelect(cog, category, products))
+
+
+class PurchaseCategoryView(discord.ui.View):
+    def __init__(self, cog: "Tickets") -> None:
+        super().__init__(timeout=300)
+        self.cog = cog
+        for category, (label, emoji) in PURCHASE_CATEGORIES.items():
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=discord.ButtonStyle.secondary,
+                row=0 if len(self.children) < 4 else 1,
+            )
+            button.callback = self._category_callback(category)
+            self.add_item(button)
+
+    def _category_callback(self, category: str):
+        async def callback(interaction: discord.Interaction) -> None:
+            if interaction.guild is None:
+                await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
+                return
+            products = get_guild_data("products.json", interaction.guild.id, {})
+            if not isinstance(products, dict):
+                products = {}
+            label = PURCHASE_CATEGORIES[category][0]
+            view = PurchaseProductView(self.cog, category, products)
+            embed = discord.Embed(
+                title=f"{EMOJI_COMPRA} Catálogo · {label}",
+                description=(
+                    f"Selecciona el producto de **{label}** que deseas comprar.\n"
+                    f"{EMOJI_CARGANDO} El catálogo muestra únicamente productos con stock."
+                ),
+                color=discord.Color.from_str("#8B5CF6"),
+            )
+            embed.set_footer(text="DATASHOP · Compra segura")
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        return callback
+
+
 class TicketRatingView(discord.ui.View):
     """Persistent rating controls; custom IDs can be restored after a restart."""
 
@@ -375,6 +521,33 @@ class TicketPanelView(discord.ui.View):
         super().__init__(timeout=None)
         self.cog = cog
         self.add_item(TicketTypeSelect(cog))
+
+    @discord.ui.button(
+        label="Comprar",
+        emoji=EMOJI_COMPRA,
+        style=discord.ButtonStyle.success,
+        custom_id="datashop:tickets:purchase",
+        row=1,
+    )
+    async def purchase(
+        self,
+        interaction: discord.Interaction,
+        _button: discord.ui.Button,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("Este panel solo funciona dentro de un servidor.", ephemeral=True)
+            return
+        embed = discord.Embed(
+            title=f"{EMOJI_COMPRA} Centro de compras DATASHOP",
+            description=(
+                "Selecciona una categoría para ver sus productos.\n\n"
+                + "\n".join(f"{emoji} **{label}**" for label, emoji in PURCHASE_CATEGORIES.values())
+                + f"\n\n{EMOJI_TARJETA} El equipo confirmará el método de pago dentro del ticket."
+            ),
+            color=discord.Color.from_str("#8B5CF6"),
+        )
+        embed.set_footer(text="DATASHOP · Selecciona una categoría")
+        await interaction.response.send_message(embed=embed, view=PurchaseCategoryView(self.cog), ephemeral=True)
 
     @discord.ui.button(
         label="Abrir ticket de soporte",
@@ -1021,7 +1194,7 @@ class Tickets(commands.Cog):
     async def ticket(self, ctx: commands.Context) -> None:
         await send_context(
             ctx,
-            "Comandos: ticket setup, close, claim, unclaim, reopen, add, remove y transcript.",
+            "Comandos: ticket setup, product-category, close, claim, unclaim, reopen, add, remove y transcript.",
             ephemeral=ctx.interaction is not None,
         )
 
@@ -1070,8 +1243,37 @@ class Tickets(commands.Cog):
             value="Recuerda ser claro y respetuoso en tu mensaje. No compartas contraseñas, tokens ni datos completos de tarjetas.",
             inline=False,
         )
-        embed.set_footer(text="Selecciona el tipo de ticket en el menú desplegable para continuar.")
+        embed.set_footer(text="Pulsa Comprar para elegir una categoría y un producto, o usa el menú para soporte y otras solicitudes.")
         await send_context(ctx, embed=embed, view=TicketPanelView(self))
+
+    @ticket.command(name="product-category", description="Asigna un producto del catálogo a una categoría del panel de compra.")
+    async def set_product_category(self, ctx: commands.Context, product_id: str, category: str) -> None:
+        if not isinstance(ctx.guild, discord.Guild) or not isinstance(ctx.author, discord.Member):
+            await send_context(ctx, "Este comando solo funciona dentro de un servidor.")
+            return
+        if not ctx.author.guild_permissions.manage_guild:
+            await send_context(ctx, "Necesitas Gestionar servidor para organizar el catálogo.")
+            return
+        category = category.strip().casefold()
+        if category not in PURCHASE_CATEGORIES:
+            await send_context(ctx, "Categorías válidas: streaming, discord, ia, pavos, robux, cuentas, minecraft.")
+            return
+        products = get_guild_data("products.json", ctx.guild.id, {})
+        if not isinstance(products, dict):
+            products = {}
+        key = product_id.strip().upper()
+        item = products.get(key)
+        if not isinstance(item, dict):
+            await send_context(ctx, "No encontré ese ID de producto. Consulta el catálogo con !shop list.")
+            return
+        item["category"] = category
+        products[key] = item
+        try:
+            set_guild_data("products.json", ctx.guild.id, products)
+        except RuntimeError:
+            await send_context(ctx, "No pude guardar la categoría. Inténtalo de nuevo.")
+            return
+        await send_context(ctx, f"✅ **{item.get('name', key)}** quedó asignado a **{PURCHASE_CATEGORIES[category][0]}**.")
 
     @ticket.command(name="close", description="Cierra el ticket actual.")
     async def close(self, ctx: commands.Context) -> None:
