@@ -14,10 +14,10 @@ async function run(message, args) {
   if(!name) return;
   if(name==='ping') return reply(`🏓 Pong: **${message.client.ws.ping} ms**`);
   if(name==='ayuda' || name==='help') return reply({embeds:[embed(g,'📚 DATASHOP · Comandos',[
-    '**General**: `!ping`, `!ayuda`, `!tienda`, `!metodos`, `!userinfo @usuario`, `!serverinfo`, `!sugerencia texto`, `!encuesta pregunta | opción 1 | opción 2`,
-    '**Tienda (staff)**: `!producto agregar "Nombre" precio [stock]`, `!producto stock "Nombre" cantidad`, `!producto quitar "Nombre"`, `!venta @cliente monto "producto"`,
-    '**Tickets**: `!ticketpanel`, dentro de un ticket `!cerrar`,
-    '**Moderación**: `!ban @usuario razón`, `!kick @usuario razón`, `!timeout @usuario 10m razón`, `!clear 20`, `!warn @usuario razón`, `!lock`, `!unlock`,
+    '**General**: `!ping`, `!ayuda`, `!tienda`, `!metodos`, `!userinfo @usuario`, `!serverinfo`, `!sugerencia texto`, `!encuesta pregunta | opción 1 | opción 2`',
+    '**Tienda (staff)**: `!producto agregar "Nombre" precio [stock]`, `!producto stock "Nombre" cantidad`, `!producto quitar "Nombre"`, `!venta @cliente monto "producto"`',
+    '**Tickets**: `!ticketpanel`, dentro de un ticket `!cerrar`',
+    '**Moderación**: `!ban @usuario razón`, `!kick @usuario razón`, `!timeout @usuario 10m razón`, `!clear 20`, `!warn @usuario razón`, `!lock`, `!unlock`',
     '**Administración**: `/templane todo`, `!say texto`, `!setcanal logs|shop|methods|suggestions|vouches`'
   ].join('\n\n'))]});
   if(name==='tienda' || name==='shop'){
